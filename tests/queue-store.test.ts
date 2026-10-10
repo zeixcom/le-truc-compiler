@@ -14,6 +14,7 @@ import {
 	chainOrder,
 	checkStore,
 	claimTaskStore,
+	flatChain,
 	loadStore,
 	parseTaskFile,
 	pickStore,
@@ -51,10 +52,23 @@ const ITERATION = `# Iteration — test
 - **Second track** TC-104
 `
 
-const scaffold = (): string => {
+// The double-card bug's shape (owner ruling 2026-10-10): the second track
+// cites TC-101 in prose — a citation is not a position, TC-104's is the only
+// one the track names.
+const CITED_ITERATION = `# Iteration — test
+
+**Next free task ID:** TC-900
+
+**The chain.**
+
+- **First track** TC-101 → TC-102 ∥ TC-103
+- **Second track** behind TC-101, whose helper dissolves the closures first: 1. TC-104
+`
+
+const scaffold = (iteration: string = ITERATION): string => {
 	const root = mkdtempSync(join(tmpdir(), 'queue-store-'))
 	mkdirSync(join(root, 'queue'))
-	writeFileSync(join(root, 'queue', 'ITERATION.md'), ITERATION)
+	writeFileSync(join(root, 'queue', 'ITERATION.md'), iteration)
 	writeFileSync(join(root, 'queue', 'BANDS.md'), '# Backlog\n\n## P1 — next\n')
 	writeFileSync(join(root, 'queue', 'LEDGER.md'), '# Done\n')
 	return root
@@ -71,8 +85,8 @@ afterAll(() => {
 	for (const root of cleanup) rmSync(root, { recursive: true, force: true })
 })
 
-const store = (): string => {
-	const root = scaffold()
+const store = (iteration: string = ITERATION): string => {
+	const root = scaffold(iteration)
 	cleanup.push(root)
 	return root
 }
@@ -105,6 +119,67 @@ describe('chain parsing', () => {
 		expect(tracks.map(t => t.name)).toEqual(['First track', 'Second track'])
 		expect(tracks[0]?.ids).toEqual(['TC-101', 'TC-102', 'TC-103'])
 		expect(tracks[1]?.ids).toEqual(['TC-104'])
+	})
+})
+
+describe('first-mention chain positions (2026-10-10)', () => {
+	test('a prose citation of another track adds no position', () => {
+		const { tracks } = chainOrder(CITED_ITERATION)
+		expect(tracks.map(t => t.name)).toEqual(['First track', 'Second track'])
+		expect(tracks[0]?.ids).toEqual(['TC-101', 'TC-102', 'TC-103'])
+		expect(tracks[1]?.ids).toEqual(['TC-104'])
+		expect(flatChain(loadStore(store(CITED_ITERATION)))).toEqual([
+			'TC-101',
+			'TC-102',
+			'TC-103',
+			'TC-104',
+		])
+	})
+
+	test('a repeated id inside one track keeps its first position', () => {
+		const doubled = ITERATION.replace(
+			'- **First track** TC-101 → TC-102 ∥ TC-103',
+			'- **First track** TC-101 → TC-101 ∥ TC-103',
+		)
+		const { tracks, duplicates } = chainOrder(doubled)
+		expect(tracks[0]?.ids).toEqual(['TC-101', 'TC-103'])
+		expect(duplicates).toEqual([{ id: 'TC-101', tracks: ['First track'] }])
+	})
+
+	test('the board renders a cited task exactly once', () => {
+		const root = store(CITED_ITERATION)
+		write(root, 'TC-101', { status: 'in-progress' })
+		write(root, 'TC-102', {})
+		write(root, 'TC-104', { needs: 'TC-101' })
+		const snap = boardSnapshot(loadStore(root))
+		const placed = snap.lanes.flatMap(l => l.tasks)
+		expect(placed.filter(t => t.id === 'TC-101')).toHaveLength(1)
+		const inProgress = snap.lanes.find(l => l.key === 'in-progress')?.tasks
+		expect(inProgress?.map(t => t.id)).toEqual(['TC-101'])
+	})
+
+	test('check flags an id the chain names at more than one position', () => {
+		const root = store(CITED_ITERATION)
+		for (const id of ['TC-101', 'TC-102', 'TC-103', 'TC-104'])
+			write(root, id, {})
+		buildViews(root)
+		const { problems } = checkStore(root)
+		expect(
+			problems.some(
+				p =>
+					p.includes('TC-101 at more than one position') &&
+					p.includes('First track') &&
+					p.includes('Second track'),
+			),
+		).toBe(true)
+	})
+
+	test('check stays silent for a duplicate-free chain', () => {
+		const root = store()
+		for (const id of ['TC-101', 'TC-102', 'TC-103', 'TC-104'])
+			write(root, id, {})
+		buildViews(root)
+		expect(checkStore(root).problems).toEqual([])
 	})
 })
 
