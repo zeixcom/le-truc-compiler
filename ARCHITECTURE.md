@@ -1,17 +1,17 @@
 # The Le Truc Component Compiler
 
 > High-level overview of the inlined component compiler for Le Truc
-> (`server/compiler/`): how the pipeline works, which symbols the public
+> (`src/`): how the pipeline works, which symbols the public
 > contract publishes (§ 2), how the two front ends relate
 > to their parsers, how the server half is evaluated (tiered — value harness,
 > Server Simulation, or neither), how type checking and diagnostics flow back
-> to the author, and how it is embedded in the server build infrastructure.
-> Companion documents: `server/SERVER.md` (build-pipeline integration), ADR
-> 0024 (format decisions), ADR 0032 (the dual front end), ADR 0027 (Server
-> Simulation), ADR 0029 (tiered server evaluation), `server/TESTS.md` (test
-> strategy), `VOCABULARY_LEDGER.md` (which names are surface-neutral and which
-> name `.tsrx` on purpose — read it before renaming anything here). Symbol
-> names are stable anchors; avoid citing line numbers.
+> to the author, and how it is embedded in the build infrastructure.
+> Companion documents: `HOST_PROFILE.md` (host decisions for both authored
+> surfaces) and `CONTEXT.md` (the vocabulary ledger — which names are
+> surface-neutral and which name `.tsrx` on purpose; read it before renaming
+> anything here). ADRs are cited by number; their records live in the
+> sibling `le-truc` checkout (v3 branch) — this repo carries no `adr/`
+> directory yet. Symbol names are stable anchors; avoid citing line numbers.
 
 ## 1. What this compiler is
 
@@ -30,9 +30,10 @@ remapping tables:
 Two authored surfaces feed one shared machinery layer and compile to the
 same artifacts (ADR 0032):
 
-- **`.tsx` — the default.** Parsed by the repo's `typescript` dependency
-  (`ts.createSourceFile`, `ScriptKind.TSX`), converted to estree by
-  `@typescript-eslint/typescript-estree`. One exported component function
+- **`.tsx` — the default.** Parsed by
+  `@typescript-eslint/typescript-estree`'s public `parse()`, normalized
+  onto the machinery's own `AstNode` shape (`to-estree.ts`). One exported
+  component function
   per file: its first destructured parameter is the server args (its type
   is what compose sites check against), an optional second destructured
   parameter is the author-annotated factory context (`, { host, expose }:
@@ -61,7 +62,7 @@ registry. A corpus folder may carry a **variant set** — one `.tsrx` and one
 `.tsx` spelling of one tag, same base name, same directory (ADR 0039) — which
 compiles both and serves one; any other tag that two sources declare fails
 the compile naming both files (LTC048). The parity suite
-(`server/tests/compiler/tsx/parity.test.ts`) is the standing equivalence
+(`tests/tsx/parity.test.ts`) is the standing equivalence
 contract: the same component authored in both surfaces must render
 byte-identically and diagnose identically (its sibling
 `diagnostic-parity.test.ts`, LT-242), which is what keeps the surfaces from
@@ -77,9 +78,11 @@ ambient via each surface's profile (`globals.d.ts` for the raw `.tsrx`
 view, `host-profile.d.ts` for authored `.tsx` — ADR 0024 sub-design 16).
 
 Entry points: `frontend/tsrx/index.ts` exports
-`compileComponent(source, filename, registry, childImports?, composeRegistry?)`
-and `frontend/tsx/index.ts` exports `compileComponentTsx` with the same
-signature. Both are thin shells over the shared `compileFromIR`
+`compileComponent(source, filename, registry, childImports?,
+composeRegistry?, emitPaths?)` and `frontend/tsx/index.ts` exports
+`compileComponentTsx` with the same signature — both take the emitters'
+`EmitPaths` as a sixth parameter, defaulting to `DEFAULT_EMIT_PATHS`.
+Both are thin shells over the shared `compileFromIR`
 (`pipeline.ts`), differing only in which front end parses the source, so a
 pipeline change cannot drift between surfaces. That shared seam is
 internal, and so are both front ends since D-32 (LT-480): the published
@@ -93,7 +96,7 @@ logs and moves on).
 Each surface owns one parser dependency, and the two isolate each other's
 churn:
 
-- **`.tsrx` pins `@tsrx/core`** (currently 0.1.63; ADR 0024 sub-design 2).
+- **`.tsrx` pins `@tsrx/core`** (currently 0.2.3; ADR 0024 sub-design 2).
   `core.ts` is the **only** module importing its *values*; siblings import
   no types from it at all — the machinery walks its own `AstNode`
   (`ast-node.ts`, LT-271). `core-shim.d.ts` is
@@ -101,14 +104,16 @@ churn:
   shim only. The pin lags the upstream docs; when a construct the docs
   describe fails to parse, `frontend/tsrx/compiler.ts`'s `newerGrammarHint`
   names the gap.
-- **`.tsx` parses with the repo's `typescript` package** through
-  `frontend/tsx/to-estree.ts`, the one `typescript`-API leaf. The
-  TS→estree conversion is `@typescript-eslint/typescript-estree`'s (which
-  tracks `typescript`-major AST drift); the module only normalizes its
-  output onto the shape the shared stages read. A `typescript` bump waits
-  for a typescript-estree release whose peer range covers it, and neither
-  parser's churn can reach the `.tsrx` front end, whose pinned parser's churn cannot reach
-  `.tsx`.
+- **`.tsx` parses with `@typescript-eslint/typescript-estree`** through
+  `frontend/tsx/to-estree.ts`, the one typescript-estree leaf: the module
+  calls the converter's own `parse()` (which tracks `typescript`-major AST
+  drift) and normalizes its output onto the shape the shared stages read.
+  No module under `src/` invokes the `typescript` package directly — it is
+  the parser typescript-estree tracks and the ambient types authored `.tsx`
+  compiles against, which is why it is a peer at all. A `typescript` bump
+  waits for a typescript-estree release whose peer range covers it, and
+  neither parser's churn can reach the `.tsrx` front end, whose pinned
+  parser's churn cannot reach `.tsx`.
 
 ### Grounding an agent
 
@@ -138,8 +143,8 @@ strict ambient profile (`frontend/tsx/host-profile.d.ts`,
 ┌──────────────┴────────────────┐  ┌─────────────┴───────────────┐
 │ TSX FRONT END                 │  │ TSRX FRONT END              │
 │ compiler-tsx.ts               │  │ compiler.ts                 │
-│ parse: typescript package     │  │ parse: @tsrx/core (pinned,  │
-│   (+ typescript-estree)       │  │   via core.ts)              │
+│ parse: typescript-estree      │  │ parse: @tsrx/core (pinned,  │
+│   (via to-estree.ts)          │  │   via core.ts)              │
 │ control-flow dispatch         │  │ control-flow dispatch       │
 │   (lower-tsx.ts)              │  │   (lower-template.ts)       │
 │ ternary/&& → if               │  │ @if @switch @try @for       │
@@ -188,8 +193,8 @@ strict ambient profile (`frontend/tsx/host-profile.d.ts`,
 this order and validates composed elements against the corpus-wide
 `composeRegistry` before analysis; both front ends run it, so the two
 surfaces cannot drift after lowering. The two-pass corpus orchestration
-(registry discovery, then real compilation) lives in the consumer,
-`server/effects/compile.ts` (§ 7).
+(registry discovery, then real compilation) lives in `corpus.ts`
+(`compileCorpus`, § 7).
 
 ### The front-end seam and the public contract
 
@@ -241,7 +246,7 @@ public-API decision; shrinking it is a breaking one. Either change fails the
 test until the lists move with it. Both front ends stay internal (D-32 — the
 corpus entry point is the published surface); the `.tsrx` input surface is
 **experimental** — it compiles and ships, and it may change or be removed in
-any minor release while so labeled ([ADR 0034](../../adr/0034-distribution-compiler-package-and-template-emission.md) s2).
+any minor release while so labeled (ADR 0034 s2).
 
 **The result.** `compileCorpus(config)` returns a `CorpusResult`:
 `diagnostics` — every diagnostic both passes reported, errors included; the
@@ -252,7 +257,8 @@ zeroes), the locales the translation census walked, and its gap count. The
 artifacts are files, not return values: the generated
 `*.server.ts`/`*.client.ts`/`*.css` per component, `registry.json` (the
 public projection — that projection IS the file's schema), the `i18n`
-module, and `tsrx-imports.d.ts` where the corpus carries `.tsrx` sources.
+module, `tsrx-imports.d.ts` (written on every corpus run), and the
+translation census's `i18n-report.json` beside the registry.
 An error diagnostic refuses its file: the component is dropped from the
 registry and never shipped wrong.
 
@@ -291,7 +297,9 @@ statically. The compiler refuses through two shapes:
   the tier classifier routes the component on it. Fields:
   - `origin` — which refusal produced the signal. The retired diagnostic
     spellings (`LTC004`, `LTC013`, `LTC043`) survive as census provenance;
-    `compose-read` and `unavailable-substrate` were never diagnostics.
+    `LTC034` is the one spelling that is ALSO a live diagnostic (its severe
+    per-expression form, § 6); `compose-read` and `unavailable-substrate`
+    were never diagnostics.
   - `resolution` — `{ by: 'realm' }` when the simulation realm answers the
     expression for real; `{ by: 'none', limb, reason }` when no server phase
     can answer it in any tier, with the limb (`stubbed-api` or
@@ -331,8 +339,9 @@ text. Its points:
 - New `DiagnosticCode` members are additive — a minor release. Renames,
   removals, and tightened required shapes in the designated set are major.
 - Diagnostic codes are public API at first publish, and a number is never
-  reused. `VOCABULARY_LEDGER.md` is the spent-number ledger.
-- Everything else under `server/compiler/` — the IR and `compileFromIR`
+  reused; retired spellings stay in `DiagnosticCode`'s union
+  (`diagnostics.ts`), and name dispositions live in `CONTEXT.md`.
+- Everything else under `src/` — the IR and `compileFromIR`
   included, and `compileComponentTsx` with them — is internal and may
   change in any release, including a patch release.
 - The two authored input surfaces carry different labels (ADR 0034 s2,
@@ -343,15 +352,16 @@ text. Its points:
   `compileCorpus`, so there is no `.tsrx` entry point to gate.
 
 **The published package** (LT-254, ADR 0034 s1–s2, s8). The compiler ships
-as `@zeix/le-truc-compiler`, assembled from `compiler/`: `bun run
-build:compiler` emits JS plus declarations for everything under
-`server/compiler/` into `compiler/dist` (normalizing the sources'
+as `@zeix/le-truc-compiler`, assembled from the repo root: `bun run
+build` emits JS plus declarations for everything under `src/` into `dist`
+(normalizing the sources'
 bundler-style extensionless relative imports to `.js`), and the manifest's
-`exports` map names exactly three surfaces — the root entry (the built
+`exports` map names three code surfaces — the root entry (the built
 `contract.ts`: the corpus pass and its types), `./macros` (the compile-time
 markers, carrying no dependency of the compiler's), and `./runtime` (the
 value harness the generated server modules import — not consumer API, which
-is why the stability policy does not name it). `npm pack` of `compiler/`
+is why the stability policy does not name it) — plus the conventional
+`./package.json` entry. `npm pack` from the repo root
 produces the tarball; `bun run check:package` proves it end to end in an
 empty project: install, compile a three-component corpus through the
 published entry point with no `runtimeImport` set (the default is the
@@ -397,8 +407,8 @@ projection with the routed tiers, the diagnostics return the refusal
 `render<Name>`. The run goes through the repo's own module paths;
 re-running it against the published package's exports belongs to the
 packaging step, not to this check. The same run carries the D-33 pin
-(LT-377): it rebuilds the package (`build:compiler`) and scans every
-emitted `.d.ts` under `compiler/dist` for imports from `typescript` or
+(LT-377): it rebuilds the package (`build`) and scans every
+emitted `.d.ts` under `dist` for imports from `typescript` or
 `@typescript-eslint/*` — no TypeScript type reaches the published
 declarations (ADR 0034 s8), so the engine swap behind the converter
 (ADR 0032 s4) stays a non-breaking change.
@@ -418,6 +428,7 @@ front-end modules, then the two front ends:
 | `frontend/tsx/index.ts` | `.tsx` front end: `compileComponentTsx` = `compileSourceTsx` + the shared pipeline (internal since D-32 — `contract.ts` publishes the corpus entry point instead) |
 | `ir.ts` | Pure-data type leaf: the whole IR vocabulary (`ComponentIR`, `TemplateNode`, `AttributeIR`, `SignalIR`, `ForIR`, `ConfigIR`, …) — no function-bearing types, so a `ComponentIR` is serializable (LT-244, pinned by `ir-leaf.test.ts`) |
 | `extract-context.ts` | The front end's mutable per-source state: `ExtractContext` and `createExtractContext` (LT-244, evicted from `ir.ts`) |
+| `ast-node.ts` | The machinery's own loose estree `AstNode` type both front ends normalize onto (LT-271) — no parser's types cross this leaf |
 | `module-scans.ts` | Front-end-neutral whole-module scans: malformed selectors (LTC026), deferred collector calls (LTC045), `'@zeix/le-truc'` import mismatches (LTC036/037) |
 | `params.ts` | The params contract (`extractParams`): the destructured args object (LTC008) plus the LT-209 factory-context parameter |
 | `setup-extraction.ts` | The setup-statement loop (`extractSetup`), its per-item twin for a reactive list's body (`extractItemSetup`, ADR 0046 s5) and context seeding (`seedExtractionContext`) |
@@ -428,12 +439,13 @@ front-end modules, then the two front ends:
 | `ast-utils.ts` | Shared AST predicates, text-extraction helpers, and the one estree child enumeration every walk runs on (`forEachChild`/`walkNodes`: child keys from `eslint-visitor-keys`, type positions skipped unless a site opts into `'descend'`) plus the scope-aware free-identifier walk (`forEachFreeIdentifier`) |
 | `vocabulary.ts` | The recognized-name tables (signal constructors, context members, parser factories, real exports, reserved/managed prop names, JS/DOM globals) those walks consult |
 | `walk.ts` | Generic structural `TemplateNode` visitor (`walkTemplate`, `collectAttrs`, `collectComposeElements`) |
+| `children-region.ts` | The Children Region (ADR 0048 s1, LT-472): `data-children` marker ownership at compose sites, `excludeUnlessOwned`, and the `childrenRegion` shapes the registry carries |
 | `frontend/tsrx/compiler.ts` | `.tsrx` front end: the `@tsrx/core` parse (`newerGrammarHint` on failure) and the `.tsrx` `SurfaceAdapter` (the `@{ }` body splits into setup + output; the React JSX near-miss pre-scan; the lazy-pattern scan retired at the 0.2 pin — the grammar now rejects the construct itself) |
 | `frontend/tsrx/lower-template.ts` | `.tsrx` directives (`@if`/`@switch`/`@try`/`@for`) → `TemplateNode` IR; parses each directive's header and hands the rest to `lower-shared.ts` |
 | `frontend/tsrx/globals.d.ts` | Ambient FactoryContext vocabulary for the raw `.tsrx` view; parity-tested against `vocabulary` |
-| `frontend/tsx/compiler-tsx.ts` | `.tsx` front end: the TS parse and the `.tsx` `SurfaceAdapter` (statements + single `return` split, `css` recognition through the marker bindings) |
+| `frontend/tsx/compiler-tsx.ts` | `.tsx` front end: the estree parse and the `.tsx` `SurfaceAdapter` (statements + single `return` split, `css` recognition through the marker bindings) |
 | `frontend/tsx/lower-tsx.ts` | `.tsx` expression shapes → `TemplateNode` IR; shape-based switch-IIFE recognition (`asIife`, `lowerSwitchIife`); `<truc:try>` recognition (ADR 0041) |
-| `frontend/tsx/to-estree.ts` | `typescript` parse → `@typescript-eslint/typescript-estree` conversion → normalization onto the shared `AstNode` shape — the only `typescript`-API leaf |
+| `frontend/tsx/to-estree.ts` | `@typescript-eslint/typescript-estree`'s `parse()` → normalization onto the shared `AstNode` shape — the one typescript-estree leaf; no module under `src/` invokes the `typescript` package directly |
 | `frontend/tsx/host-profile.d.ts` | The strict authored-`.tsx` ambient profile: FactoryContext vocabulary plus the strict per-element `JSX.IntrinsicElements` light-DOM contract (migrations extend it in the same commit). It declares no `css` — the tag is an import from `macros.ts`. Never in one `tsc` program with `globals.d.ts` |
 | `core.ts` | The only `@tsrx/core` value-import leaf (`.tsrx` front end only) |
 | `core-shim.d.ts` | Type shim for the pinned `@tsrx/core` |
@@ -442,7 +454,7 @@ front-end modules, then the two front ends:
 | `evaluability.ts` | `dependenciesOf` + `isServerEvaluable` — the server-known dependency-closure rule; host-derived fold helpers. Under ADR 0029 this is also the first conjunct of the **tier classifier** (§ 5) |
 | `fold-inputs.ts` | The partial-readiness invariant (ADR 0034 s4, LT-258): the ONE declaration of the closed page-ambient set (`PAGE_AMBIENT_TYPES`, which also writes the generated `I18n` interface) and the page-context globals; `checkFoldInputs` (LTC054 over every server-evaluated position, run by `pipeline.ts`; also LTC033 on a server-data loop's items, the one LTC033 site that needs the loop's outer scope — LT-326), `ambientRecordViolations` (LTC054 at the params pattern), `assertFoldScopeClosed` (throws if `serverKnown` gains a non-own, undeclared name) |
 | `i18n.ts` | The reserved `i18n` parameter's compiler vocabulary: `export const i18n` extraction (quoted keys included; each value parsed as an ICU pattern, its argument signature on the extraction result as `i18nArgs`), the `lang` binding/default lookup, and `reportMessageCallSites` (LTC055: every `t.<key>` site against its pattern's arguments, LT-250) |
-| `icu/parse.ts` | ICU MessageFormat 1 at build time (ADR 0030 s4, LT-250): `@messageformat/parser` → the evaluator's JSON AST, `::` skeletons resolved to plain `Intl` options, the argument signature (`MessageArg`); an unsupported construct is a reasoned parse failure. `@messageformat/core` is never imported under `server/compiler/` — it is the test oracle (`icu.test.ts`) |
+| `icu/parse.ts` | ICU MessageFormat 1 at build time (ADR 0030 s4, LT-250): `@messageformat/parser` → the evaluator's JSON AST, `::` skeletons resolved to plain `Intl` options, the argument signature (`MessageArg`); an unsupported construct is a reasoned parse failure. `@messageformat/core` is never imported under `src/` — it is the test oracle (`icu.test.ts`) |
 | `icu/evaluate.ts` | `formatMessage` — the ONE evaluator, dependency-free so it can be inlined: the server fold reaches it through the generated `i18n` module's `t`; `emit-client.ts` inlines a narrowed copy into the message preamble (LT-218). `bakeMessageEnv` folds the record's `timeZone` and `currency` (never the locale, which the root `lang` carries) into a message the client channel serializes (`runtime.ts`'s `clientMessages`, which leaves out every key equal to the source record `icu/parse.ts`'s `clientSourceRecord` builds) |
 | `infer-type.ts` | Signal value-type inference |
 | `list-item.ts` | The per-field harvest's front-end half (ADR 0046 s7, LT-429): a `createList` item type read without a checker (`resolveListItem` — the first type argument, else the seed arg annotation's element type, through a same-file alias or `interface`; each field's inferred parser), the module's own type declarations (`collectModuleTypes`), and the `harvest()` marker call in either form (`harvestCallOf`, resolved by binding through `markerOf` — the list map, and LT-443's scalar parser) |
@@ -455,25 +467,34 @@ front-end modules, then the two front ends:
 | `emit-paths.ts` | `EmitPaths` + `DEFAULT_EMIT_PATHS`: the two facts the emitters take from the configuration. A leaf with no `node:` import, because the browser bundle reaches it |
 | `registry.ts` | The registry pair (D-32): the public `RegistryEntry` projection — exactly the `registry.json` schema — and the internal `InternalRegistryEntry` (compose validation, routing, i18n declarations) that serializes to the `registry.internal.json` sidecar; `registryJson`/`internalRegistryJson` |
 | `corpus.ts` | The corpus pass (§ 7): the published `compileCorpus(config)` and the internal `compileCorpusFiles(files, config)` — both corpus passes, variant sets, the contamination fixpoint, the registry pair, `tsrx-imports.d.ts`, the i18n write and the `CorpusResult`/`CorpusSummary` it returns |
+| `tsrx-imports.ts` | The `tsrx-imports.d.ts` generator (LT-312/LT-325): compose-import typings, `'truc:pass'` keys, `HTMLElementTagNameMap` entries |
 | `corpus-scan.ts` | Corpus discovery (§ 7.1): `loadCorpusConfig` (the boundary walk, LT-273), `collectCorpusSources`, `collectSiblingModules`, the `CorpusFile` the pass consumes |
 | `i18n-catalog.ts` | The catalog pipeline's corpus half (ADR 0030 s4+s5): `readCatalogs`, `collectI18n`, `syncLocale`, the generated `i18n` module writer and the census report |
-| `fs.ts` | The package's file-system seam (D-32): the shared glob translator and the node-portable read/write/scan surface the corpus pass goes through — the ONE place under `server/compiler/` that touches a disk |
+| `fs.ts` | The package's file-system seam (D-32): the shared glob translator and the node-portable read/write/scan surface the corpus pass goes through — the ONE place under `src/` that touches a disk |
 | `analysis/plan.ts` | `ClientPlan` types, `PassShared` assembly, `analyzeClient` orchestration |
 | `analysis/selectors.ts` | Pure selector POLICY: synthesis, candidate order, union/compose addressing; the ENGINE (matching, counting, existence) runs on the materialized probe |
 | `analysis/probe.ts` | The materialized-probe selector engine (ADR 0045): template IR → HTML (each element stamped with its exclusive-arm path) → parse5 → css-select, aggregated max-over-arms |
 | `analysis/compose-refs.ts` | Registry-aware resolution of `first()` references addressing composed children |
 | `analysis/handler-args.ts` | Handler args (LT-461): the child's placements for its registry entry (`handlerPlacementsOf` — selectors proven with composed markup unknown), and the parent's resolution of a compose-site handler through that record, across forwards (`resolveHandlerPlacements`, `joinSelector`) |
+| `analysis/content-model.ts` | The content model (ADR 0048 s4, LTC085): interactive content refused at compose sites of `'non-interactive'` children, transitively through the registry |
+| `analysis/role-writes.ts` | One writer per property (ADR 0048 s3, LTC084): `roleWrites` collection and the parent-binding conflict check |
 | `analysis/naming.ts` | `uniqueName`, `addQuery` (query table + name allocation) |
+| `analysis/server-only-names.ts` | The LTC005 server-only-name check (`reportServerOnlyNames`) as a stateless leaf every pass reports through, with its managed-prop reader (`managedPropRead`) and the submittable-control tag table |
+| `analysis/thunk-types.ts` | The thunk-body number predicate `returnsNumber` (LT-126/LT-443) shared by loop and effect planning |
 | `analysis/harvest.ts` | Passes 2+3: render sites (`collectRenderSites`), harvest-plan selection and arg→DOM-site substitution (`planHarvests`) |
 | `analysis/list-harvest.ts` | Pass 3's per-field plan for a list seeded from server args (ADR 0046 s7, LT-429): each field's site in the adopted item (`data-key`, else the first text child or reactive attribute reading exactly the field) and its parser; LTC072/LTC076, LTC059 per field. The key-alias plan (ADR 0047, LT-453, `planKeyAliasHarvest`): the same field plan read from the alias scope, the container path through the enclosing list items, LTC080 |
 | `key-alias.ts` | The key alias's syntactic half (ADR 0047, LT-453), shared by Pass 3 and the server emitter: which host-level lists the alias may harvest (`isAliasHarvestable`), every `list.byKey(…)` read in an item setup (`byKeyReadsOf`), and the alias scope the witness records (`aliasScopeOf`) |
 | `analysis/loops.ts` | Passes 1+1b: `each()` (`runEachLoops`) and `reconcile()` (`runReconcileLoops`) planning |
 | `analysis/effects.ts` | Pass 4: document-ordered per-construct effect planning |
+| `initial-winner.ts` | The compile-time initial arm of every conditional (ADR 0043 s4): what the server renders live beside the inert arm templates |
+| `compose-attrs.ts` | Compose-site `class`/`id`/`data-*` post-processing applied to a composed child's rendered root (`composeHostAttrs`); re-exported through `runtime.ts` for generated markup |
 | `emit-server.ts` | `ComponentIR` → server render module |
 | `emit-client.ts` | `ComponentIR` + `ClientPlan` → client factory module |
 | `codegen.ts` | The shared code-generation kit (LT-234): `jsString`/`jsTemplate` (the only sanctioned way to put an author string into generated source), `HtmlWriter` (one push argument's markup), `CodeBuilder` (lines, depth and span offset of a generated block) |
 | `spans.ts` | Generated↔source span recording + lookup |
 | `tier.ts` | The tier classifier (§ 5): routing signals in, the component's tier + recorded reasons out |
+| `css-scope.ts` | Scoped emission of authored `@scope` CSS (ADR 0033): native vs. flat lowering by `cssTargets` (LTC089), the sheet-contract findings (LTC071/087/088), the lightningcss partitioning emission |
+| `css-tree.d.ts` | Ambient types for the pinned `css-tree` (the LTC065 grammar check) |
 | `indent.ts` / `css.ts` | Template-literal-safe line classification and `commonIndent` / the `<style>` parse (lightningcss + the css-tree grammar check: LTC064 no parse, LTC065 declaration warnings) and dedent |
 | `diagnostics.ts` | Diagnostic codes (`LTC###` plus the six `.tsrx`-grammar `TSRX###` codes), message factories |
 | `runtime.ts` | Server-evaluation harness — imported **by generated code only**, never by the compiler (also re-exports `compose-attrs.ts`, the compose-site `class`/`id` post-processing used by generated markup, and `icu/evaluate.ts`'s `formatMessage`, which the generated `i18n` module wraps around each argument message) |
@@ -489,11 +510,15 @@ the shared leaves — `vocabulary.ts`, `ast-utils.ts`, `walk.ts`, `evaluability.
 `validate-lowered.ts`, `assemble-ir.ts`, `front-end.ts`, `surface.ts`, and
 `lower-shared.ts` (which import
 no parser values by design, only the loose
-`AstNode` type) — with no runtime value cycles; the machinery does not
+`AstNode` type) — and the machinery does not
 depend on either front end. Within `analysis/`, `plan.ts` orchestrates
-`{selectors, naming, harvest, loops, effects}`, with `harvest.ts` imported
-back by `loops.ts` and `effects.ts` for a few shared signal-read predicates
-— the one edge that isn't a strict fan-out from `plan.ts`.
+`{selectors, naming, harvest, loops, effects}` over two shared leaves:
+`server-only-names.ts` (the LTC005 check) and `thunk-types.ts`
+(`returnsNumber`). Two back-edges remain, both intentional and documented
+on `effects.ts`: effects→loops (`planEachLoop` — nested Mount-Scope loops
+re-run pass-1 planning, ADR 0046 s2 / LT-424) and harvest↔list-harvest
+(the pass-2/pass-3 planning pair). Every cross-module call on those edges
+stays inside a function body, so no cycle resolves at module load.
 
 ## 4. Core data model
 
@@ -501,7 +526,8 @@ back by `loops.ts` and `effects.ts` for a few shared signal-read predicates
 emitters: name/tag/source, the verbatim destructured server args, all setup
 statements (split into signal declarations, plain consts, connect-time
 client-only statements), the verbatim `expose()` call with per-key
-classifications (Slot-backed, computed, method, Parser-backed), the lowered
+classifications (`'slot'`, `'computed'`, `'method'` — a Parser-backed
+initializer classifies as `'slot'`), the lowered
 template root, `@for` IR, dedented CSS plus the parsed stylesheet, extension `config`, type declarations,
 leading JSDoc, and the placed plain imports (`server` / `client`).
 
@@ -509,7 +535,8 @@ leading JSDoc, and the placed plain imports (`server` / `client`).
 family (ADR 0040 s2) tagged `family`: `DeclaredSignalIR` (`createCell`/
 `createState`/`createList`/`createStore` — `init` is the initializer,
 `unresolvable` set when it reads `host` with no server truth, LT-451),
-`DerivedSignalIR` (`deriveCell`/`deriveList`/`deriveStore`/`createMemo` —
+`DerivedSignalIR` (`deriveCell`/`deriveList`/`deriveStore`/`createMemo`/
+`createTask` —
 `init` is the derive expression; `createSensor` — `init` is the start
 callback, `unresolvable` set when it has no server value), and `ContextSignalIR` (`requestContext` —
 the `fallback` node and its verbatim `fallbackText`, no initializer). Every
@@ -577,7 +604,8 @@ spelling; branch-scoped `each()` is deferred. A `key` clause on a server-data lo
 **`AttributeIR`** — per-attribute: `static`, `server` (render-time expression),
 `reactive` (thunk → `watch()`), `pass` (`truc:pass={{ }}`), `class-map` /
 `style-map`, `html` (sanitized dynamic rendering), `event` (stripped
-server-side), `ref`.
+server-side), `handler-arg` (a handler arg addressed at a compose site,
+LT-461), `ref`.
 
 **Reactivity class and dependency closure** (ADR 0040 s7, LT-373) — lowering
 classifies every template expression once, by ADR 0024 s4's rule, as
@@ -665,7 +693,9 @@ Two rules worth naming because they shape both halves:
   IS the host attribute, so a second copy warns, LTC039).
 
 **`RegistryEntry`** (`registry.ts`) — the per-tag record the corpus-wide
-registry holds: source paths, emitted module texts, CSS, props type, and
+registry holds: source paths, the emitted module paths
+(`serverModule`/`clientModule`, relative to the registry file), CSS, props
+type, and
 `exposedProps` mapping every `expose()` key to an `ExposeKind` (`'slot'`,
 `'computed'`, `'method'`). This is what makes `truc:pass={{ }}` legality
 decidable at compile time (ADR 0028); a target with no entry stays on the
@@ -687,9 +717,10 @@ build's page locale. The EFFECTIVE locale renders onto the root `lang`
 attribute, exempt from LTC039 by ADR 0024 s3's root-attribute exclusion.
 Client-side, `lang` is a CONFIG attribute, not a reactive property: it is a
 built-in IDL property, so `expose()` cannot install an accessor over it
-(`prop in this` skips silently), and a compiled component MATERIALIZES the
-walked locale onto the attribute at connect — the same thing the server
-render did, so the DOM carries one answer both paths agree on.
+(`prop in this` skips silently). The server writes the effective locale
+onto the root `lang` and the client never rewrites it — the emitted
+evaluator reads its locale from `closest('[lang]')` at the first format,
+so the served attribute is the one answer both paths use.
 
 **Message resolution** (ADR 0030): a component declares each message key
 *with its source-locale string inline in the authored source, either
@@ -850,7 +881,7 @@ will be when the page is read.
 
 **Why the two facts stay separate.** Picture a component that reads
 `Math.random()` at one rendered site and is otherwise realm-answerable — the
-synthetic pin in `server/tests/compiler/suppression.test.ts`.
+synthetic pin in `tests/suppression.test.ts`.
 Component-level the Static tier would discard everything the realm could
 resolve; component-level the Simulated tier would bake the random seed into
 the page. It is the Simulated tier with one suppressed expression.
@@ -938,9 +969,9 @@ after `expose()` sees the props it installed.
 **The `argsFromAttrs` export (LT-194).** A folded module that declares the
 reserved `i18n` parameter also exports
 `argsFromAttrs(attrs): Record<string, unknown> | null` — the mapping an
-authored page occurrence's attributes need before the document-level page
-renderer (`server/effects/page-render.ts`) may replace the occurrence with
-a render call. Parser-backed props re-emit their factory expression
+authored page occurrence's attributes need before a document-level page
+renderer may replace the occurrence with a render call. No such renderer
+exists in this repo yet; the export is the contract one will consume. Parser-backed props re-emit their factory expression
 verbatim (`asString('')(attr)` — the same text `expose()` re-declares
 against the harness) when the fallback resolves at MODULE scope: its free
 names are JS globals, harness exports, or the module's own server imports.
@@ -1036,11 +1067,17 @@ throws, network attempts, console errors), and `census.ts` carries the
 **tier census** (§ 6). Both moved out of `sim/` with the seam (ADR 0035 s3):
 neither was simulation, and a build with no substrate still needs them.
 
-Two gates make simulation safe to ship: **connect must be a fixed point**
-(the driver runs the connect pass twice and requires byte-identical
-`outerHTML`), and the resolved async arm ships only when its value is
-harvestable from the markup the component itself rendered — otherwise the
-pending arm ships.
+The gate that makes simulation safe to ship is a test, not driver code:
+**connect must be a fixed point** — `tests/sim-driver.test.ts` runs the
+simulated output back through a second connect pass and requires
+byte-identical serialization, so a component that would keep changing
+after hydration never ships. Arm choice is deterministic by construction
+rather than gated: the compiler emits the initial winner
+(`initial-winner.ts`), and the serialization boundary is hermetic
+(`boundary.ts` — no IO, no timers, never-settling network stubs), so
+nothing inside the window can settle a task to override that choice; a
+reactive condition whose test reads the clock or the RNG has its replayed
+arm stripped instead (the `arms` record, LT-391, `realm.ts` above).
 
 For a Simulated-tier component `emit-server.ts` emits the same skeleton it emits
 for everyone, minus the parts of the verbatim setup re-declaration that
@@ -1070,7 +1107,7 @@ alone would drop it.
 
 The invariant that makes the flag safe is that **the emitted markup is
 byte-identical across all three tiers**, pinned corpus-wide in
-`server/tests/compiler/emit-tier.test.ts`.
+`tests/emit-tier.test.ts`.
 
 ### 5.5 The Static tier — the static skeleton
 
@@ -1093,16 +1130,20 @@ per-occurrence cost and produce nothing the client does not already correct.
 
 Two evaluating mechanisms coexist — the value harness and the realm — which
 is the hazard ADR 0027 rejected when it declined to keep the determinism gate
-alongside simulation. ADR 0029 answers it with a test rather than an argument:
-**CI renders every Folded-tier component through the realm as well and requires
-byte-identical output.** At ~1.1 ms per occurrence the whole corpus is ~4 s,
-affordable once per CI run and not paid by the build. A divergence is a build
-error against that component: either the classifier admitted a false Folded-tier,
-or the two mechanisms disagree on a shape that needs reconciling. The known
-case is `Date.now()` — `evaluability.ts` refuses it while ADR 0027 § 6 folds
-it — and it is DISSOLVED rather than resolved: neither mechanism can answer
-it, so it is unresolvable in both and omitted in both (§ 5.2 limb b). Making
-the two agree by electing the realm would have blessed the wrong answer.
+alongside simulation. ADR 0029 answers it with a test rather than an argument,
+as amended 2026-09-06 (LT-165 step 8): **`tests/equivalence-audit.test.ts`
+renders every Folded-tier component through the realm as well and PINS the
+connect diff — phase-1 render against phase-2 (post-connect) serialization —
+per component as a snapshot.** Byte identity was found structurally void (the
+client's hydration writes are real), so the diff is the record: a diff that
+grows, shrinks or moves is a snapshot regression and a review trigger — a new
+enhancement write, a changed hydration boundary — not a build error claiming
+the two mechanisms disagree. At ~1.1 ms per occurrence the whole corpus is
+~4 s, affordable once per CI run and not paid by the build. The known case is
+`Date.now()` — `evaluability.ts` refuses it while ADR 0027 § 6 folds it — and
+it is DISSOLVED rather than resolved: neither mechanism can answer it, so it
+is unresolvable in both and omitted in both (§ 5.2 limb b). Making the two
+agree by electing the realm would have blessed the wrong answer.
 
 ## 6. Type checking & diagnostics
 
@@ -1122,9 +1163,9 @@ positions are remapped onto the authored source through
 makes them import each other's real types — a missing or mistyped server arg
 is a real `tsc` diagnostic, remapped to the compose site. Authored `.tsx`
 sources skip the detour entirely: plain `tsc` checks them directly against
-`frontend/tsx/host-profile.d.ts`, with no span table and no remapping (the
-`typecheck` script compiles the corpus first, so the generated modules and
-ambients exist).
+`frontend/tsx/host-profile.d.ts`, with no span table and no remapping —
+the standing gate is `tests/tsx/typecheck.test.ts`, and the plain
+`typecheck` script typechecks this repo's own TypeScript, not the corpus.
 
 **Diagnostic locations are authored positions.** Every `CompileDiagnostic`
 producer reads the authored AST (either front end), so its range is already
@@ -1346,7 +1387,7 @@ per component, its tier and the reason — rather than as warnings:
 | `LTC004` | Simulated-tier routing signal; leaves the diagnostic channel |
 | `LTC034` non-severe | routing signal; leaves the diagnostic channel |
 | `LTC034` **severe** (`disabled`/`checked` on a real submittable control) | **survives, scoped per-expression** (LT-184) — it fires when the SITE's own resolution is `none`, so no tier resolves the value, even if another signal routes the component Simulated. Its own copy is right that this is a correctness bug rather than a flash |
-| `LTC013` → `clientOnlySetupConst`, `clientOnlySignalCompute` | Simulated-tier routing signals |
+| `LTC013` → the server-evaluation halves | Simulated-tier routing signals — origin `'LTC013'`, the specific shape in free-text details (`setup-extraction.ts`) |
 | `LTC013` → `conditionalSignalConstructor` | **unchanged** as `LTC044` — an ADR 0024 s12 format rule, not a server-evaluation guard |
 | `LTC013` → `deferredCollectorCall` | **unchanged** as `LTC045` — a client-side `NoActiveCollectorError` bug, tier-independent |
 | `LTC043` | Simulated-tier routing signal |
@@ -1365,7 +1406,7 @@ which keeps its warning (owner ruling 2026-10-08, LT-502). The tier census is a
 separate, non-zero, expected-to-grow record with its own regression story — a
 component drifting from the Folded tier to the Simulated tier is a build-cost regression worth
 seeing, and it is now visible without being miscast as a warning. The census
-rides the build-report channel (`server/compiler/census.ts`'s generic
+rides the build-report channel (`census.ts`'s generic
 `Census` records via `tierCensus`/`formatCensus`), and `check:corpus` prints it
 as its own section after the compile-warning baseline.
 
@@ -1373,7 +1414,7 @@ Message copy follows ADR 0028's lifecycle (`writer` → error-messages); severit
 follows the tiering decision recorded with each rule.
 
 **Vocabulary parity.** `vocabulary.ts`'s recognized-name sets are mirrored in
-`globals.d.ts` and pinned by `server/tests/compiler/globals.test.ts`, so the
+`globals.d.ts` and pinned by `tests/globals.test.ts`, so the
 compiler's ambient contract and the editor surface cannot drift. The `.tsx`
 profile needs no such pin: `host-profile.d.ts` derives its ambients from the
 real `@zeix/le-truc` types, and authored `.tsx` gets editor feedback through
@@ -1385,12 +1426,12 @@ the primary surface stopped needing a projection.
 The compiler is build-time tooling; `@zeix/le-truc` stays browser-only and
 never renders (ADR 0024 sub-design 7). jsdom never ships to clients.
 
-- **Corpus orchestration** (`server/compiler/corpus.ts` — the published
+- **Corpus orchestration** (`src/corpus.ts` — the published
   entry point `compileCorpus(config)` and its internal files-accepting form
   `compileCorpusFiles`, moved into the package at LT-480, D-32; the repo's
-  `server/corpus-compile.ts` is the thin fail-on-error wrapper the scripts
-  and tests call, and `server/effects/compile.ts` is the docs build's
-  reactive wrapper):
+  `tests/corpus-compile.ts` is the thin fail-on-error wrapper the scripts
+  and tests call, and `scripts/build-demo.ts` is the demo corpus build
+  wrapper):
   the scan globs every CONFIGURED source pattern (§ 7.1) — `.tsrx` and
   `.tsx` — into one file list and the pass dispatches per extension;
   pass 1 compiles every file against a registry seeded with the configured
@@ -1428,14 +1469,15 @@ never renders (ADR 0024 sub-design 7). jsdom never ships to clients.
   program. `examples/tsconfig.json` includes the file, so a `.tsx` parent
   composing or querying a still-`.tsrx` child needs no hand-written typing
   and no hand-listed client.
-- **Consumers**: `server/build.ts` (via the `index.ts` facade plus direct
-  `registry`/`spans` imports), `check:corpus` (§ 6), and the CEM build
+- **Consumers**: `tests/corpus-compile.ts` (the fail-on-error wrapper),
+  `check:corpus` (§ 6), the CEM build
   (`scripts/build-corpus.ts` — a thin caller of the published
   `compileCorpus(config)` — feeds `cem analyze`, which reads the generated
-  clients; ADR 0024 sub-design 9).
+  clients; ADR 0024 sub-design 9), and the demo build
+  (`scripts/build-demo.ts`).
 - **Runtime-neutrality gate** (ADR 0038 s2, amended by D-32/LT-480):
-  `server/tests/compiler/runtime-neutrality.test.ts` parses every non-test
-  `.ts` under `server/compiler/` — both front ends and the shared machinery
+  `tests/runtime-neutrality.test.ts` parses every non-test
+  `.ts` under `src/` — both front ends and the shared machinery
   — and fails on a `Bun` global, any `import.meta`, or a built-in module
   specifier other than `node:path` — except in the package's own
   file-system seam (`fs.ts`: `node:fs`/`node:fs/promises`;
@@ -1444,28 +1486,29 @@ never renders (ADR 0024 sub-design 7). jsdom never ships to clients.
   dynamic `import(…)`. Third-party dependencies are out of scope. Browser
   loadability is not a compiler requirement; ADR 0025 s6 owns any bundle
   gate.
-- **Golden tests** (`server/tests/compiler/*.golden.test.ts`) pin server renders,
-  CSS bytes, client snapshots, and diagnostics for the corpus; regenerate
-  the client snapshots with
-  `UPDATE_SNAPSHOTS=1 bun test server/tests/compiler/client.golden.test.ts`. The fixture-pinned
+- **Golden tests** (`tests/server.golden.test.ts`, `tests/client.golden.test.ts`,
+  `tests/cem.golden.test.ts`) pin server renders, CSS bytes, client
+  snapshots and the CEM manifest for the corpus; regenerate the
+  client snapshots with
+  `UPDATE_SNAPSHOTS=1 bun test tests/client.golden.test.ts`. The fixture-pinned
   corpus is load-bearing for simulation: where the simulated answer can only
   approximate (layout reads return zeros, absent APIs are `undefined`), drift
   is caught by fixtures, not assumed absent.
-- **Parity suite** (`server/tests/compiler/tsx/parity.test.ts`): the
+- **Parity suite** (`tests/tsx/parity.test.ts`): the
   equivalence contract — each fixture authored in both surfaces must render
   byte-identically through the same machinery, including a three-arm
   `boundary` render and the `isPending` class binding (LT-211). It is the mechanical
   form of "the door stays open": a front-end change that makes the surfaces
   diverge fails here before it can ship.
-- **Diagnostic parity** (`server/tests/compiler/tsx/diagnostic-parity.test.ts`,
+- **Diagnostic parity** (`tests/tsx/diagnostic-parity.test.ts`,
   LT-242): the failure-path half of the same contract. Each case is one
   invalid component in both surfaces; codes, severities and messages must
   match once the `.tsx` messages are translated through an allowlist built
   from `surface.ts` (a stale entry fails), and no `.tsx` message may name a
   `.tsrx` directive.
 
-See `server/SERVER.md` for the effect wiring, `check:sim` (portability probe
-across runtimes) and `eval:substrate` (substrate evaluation scripts).
+The portability probe across runtimes is `scripts/sim-portability-check.ts`;
+the substrate evaluation scripts live in `scripts/substrate-evaluation.ts`.
 
 ### 7.1 Configuring the corpus
 
@@ -1490,7 +1533,7 @@ resolves against it.
 | `outDir` | `"server/generated/components"` | Where the generated `<tag>.server.ts`, `<tag>.client.ts`, `<tag>.css`, `registry.json` (+ the `registry.internal.json` sidecar), `tsrx-imports.d.ts` and `i18n.ts` land. Must sit inside the project root (see below) |
 | `i18nDir` | `"i18n"` | The committed per-locale translation catalogs (ADR 0030 s5). A project with no such directory censuses zero locales and zero gaps |
 | `locales` | `["en", "de"]` | Locales the corpus builds for; the first is the default page locale (ADR 0030 s1). The list the generated `i18n` module enumerates (`I18N_LOCALES`) and the translation census walks — deliberately NOT derived from the catalogs on disk, which carry locales the site may not build. The default is this repo's own site locales, like every default |
-| `runtimeImport` | `"@zeix/le-truc-compiler/runtime"` | The specifier the generated SERVER modules import the render harness from. The default is the published package's own `./runtime` subpath (LT-254), so a consumer never sets it. This repo is the one consumer that overrides it: its `le-truc.config.json` pins the repo-relative `"../../compiler/runtime"`, keeping the in-tree harness in the generated modules |
+| `runtimeImport` | `"@zeix/le-truc-compiler/runtime"` | The specifier the generated SERVER modules import the render harness from. The default is the published package's own `./runtime` subpath (LT-254), so a consumer never sets it. This repo runs on the default — the main corpus build emits the published specifier; the in-tree overrides live per-caller in code, where a caller compiles into a scratch or demo output (`tests/helpers/generated-corpus.ts` and `scripts/build-demo.ts` pin the repo-relative `'../../../src/runtime'`), keeping the in-tree harness in those generated modules |
 | `variantSurface` | `"tsx"` | The surface a variant set serves when no per-tag override applies (ADR 0039): `"tsx"` or `"tsrx"` |
 | `variantOverrides` | `{}` | Per-tag served surface for variant sets, e.g. `{ "basic-counter": "tsrx" }`. Keys must be custom-element tags; values `"tsx"` or `"tsrx"` |
 | `cssTargets` | Baseline widely available | Minimum browser versions deciding the compiled stylesheet's emission (ADR 0033 s5): native `@scope` when every named browser supports it, the `:where(…)`-led flat lowering otherwise, and the ceiling for `lightningcss`'s own lowering of what the sheet authors. An object over `chrome`, `edge`, `firefox`, `safari` (Blink derivatives ride `chrome`); values are integer majors (`118`) or `"major.minor[.patch]"` strings (`"17.4"`), each component ≤ 255; a browser left out imposes no constraint. The default is a fixed set pinned at 3.0 (chrome/edge 124, firefox 125, safari 17.4), moved only deliberately with a major — at that pin `@scope` is not yet widely available, so the default compiles the lowered form |
@@ -1504,7 +1547,7 @@ resolves against it.
 ```
 
 **The file is validated, not trusted (LT-273).** A malformed config is a
-**thrown startup error** — untiered by construction ([ADR 0028](../../adr/0028-tiered-error-surfacing.md)):
+**thrown startup error** — untiered by construction (ADR 0028):
 it is read before any component is parsed, so there is no source span and no
 component mistake for a tier to grade, and no `LTC` code applies. Because the
 message carries the whole user experience, it names the file, the offending
@@ -1513,7 +1556,7 @@ field, what was received and what was expected:
 - an **unknown key** — including a mis-cased one, `"outdir"` instead of
   `"outDir"` — is rejected listing the accepted keys (`sources`,
   `siblingModules`, `outDir`, `i18nDir`, `locales`, `runtimeImport`,
-  `variantSurface`, `variantOverrides`), with a
+  `variantSurface`, `variantOverrides`, `cssTargets`), with a
   did-you-mean when only the casing differs. Silently ignoring a key would
   fall back to THIS repo's defaults, which in a consumer project match
   nothing — the worst first-install failure is "it compiled, but nothing is
@@ -1574,7 +1617,7 @@ member.
 - **Selector uniqueness is proven structurally** against the template the
   compiler itself renders (`analysis/selectors.ts`; role → bare tag →
   discriminator, exclusivity-aware counting for branches). Since LT-379
-  ([ADR 0045](../../adr/0045-structural-uniqueness-proof-runs-on-a-materialized-probe.md))
+  (ADR 0045)
   the engine half runs on the **materialized probe** (`analysis/probe.ts`):
   the template is serialized to HTML — static attrs only, all branches
   materialized, every element stamped with the path of mutually exclusive
@@ -1586,7 +1629,7 @@ member.
   browser's parse of the emitted markup builds, not what the authored
   nesting says (valid authoring diverges only by a parser-implied element
   such as a `<table>`'s `<tbody>`, which the DOM really holds; the differential harness in
-  `server/tests/compiler/probe-differential.test.ts` permanently pins the
+  `tests/probe-differential.test.ts` permanently pins the
   answers against the hand cascades' record). Discriminators use
   canonical CSS spellings — classes match by token membership, ids and
   `type`/`data-*` exactly. A static `aria-*` value is the last-resort
@@ -1651,8 +1694,9 @@ member.
   return JSX; bare statements live in setup — or, for a reactive list, in
   the `map` callback's block body, the item's setup (ADR 0046 s5).
 - **Pin isolation**: `@tsrx/core` values enter through `core.ts` only, and
-  only the `.tsrx` front end imports them; `typescript`-API access is
-  confined to `frontend/tsx/to-estree.ts`. Each surface's parser churn stops
+  only the `.tsrx` front end imports them; typescript-estree access is
+  confined to `frontend/tsx/to-estree.ts` — no module under `src/` invokes
+  the `typescript` package directly. Each surface's parser churn stops
   at its own leaf.
 - **Server stubs never reach the markup**: the server module may stub
   client-only free names for type-checking, but never a `first()` ref — a ref
@@ -1662,10 +1706,9 @@ member.
 
 ---
 
-*Companion documents: `server/SERVER.md` (build-pipeline integration),
-`adr/0024-adopt-tsrx-as-isomorphic-component-format.md` (format decisions),
-`adr/0032-adopt-tsx-as-the-authored-component-surface.md` (the dual front end),
-`adr/0027-server-simulation.md` (Server Simulation),
-`adr/0029-tiered-server-evaluation.md` (tiered server evaluation),
-`server/TESTS.md` (test strategy), `HOST_PROFILE.md` (host decisions for
-both authored surfaces).*
+*Companion documents: `HOST_PROFILE.md` (host decisions for both authored
+surfaces), `CONTEXT.md` (the vocabulary ledger), `REQUIREMENTS.md` (scope).
+ADRs cited by number — 0024 (format decisions), 0032 (the dual front end),
+0027 (Server Simulation), 0029 (tiered server evaluation), … — live in the
+sibling `le-truc` checkout (v3 branch); this repo carries no `adr/`
+directory yet.*
