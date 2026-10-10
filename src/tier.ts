@@ -1,5 +1,5 @@
 /**
- * The server-evaluation tier classifier (ADR 0029, LT-165).
+ * The server-evaluation tier classifier (ADR 0008).
  *
  * `evaluability.ts` decides what the server can render; this module decides
  * WHICH MECHANISM should try. The two are the same analysis with opposite
@@ -10,7 +10,7 @@
  *
  * ## Two facts, deliberately separate
  *
- * Conflating them produces wrong answers in both directions, so ADR 0029
+ * Conflating them produces wrong answers in both directions, so ADR 0008
  * sub-design 1 defines them apart and so does this module:
  *
  * 1. **Unresolvability is a property of an EXPRESSION** — no server phase
@@ -39,7 +39,7 @@
  * routes downward. A false Simulated classification costs ~1.1 ms. A false
  * Folded classification ships wrong HTML with no diagnostic. So the
  * classifier is sound, not complete, and the completeness gap is a build-time
- * cost rather than a correctness one (ADR 0029 sub-design 2).
+ * cost rather than a correctness one (ADR 0008 sub-design 2).
  *
  * ## Why limb (a) reads the capability table
  *
@@ -52,7 +52,7 @@
  * will be when the page is read.
  *
  * The table it reads is `simulation/capabilities.ts`, compiler-side and
- * substrate-free — NOT `sim/patch-table.ts` (LT-263, ADR 0035 sub-design 3
+ * substrate-free — NOT `sim/patch-table.ts` (ADR 0013 sub-design 3
  * limb 2). The classifier must answer with no substrate installed, so it
  * cannot import from behind the seam; `SuppressedSite`, which the driver
  * reads back, moved to `simulation/contract.ts` for the same reason.
@@ -73,7 +73,7 @@ import {
 /* === Types === */
 
 /**
- * The three tiers of ADR 0029. Numbered in the ADR as 1/2/0 — the Static
+ * The three tiers of ADR 0008. Numbered in the ADR as 1/2/0 — the Static
  * tier sits BELOW the Folded tier because it resolves less, not more.
  */
 export type EvaluationTier =
@@ -107,7 +107,7 @@ export type UnresolvableLimb =
  * - `compose-read` was never a diagnostic: a compose site reading a
  *   simulated-tier dependency.
  * - `unavailable-substrate` was never a diagnostic either: the build found
- *   no simulation substrate installed (ADR 0034 s5), so the Simulated
+ *   no simulation substrate installed (ADR 0012 s5), so the Simulated
  *   verdict stands in the signals but the routing degrades to the Static
  *   tier and this origin records why.
  */
@@ -126,9 +126,9 @@ export type Resolution =
 	/** No phase can answer it; omitted in every tier. */
 	| { by: 'none'; limb: UnresolvableLimb; reason: string }
 	/**
-	 * The realm WOULD answer it, but no substrate is installed (ADR 0034 s5).
+	 * The realm WOULD answer it, but no substrate is installed (ADR 0012 s5).
 	 * Never counted realm-answerable — the classifier is substrate-blind by
-	 * design (ADR 0035 sub-design 4), so this variant only ever appears on a
+	 * design (ADR 0013 sub-design 4), so this variant only ever appears on a
 	 * signal the build pass appended AFTER classification, on a routing
 	 * override that sets the tier itself.
 	 */
@@ -140,7 +140,7 @@ export type Resolution =
  * `origin` records which phase-1 refusal produced it, keeping the census
  * traceable to the analysis that decided it — and keeping the retired
  * diagnostic codes meaningful as provenance after they stop being
- * diagnostics (ADR 0029 sub-design 5).
+ * diagnostics (ADR 0008 sub-design 5).
  */
 export type RoutingSignal = {
 	origin: RoutingSignalOrigin
@@ -148,7 +148,7 @@ export type RoutingSignal = {
 	detail: string
 	/**
 	 * The construct the signal is about, in the authored file — the
-	 * diagnostic record's location shape (ADR 0044 s1, LT-371). Absent on
+	 * diagnostic record's location shape (ADR 0022 s1). Absent on
 	 * corpus-level signals (`compose-read`, `unavailable-substrate`), which
 	 * are about the component as a whole.
 	 */
@@ -198,7 +198,7 @@ export const rangeFields = (
 	at: Site,
 ): { range: SourceRange } => ({ range: rangeOf(source, at) })
 
-/** Publish a stage's routing signal against `file` (ADR 0044 s1). */
+/** Publish a stage's routing signal against `file` (ADR 0022 s1). */
 export const locateSignal = (
 	signal: LocalRoutingSignal,
 	file: string,
@@ -277,7 +277,7 @@ export const resolutionOf = (
 	if (stubbed !== null)
 		return { by: 'none', limb: 'stubbed-api', reason: stubbed }
 	const causes = impureAmbientCauses(node, scope)
-	// LT-142's three-way split (ADR 0029 sub-design 5): only SOME impurity is
+	// the ticket's three-way split (ADR 0008 sub-design 5): only SOME impurity is
 	// unresolvable. An `Intl` call whose locale is read from the DOM is impure
 	// for folding — the value harness has no document — but the realm executes
 	// that read against a real simulated element, so it is a Simulated-tier
@@ -295,7 +295,7 @@ export const resolutionOf = (
 }
 
 /**
- * Route a component from its routing signals — the conjunction of ADR 0029
+ * Route a component from its routing signals — the conjunction of ADR 0008
  * sub-design 1's table, not a single predicate.
  *
  * | | phase 1 resolves everything | realm can answer the rest | all unresolvable |
@@ -315,12 +315,12 @@ export const classifyTier = (
 }
 
 /**
- * Propagate composition contamination to a fixpoint — ADR 0029 sub-design 3.
+ * Propagate composition contamination to a fixpoint — ADR 0008 sub-design 3.
  *
  * Contamination happens on READS, never on containment. A Folded-tier or
  * Static-tier parent that merely embeds a Simulated-tier child stays in its
  * own tier and splices the child's already-rendered markup: the compose
- * graph renders children before parents (ADR 0027 sub-design 2), so the
+ * graph renders children before parents (ADR 0006 sub-design 2), so the
  * child's string exists by the time the parent needs it. Only a `first()`
  * addressing a compose site, or a `truc:pass={{ }}` into it, leaves phase 1
  * without an answer the child's markup alone supplies.

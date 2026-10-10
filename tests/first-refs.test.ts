@@ -1,5 +1,5 @@
 /**
- * Direct unit tests for `first-refs.ts` (LT-055): the structural matcher
+ * Direct unit tests for `first-refs.ts` (): the structural matcher
  * `first(selector, required)` resolution uses to find which template
  * element(s) an author's selector refers to, replacing `ref={}`.
  */
@@ -109,7 +109,7 @@ describe('collectMatchingElements — bare tag/class/id/attribute-presence', () 
 		expect(unsupported).toBe(true)
 	})
 
-	test("a compose site's content is this component's markup — matched in the Children Region (ADR 0048 s1)", () => {
+	test("a compose site's content is this component's markup — matched in the Children Region (ADR 0026 s1)", () => {
 		const content = el('span')
 		const compose = {
 			kind: 'compose' as const,
@@ -199,7 +199,7 @@ describe('shareExclusiveIf', () => {
 /**
  * LT-380: `parseSimpleSelector` parses through css-what now, but the
  * VERIFIED SUBSET is frozen — the swap changed how it parses, not what it
- * verifies (widening is LT-381). These pins hold the subset's boundary
+ * verifies (widening is ). These pins hold the subset's boundary
  * against css-what's leniency, through the exported matcher
  * (`null` = cannot verify, never "matches nothing").
  */
@@ -230,7 +230,7 @@ describe('the verified subset is unchanged under the css-what parse (LT-380)', (
 
 	test('whitespace outside quoted values stays unverified (css-what is lenient there)', () => {
 		const el = { tag: 'input', attrs: attrs([['type', 'checkbox']]) }
-		// Browser-valid, but the subset predates the bracket forms — LT-381's widening.
+		// Browser-valid, but the subset predates the bracket forms — the ticket's widening.
 		expect(verify('[ type = "checkbox" ]', el)).toBeNull()
 		// Browser-invalid (a class token cannot start with a space); css-what
 		// keeps the space in the value, the token check refuses it.

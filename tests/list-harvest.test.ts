@@ -1,6 +1,6 @@
 /**
- * Per-field harvest of a list seeded from server args (ADR 0046 s7,
- * LT-429), on both surfaces:
+ * Per-field harvest of a list seeded from server args (ADR 0024 s7,
+ * ), on both surfaces:
  *
  * - a calctable-shaped list round-trips: the server renders the items from
  *   args, the client rebuilds each adopted item field by field — the key
@@ -15,7 +15,7 @@
  * - an unrendered field fails LTC072, an unparsable one LTC076, a
  *   formatted-only one LTC059;
  * - `harvest()` resolves by binding, through an item's own scopes too
- *   (LT-442's rider), and anywhere but a component-setup `createList` seed
+ *   (the ticket's rider), and anywhere but a component-setup `createList` seed
  *   it is refused.
  */
 import { afterAll, describe, expect, test } from 'bun:test'

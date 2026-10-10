@@ -16,14 +16,14 @@ import { configureHtmlSanitizer } from '../src/runtime'
 import { createGeneratedDir } from './helpers/generated-corpus'
 
 // `configureHtmlSanitizer` is process-wide and shared with the library's
-// client half (LT-138): tests that configure one must restore the
+// client half : tests that configure one must restore the
 // unconfigured, fail-closed default (escape everything) afterward.
 const unconfigure = (): void => configureHtmlSanitizer(undefined)
 
 // A stand-in "consumer-supplied" sanitizer (what a host wires up via
 // `configureHtmlSanitizer`) — DOMPurify on a jsdom window, its documented
-// Node path, since the library ships no sanitizer (ADR 0010). The same
-// DOMPurify serves the browser half, so the two cannot disagree (LT-152).
+// Node path, since the library ships no sanitizer (ADR 0002). The same
+// DOMPurify serves the browser half, so the two cannot disagree .
 const purify = createDOMPurify(new JSDOM('').window as unknown as WindowLike)
 const stripDangerousMarkup = (html: string): string => purify.sanitize(html)
 
@@ -47,7 +47,7 @@ const wrap = (
 const compiled = (template: string) =>
 	compileComponent(wrap(template), 'c.tsrx', new Set())
 
-// A per-run directory, not the build pipeline's own output (LT-140).
+// A per-run directory, not the build pipeline's own output .
 const generated = createGeneratedDir('features')
 afterAll(() => generated.cleanup())
 
@@ -111,7 +111,7 @@ describe('@switch — multi-branch conditional rendering', () => {
 		)
 	})
 
-	test('a signal discriminant compiles to template-cloned arms (ADR 0037)', () => {
+	test('a signal discriminant compiles to template-cloned arms (ADR 0015)', () => {
 		const source2 = `export function C({}: {})
 	@{
 		const mode = createCell('a')
@@ -136,7 +136,7 @@ import { createCell } from '@zeix/le-truc'`
 			new Set(),
 		)
 		expect(d).toEqual([])
-		// LT-385d: string case keys are the literal's JSON, escaped in the
+		//: string case keys are the literal's JSON, escaped in the
 		// attribute.
 		expect(component?.serverCode).toContain(
 			'<template data-arms=\\"0\\" data-key=\\"case:&quot;a&quot;\\">',
@@ -164,7 +164,7 @@ describe('@try — error boundaries', () => {
 		)
 	})
 
-	test('client constructs on the body root are optionally addressed (LT-025) — guarded first(), not thrown', async () => {
+	test('client constructs on the body root are optionally addressed — guarded first(), not thrown', async () => {
 		const { component, diagnostics: d } = compiled(`@try {
 			<button type="button" class="go" data-len={status.length} onClick={() => {}}>go</button>
 		} @catch (error) {
@@ -183,7 +183,7 @@ describe('@try — error boundaries', () => {
 		)
 	})
 
-	test('client constructs on the catch-arm root are optionally addressed too (LT-025)', async () => {
+	test('client constructs on the catch-arm root are optionally addressed too', async () => {
 		const { component, diagnostics: d } = compiled(`@try {
 			<p>{status.length}</p>
 		} @catch (error) {
@@ -213,7 +213,7 @@ describe('@try — error boundaries', () => {
 	})
 })
 
-describe('@pending — async boundaries (ADR 0024 sub-design 13, LT-012)', () => {
+describe('@pending — async boundaries', () => {
 	const asyncComponent = (deriveExpr: string): string =>
 		`import { deriveCell } from '@zeix/le-truc'
 export function C({}: {})
@@ -306,7 +306,7 @@ import { deriveCell } from '@zeix/le-truc'`,
 		if (!component) throw new Error('async fixture must compile')
 		ensureEmitted('feat-async', component.serverCode)
 		const html = await render('feat-async', {})
-		// ADR 0037 s4: only the winner is live; every arm is an inert
+		// ADR 0015 s4: only the winner is live; every arm is an inert
 		// template keyed `ok`/`nil`/`err`, after the winner.
 		expect(html).toBe(
 			'<c-el><p data-key="nil" class="loading">Loading</p>' +
@@ -357,13 +357,13 @@ import { deriveCell } from '@zeix/le-truc'`,
 		expect(code).toContain(
 			'watch(data, { ok: () => {}, err: error => bindText(armElement)(error.message) })',
 		)
-		// The toggled-arm machinery is gone (LT-276).
+		// The toggled-arm machinery is gone .
 		expect(code).not.toContain('.hidden')
 		expect(code).not.toContain('parentElement')
 		expect(code).not.toContain('HTMLFieldSetElement')
 	})
 
-	// LT-077 (CHECKLIST §8), structural since LT-276: `hidden` excludes
+	// (CHECKLIST §8), structural since: `hidden` excludes
 	// nothing from form submission, which is why the toggled arms needed a
 	// `<fieldset disabled>` per arm. Template-cloned arms put exactly one
 	// arm in the document — the others are template content, which is not
@@ -464,7 +464,7 @@ describe('truc:html={expr} — dynamic rendering', () => {
 		).toBe('<c-el><article><p>hi</p><a>c</a></article></c-el>')
 	})
 
-	test('reactive thunk form (LT-025) lowers to a dangerouslyBindInnerHTML watch', async () => {
+	test('reactive thunk form lowers to a dangerouslyBindInnerHTML watch', async () => {
 		const source = `export function C({}: {})
 	@{
 		expose({})
@@ -495,7 +495,7 @@ import { createState } from '@zeix/le-truc'`
 		)
 	})
 
-	// LT-138: the server render and the client's first `watch` run must land
+	//: the server render and the client's first `watch` run must land
 	// on the same DOM. Before, the server escaped while the client's
 	// `dangerouslyBindInnerHTML(article)` assigned raw — escaped text flipping
 	// to live markup at hydration. Both now go through one `sanitizeHtml`.
@@ -530,7 +530,7 @@ import { createState } from '@zeix/le-truc'`
 })
 
 describe('async boundary, attribute channels (LT-449) — the ok root reads its driver through `truc:html`', () => {
-	// The ruled lazyload shape (LT-334's ruling, implemented in LT-449): the
+	// The ruled lazyload shape (the ticket's ruling, implemented in ): the
 	// ok arm's root reads the driver through a reactive `truc:html` thunk and
 	// carries the arm's own client constructs (the html watch is the value
 	// channel; a reactive style map rides beside it), and the catch arm nests
@@ -604,7 +604,7 @@ export function C({}: {})
 		ensureEmitted('feat-async-html-channel', compiled.serverCode)
 		const html = await render('feat-async-html-channel', {})
 		// The pending arm is the live winner; the templates bake the html
-		// and style constructs empty (LT-385c) and the err message empty.
+		// and style constructs empty  and the err message empty.
 		expect(html).toContain(
 			'<card-callout data-key="nil"><p class="loading">Loading</p></card-callout>',
 		)
@@ -626,7 +626,7 @@ export function C({}: {})
 		if (!compiled) throw new Error('fixture must compile')
 		// The server module never imports the runtime library itself — its
 		// harness import is the compiler package's `./runtime` subpath
-		// (LT-254), so the bare-package specifier with its closing quote is
+		// , so the bare-package specifier with its closing quote is
 		// the exact needle.
 		expect(compiled.serverCode).not.toContain("from '@zeix/le-truc'")
 		expect(compiled.serverCode).toContain(
@@ -643,7 +643,7 @@ export function C({}: {})
 
 	test('a catch read on the root beside a nested message element is refused (one text target per arm)', () => {
 		// Admitted, the err branch would write the root's `e.message` into
-		// the nested `<p>` and never write `e.name` (LT-449 review).
+		// the nested `<p>` and never write `e.name` ( review).
 		const source = component('deriveCell').replace(
 			'<card-callout class="danger"><p class="error">{e.message}</p></card-callout>',
 			'<card-callout class="danger">{e.message}<p class="error">{e.name}</p></card-callout>',
@@ -689,7 +689,7 @@ export function C({}: {}) {
 	})
 })
 
-describe('createMemo — recognized signal constructor (LT-025)', () => {
+describe('createMemo — recognized signal constructor', () => {
 	test('derives from a rendered signal; server evaluates once, client re-derives', async () => {
 		const source = `export function C({}: {})
 	@{
@@ -724,7 +724,7 @@ import { createState, createMemo } from '@zeix/le-truc'`
 	})
 
 	test('a compute function reading host/internals routes Simulated when unrendered (LT-165 step 5)', () => {
-		// ADR 0029 s5: the shape the harness cannot run (`createMemo` invokes
+		// ADR 0008 s5: the shape the harness cannot run (`createMemo` invokes
 		// its compute at render time, where `host` doesn't exist) is a routing
 		// signal. The Simulated-tier server module drops the const; the client
 		// declares it when something client-side reads it.
@@ -896,7 +896,7 @@ import { createList } from '@zeix/le-truc'`
 	})
 
 	test('a second reactive list in one component compiles (LT-423)', () => {
-		// ADR 0046 s2: the extracted templates are stamped `data-list` and
+		// ADR 0024 s2: the extracted templates are stamped `data-list` and
 		// queried from their own container's parent, so the old
 		// one-list-per-component limit is lifted.
 		const source = `export function C({}: {})

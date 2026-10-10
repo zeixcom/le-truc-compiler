@@ -1,11 +1,11 @@
 /**
- * The client message channel (ADR 0030 s9, LT-218): `t.<key>` reads in
+ * The client message channel (ADR 0009 s9): `t.<key>` reads in
  * client positions, the per-instance `i18n` root attribute the server
  * renders for exactly those keys, and the generated factory's preamble —
  * the source record merged under the attribute, with the evaluator inlined
  * and narrowed.
  *
- * No corpus component reads `t` client-side until LT-219, so every pin is
+ * No corpus component reads `t` client-side until , so every pin is
  * a fixture. The server half renders through a generated `i18n` module
  * with a German override catalog, so the attribute carries real per-locale
  * parsed patterns; the client half connects in the simulation realm.
@@ -143,7 +143,7 @@ generated.emit('c-el.tsx.server.ts', tsx.component.serverCode)
 const clientPath = generated.emit('c-el.client.ts', tsrx.component.clientCode)
 
 // The same component under `c-lm`, materializing `de` onto its own root in
-// a client-only setup statement (the `c-plural` fixture's shape, LT-191).
+// a client-only setup statement (the `c-plural` fixture's shape).
 const materializing = compileComponent(
 	tsrxSource(
 		body,
@@ -253,7 +253,7 @@ describe('server: the root `i18n` attribute', () => {
 			expect(render({ i18n: record('en') })).not.toContain(' i18n=')
 	})
 
-	test('no serialized message carries a locale (ADR 0030 s6)', () => {
+	test('no serialized message carries a locale (ADR 0009 s6)', () => {
 		const markup = renderTsrx({ i18n: record('de') })
 		expect(markup).toMatch(/ i18n="/)
 		expect(markup).not.toContain('&quot;l&quot;')
@@ -579,7 +579,7 @@ export function C(${params})
 	})
 })
 
-describe('a composed child inside a reactive-list item (LT-355, ADR 0030 s9)', async () => {
+describe('a composed child inside a reactive-list item (LT-355, ADR 0009 s9)', async () => {
 	// A client-created instance speaks its creating parent's locale: the
 	// parent's server render bakes the composed child's root `lang` and
 	// `i18n` into the extracted `<template>` every client clone copies.

@@ -1,5 +1,5 @@
 /**
- * `ir.ts` is a pure-data leaf (LT-244): type-only imports of the loose
+ * `ir.ts` is a pure-data leaf (): type-only imports of the loose
  * `AstNode` and other data leaves, and no function-bearing type anywhere —
  * the front end's mutable `ExtractContext` lives in `extract-context.ts`.
  * A `ComponentIR` therefore stays a serializable data structure.
@@ -18,9 +18,9 @@ const ALLOWED_IMPORTS: ReadonlySet<string> = new Set([
 	'./ast-node',
 	'./icu/parse',
 	'./surface',
-	// The parsed stylesheet's vendor type (LT-268) — type-only, erased at
+	// The parsed stylesheet's vendor type () — type-only, erased at
 	// runtime; the alias lives in ir.ts because `css.ts` is
-	// function-bearing and LT-244's leaves stay data.
+	// function-bearing and the ticket's leaves stay data.
 	'lightningcss-wasm',
 ])
 

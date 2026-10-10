@@ -1,5 +1,5 @@
 /**
- * Independent-pass tests for the analysis split (LT-022, M5): each pass in
+ * Independent-pass tests for the analysis split (M5): each pass in
  * `server/compiler/analysis/` is a function over an explicitly constructed
  * `PassShared` — no `analyzeClient` orchestration needed. These tests
  * exercise one pass at a time against a hand-built context, the
@@ -84,8 +84,8 @@ const contextFor = (component: ComponentIR): PassShared => {
 /** No loops in the fixture: the empty production `runLoops` would return. */
 const noLoops: LoopPlans = { forPlans: new Map(), reconcilePlans: new Map() }
 
-describe('analysis passes over a constructed context (LT-022)', () => {
-	test('runHarvest alone seeds a map-thunk/computed-thunk signal (LT-036 route)', () => {
+describe('analysis passes over a constructed context', () => {
+	test('runHarvest alone seeds a map-thunk/computed-thunk signal', () => {
 		const component = realComponent()
 		const harvests = runHarvest(contextFor(component), noLoops)
 		expect(harvests).toHaveLength(1)
@@ -115,7 +115,7 @@ describe('analysis passes over a constructed context (LT-022)', () => {
 		expect(runEffects(ctx, loopPlans, harvests)).toEqual(plan.effects)
 	})
 
-	test('pass order is a type contract, not a convention (ADR 0040 s5)', () => {
+	test('pass order is a type contract, not a convention (ADR 0018 s5)', () => {
 		const ctx = contextFor(realComponent())
 		// Never executed — the assertions are the `@ts-expect-error`s, which
 		// fail typecheck the day a pass stops requiring its producer's output.
@@ -145,10 +145,10 @@ describe('analysis passes over a constructed context (LT-022)', () => {
 })
 
 /**
- * LT-124: class discriminators are TOKEN clauses. Before LT-379 the pin
+ * LT-124: class discriminators are TOKEN clauses. Before  the pin
  * ran on `matchesSelector`, the hand matcher that had to track the
  * synthesizer's grammar exactly; since then matching is css-select's on
- * the materialized probe (ADR 0045), so the same questions are asked
+ * the materialized probe (ADR 0023), so the same questions are asked
  * through the engine's public count — `countForSelector` over the
  * element's own subtree, which includes the element itself.
  */
@@ -223,7 +223,7 @@ describe('class discriminators are token clauses (LT-124)', () => {
 })
 
 /**
- * LT-124 follow-up (owner, 2026-08-30): `#id` is the canonical spelling of an
+ *  follow-up (owner, 2026-08-30): `#id` is the canonical spelling of an
  * id discriminator. Unlike the class change this is NOT a widening —
  * `input#name-input` and `input[id="name-input"]` select exactly the same
  * element — so it is pure canonicalization. It is also a new capability:
@@ -287,7 +287,7 @@ describe('id discriminators use the hash form (LT-124)', () => {
 describe('aria-* discriminators are the last resort (LT-101)', () => {
 	/**
 	 * module-dialog's shape: an opener told apart by ARIA alone. No `first()`
-	 * ref — an authored selector would lead the candidates (LT-316), and this
+	 * ref — an authored selector would lead the candidates , and this
 	 * block pins the synthesizer's own order.
 	 */
 	const twoButtons = (openerAttrs: string): ComponentIR => {
@@ -333,14 +333,14 @@ describe('aria-* discriminators are the last resort (LT-101)', () => {
 })
 
 /**
- * LT-096: a synthesized selector's uniqueness is counted over the OWN
+ * A synthesized selector's uniqueness is counted over the OWN
  * template, but the runtime query descends into every composed child's
  * rendered markup. With the children's shapes known, a candidate a child
  * could match is emitted with a `:not(<child-tag> *)` exclusion — the bare
  * `button` module-codeblock's overlay resolved to found the composed
  * basic-button's own `<button>` first.
  */
-describe('selectors account for composed children (LT-096)', () => {
+describe('selectors account for composed children', () => {
 	const child = (body: string): ComponentIR =>
 		compileSource(
 			`export function Child({ size = 'small' }: { size?: string })
@@ -357,7 +357,7 @@ describe('selectors account for composed children (LT-096)', () => {
 		).component as ComponentIR
 
 	// No `first()` refs: this block pins synthesis; the authored-selector
-	// route has its own block below (LT-316).
+	// route has its own block below .
 	const parent = (withRefs = false): ComponentIR =>
 		compileSource(
 			`import { Child } from './child.tsrx'
@@ -420,7 +420,7 @@ export function P({}: {})
 		)
 		// Every candidate clashes (the dynamic class may hold "overlay"), so
 		// all come out exclusion-wrapped — and the most precise decorated
-		// base wins (LT-520), the class hook over the bare tag.
+		// base wins , the class hook over the bare tag.
 		expect(
 			resolveSelector(component, elementByTag(component, 'button')),
 		).toEqual({ selector: 'button.overlay:not(child-el *)', unique: true })
@@ -524,7 +524,7 @@ export function P({}: {})
 			ComponentIR['root'],
 			{ kind: 'element' }
 		>
-		// The synthesized form: the most precise decorated base (LT-520 —
+		// The synthesized form: the most precise decorated base ( —
 		// the class hook over the bare tag) with the exclusion.
 		expect(resolveSelector(parent, button)).toEqual({
 			selector: 'button.overlay:not(child-el *)',
@@ -532,7 +532,7 @@ export function P({}: {})
 		})
 		// The authored-contract form: the ref attr carries the author's
 		// selector, and it still proves itself exclusion-wrapped. Since
-		// LT-520 it coincides with the synthesized form here — the leg pins
+		//  it coincides with the synthesized form here — the leg pins
 		// that the authored path, not the synthesis, produced it.
 		;(
 			button as {
@@ -554,7 +554,7 @@ export function P({}: {})
 
 	test('among exclusion-decorated candidates the most precise base wins (LT-520)', () => {
 		// The child takes open children, so its `children` shape may match
-		// every candidate of the parent's own template (ADR 0048): all come
+		// every candidate of the parent's own template (ADR 0026): all come
 		// out decorated and the base decides — the id outranks the class
 		// hook and the bare tag, and a role keeps its first place over a
 		// class hook.

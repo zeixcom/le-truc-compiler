@@ -1,17 +1,17 @@
 /**
- * The component stylesheet as a compiler artifact (ADR 0033 s9, LT-268).
+ * The component stylesheet as a compiler artifact (ADR 0011 s9).
  *
  * The dedent gives way to a parse: `parseComponentSheet` parses the
  * `<style>` block's source with lightningcss — the `lightningcss-wasm`
  * distribution, the only one that loads under every JS runtime the
- * portability check runs (ADR 0038; the native napi binding cannot load
+ * portability check runs (ADR 0016; the native napi binding cannot load
  * from a self-contained bundle) — and makes its rules, selectors and
  * at-rules reachable from the IR (`ComponentIR.sheet`). A sheet that does
- * not parse has no correct emission: tier 1 Prevented (ADR 0028 s1),
+ * not parse has no correct emission: tier 1 Prevented (ADR 0007 s1),
  * LTC064. A declaration outside its property's grammar is LTC065, tier 2
  * Contained — a warning, the sheet ships as authored — because the
  * arbiter's dictionary (mdn-data, via css-tree) lags the platform: its
- * "no" is evidence, not proof (LT-394). css-tree's lexer arbitrates
+ * "no" is evidence, not proof (). css-tree's lexer arbitrates
  * declaration grammar because lightningcss deliberately keeps unknown
  * properties and unparseable values instead of rejecting them, so its
  * parse alone cannot police the spec grammar, and its whole-sheet failures
@@ -27,7 +27,7 @@
  * collected objects stay valid after `transform` returns; nothing
  * re-enters the parser.
  *
- * Emission is the scoped emission (`css-scope.ts`, LT-304): the dedent
+ * Emission is the scoped emission (`css-scope.ts`): the dedent
  * (`dedentCss`) yields the AUTHORED form the IR carries — what LTC051
  * compares across a variant set — while the emitted artifact is scoped
  * per `cssTargets`.
@@ -36,7 +36,7 @@
 import type { CssNode, CssTreeDeclaration } from 'css-tree/dist/csstree.esm'
 // The dist ESM bundle, not the package entry: the entry loads its
 // dictionary patch through a runtime `createRequire`, which cannot ride
-// the portability bundle's self-contained module graph (ADR 0038). The
+// the portability bundle's self-contained module graph (ADR 0016). The
 // dist bundle inlines the same dictionary and runs under every JS
 // runtime; its (loose) types come from the ambient shim `css-tree.d.ts`.
 import {
@@ -188,7 +188,7 @@ const DESCRIPTOR_ATRULES = new Set([
  * values (nothing decidable), and every declaration inside a descriptor
  * at-rule (`DESCRIPTOR_ATRULES`: descriptors are not properties). A
  * conditional group nested in a rule (`.a { @media … { width: … } }`)
- * holds properties and is checked like the rule it sits in (LT-394). A
+ * holds properties and is checked like the rule it sits in (). A
  * css-tree parse failure means no declaration check — lightningcss is the
  * syntax authority and has already passed the sheet.
  */
@@ -288,11 +288,11 @@ const grammarErrors = (source: string): SheetError[] => {
 /* === Exported Functions === */
 
 /**
- * Parse a `<style>` block's source text (ADR 0033 s9). The lightningcss
+ * Parse a `<style>` block's source text (ADR 0011 s9). The lightningcss
  * pass collects the sheet read-only; its syntax failures report as the
  * `syntax` face and leave no sheet. The css-tree pass then reports
  * declaration-grammar findings. Neither face changes the emitted text —
- * the dedent below stays the emission source until LT-304.
+ * the dedent below stays the emission source until .
  */
 export const parseComponentSheet = (source: string): ParsedComponentSheet => {
 	let captured: StyleSheet | undefined
@@ -341,7 +341,7 @@ export const parseComponentSheet = (source: string): ParsedComponentSheet => {
  * leading/trailing blank lines, and end with exactly one newline.
  *
  * The AUTHORED form the IR carries (LTC051 compares it across a variant
- * set, ADR 0033 s10); the emitted artifact is the scoped emission
+ * set, ADR 0011 s10); the emitted artifact is the scoped emission
  * (`css-scope.ts`), partitioned from the raw text `sheet`'s locs resolve
  * against.
  */

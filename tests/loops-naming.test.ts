@@ -1,6 +1,6 @@
 /**
- * Standalone unit tests for `analysis/loops.ts` (`runLoops`, LT-022 M5) and
- * `analysis/naming.ts` (LT-048): the same "hand-build a `PassShared`,
+ * Standalone unit tests for `analysis/loops.ts` (`runLoops` M5) and
+ * `analysis/naming.ts` (): the same "hand-build a `PassShared`,
  * call one pass" granularity `analysis.test.ts` already gives
  * `runHarvest`/`runEffects`/the selector engine, extended to loop planning
  * and name allocation so a regression there fails locally instead of only
@@ -188,7 +188,7 @@ describe('uniqueName', () => {
 describe('addQuery', () => {
 	const component = {
 		tag: 'c-el',
-		// LT-123: `addQuery` consults this to keep an
+		//: `addQuery` consults this to keep an
 		// author-declared optional ref optional.
 		firstRefs: new Map(),
 	} as unknown as ComponentIR

@@ -1,5 +1,5 @@
 /**
- * The timer cancellers are client-known globals (LT-452). `JS_GLOBALS` listed
+ * The timer cancellers are client-known globals (). `JS_GLOBALS` listed
  * `setInterval`, `setTimeout` and `requestAnimationFrame` but none of their
  * cancellers, so a watch whose cleanup cancels the timer it started was
  * refused as a setup statement (LTC005) unless spelled `window.clearInterval`.

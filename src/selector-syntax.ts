@@ -1,7 +1,7 @@
 /**
- * Conservative CSS selector *parse* validation (ADR 0028 sub-design 5,
- * LT-157b). Since LT-380 (ADR 0045 Decision 5,
- * ../../../adr/0045-structural-uniqueness-proof-runs-on-a-materialized-probe.md)
+ * Conservative CSS selector *parse* validation (ADR 0007 sub-design 5,
+ * ). Since  (ADR 0023 Decision 5,
+ * ../adr/0023-the-structural-uniqueness-proof-runs-on-a-materialized-probe.md)
  * the decision runs on a css-what parse — the parser css-select itself
  * uses — plus a small post-check over the parsed branches; the ~170 hand
  * rules this module carried before are gone.
@@ -19,7 +19,7 @@
  * This module decides the second. The asymmetry is unchanged and remains
  * deliberate: a false positive here fails a build over working markup,
  * while a false negative merely leaves the pre-existing Tier 2 backstop
- * doing its job (ADR 0028 sub-design 1 — the compiler is the primary
+ * doing its job (ADR 0007 sub-design 1 — the compiler is the primary
  * channel, not the only one). The post-check therefore keeps only what
  * css-what tolerates but CSS's grammar forbids — a trailing combinator, a
  * lone leading one — and maps css-what's own throw classes onto the
@@ -32,7 +32,7 @@
  * engine one.
  *
  * css-what is also STRICTER than browsers in three places, each a false
- * positive LT-384 closed: it raises `Empty sub-selector` at any paren
+ * positive  closed: it raises `Empty sub-selector` at any paren
  * depth (but `:is()`/`:where()` take forgiving lists — only a TOP-LEVEL
  * empty group is decided; a nested one, including the genuinely invalid
  * `:not()`/`:has()`, stays undecided rather than misnamed), it rejects

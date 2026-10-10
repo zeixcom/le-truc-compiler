@@ -111,7 +111,7 @@ describe('a loop body uses the one client-construct answer (LT-231)', () => {
 })
 
 /**
- * A `.tsrx` component with an LT-122 prop-bound arg: `label` is both a
+ * A `.tsrx` component with an  prop-bound arg: `label` is both a
  * server arg and an `expose()`d prop (harvested from the `<span>`), so
  * `title={label}` renders server-side AND binds client-side.
  */
@@ -192,7 +192,7 @@ describe('the other client-construct answers LT-231 changed (LT-368)', () => {
 })
 
 /**
- * LT-378: a `.tsrx` component with TWO LT-122 prop-bound args — `label`
+ * LT-378: a `.tsrx` component with TWO  prop-bound args — `label`
  * and `desc` are each both a server arg and an `expose()`d prop, so
  * `title={label}` and `title={desc}` differ only in WHICH prop they bind.
  */
@@ -218,7 +218,7 @@ const withTwoPropBound = (body: string, registry = new Set<string>()) =>
 
 describe('the `@if` branch signature distinguishes binding sources (LT-378)', () => {
 	test('branch roots binding DIFFERENT props to `title` are not union-addressed', () => {
-		// Both roots carry `bind:title` — equal key and, before LT-378,
+		// Both roots carry `bind:title` — equal key and, before ,
 		// equal EMPTY text for a prop-bound `server` attribute — so the
 		// branches were union-addressed onto one
 		// `watch(() => host.label, bindAttribute(p, 'title'))` and the
@@ -255,7 +255,7 @@ describe('the `@if` branch signature distinguishes binding sources (LT-378)', ()
 	})
 
 	test('a `truc:pass` binding counts its entries in the signature', () => {
-		// Same prop name, different source — before LT-378 the empty text
+		// Same prop name, different source — before  the empty text
 		// made the signatures equal and the `@else` child was passed
 		// `host.label`.
 		const errors = errorsOf(
@@ -268,7 +268,7 @@ describe('the `@if` branch signature distinguishes binding sources (LT-378)', ()
 	})
 
 	test('a reactive `truc:html` value counts in the signature', () => {
-		// Before LT-378 the value text was dropped and the `@else`
+		// Before  the value text was dropped and the `@else`
 		// paragraph was filled with `host.label`'s html.
 		const errors = errorsOf(
 			withTwoPropBound(

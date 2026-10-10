@@ -1,5 +1,5 @@
 /**
- * Mount Scopes nest (ADR 0046 s1–s2, LT-424), end to end on both surfaces:
+ * Mount Scopes nest (ADR 0024 s1–s2), end to end on both surfaces:
  *
  * - a reactive list inside a reactive conditional's arm, an arm set inside a
  *   list item, and a list inside a list item each compile clean on both
@@ -7,8 +7,8 @@
  * - the server renders a nested construct live inside a live scope and
  *   inert inside a template; every list template is hoisted to the host's
  *   end, one copy per instance at any depth, rendered with every enclosing
- *   scope unbound, so a list container may be a Mount Scope root (ADR 0046
- *   s2, LT-454) — arm templates stay beside their arm;
+ *   scope unbound, so a list container may be a Mount Scope root (ADR 0024
+ *   s2) — arm templates stay beside their arm;
  * - the generated client adopts the server's markup at both levels without
  *   touching it, then clones at both levels as signals change;
  * - a selector bound in a scope matches nothing in a nested scope's
@@ -19,7 +19,7 @@
  * - the `@empty` arm binds its reactive attributes in the scope that holds
  *   its list;
  * - an async boundary in a list item refuses setup-const reads in its arm
- *   mounts, like every other list-body position (LTC005, LT-483), while a
+ *   mounts, like every other list-body position (LTC005), while a
  *   host-level boundary still admits them.
  *
  * The remaining refusals and the lifted ones are pinned for parity in
@@ -212,7 +212,7 @@ describe('a reactive list inside an arm', async () => {
 		expect(live).toContain('<li data-key="a">')
 		expect(armTemplate).not.toContain('data-key="a"')
 		// The list template is not copied into the live arm or the arm
-		// template: one copy, the host's last child (ADR 0046 s2).
+		// template: one copy, the host's last child (ADR 0024 s2).
 		expect(markup.split('<template data-list="0">').length - 1).toBe(1)
 		expect(markup).toMatch(
 			/<template data-list="0">[\s\S]*<\/template><\/c-el>$/,
@@ -336,7 +336,7 @@ describe('an arm set inside a list item', async () => {
 		const template = markup.slice(markup.indexOf('<template data-list="0">'))
 		expect(template).not.toContain('data-key="then" type')
 		// The arm templates stay beside their arm, inside the item template;
-		// the item template itself is the host's last child (ADR 0046 s2).
+		// the item template itself is the host's last child (ADR 0024 s2).
 		expect(template).toContain(
 			'<template data-arms="0" data-key="then"><button type="button" class="undo">',
 		)
@@ -570,7 +570,7 @@ describe('a list inside a list item', async () => {
 
 	test('each template renders once, at the host end, with every enclosing scope unbound', () => {
 		// One copy per instance — none in the live items, none inside the
-		// outer template (ADR 0046 s2) — in document order of N.
+		// outer template (ADR 0024 s2) — in document order of N.
 		expect(markup.split('<template data-list="1">').length - 1).toBe(1)
 		const templates = markup.slice(markup.indexOf('<template data-list="0">'))
 		expect(templates).toMatch(
@@ -966,7 +966,7 @@ describe('a construct in a server branch of an item is refused (LT-468)', () => 
 				expect(d.message).toContain('make the condition reactive')
 			// The construct is not emitted (no client module at all when the
 			// compile fails); the nested list's guarded mount itself is
-			// proven by the LT-455 suite above.
+			// proven by the  suite above.
 			expect(component?.clientCode ?? '').not.toContain(
 				"addEventListener('click'",
 			)
@@ -1188,7 +1188,7 @@ describe('a `truc:pass` compose in a server branch is refused (LT-470)', () => {
 		expect(fromTsx.diagnostics).toEqual([])
 		for (const { component } of [fromTsrx, fromTsx]) {
 			// One site in the item needs no discriminator: the local is named
-			// after the child tag (LT-338's fallback) and binds the pass.
+			// after the child tag (the ticket's fallback) and binds the pass.
 			expect(component?.clientCode).toContain(
 				"first('basic-child', 'c-el: basic-child missing')",
 			)
@@ -1329,8 +1329,8 @@ export function OuterChild({ label, children }: {
 // A `try` with no `@pending` is not an arm set: the server folds it once per
 // render into its body or catch arm, so both are server-rendered branches
 // like a server conditional's. The host walk's server-branch flag now covers
-// them, and the LT-470 refusal fires for a pass-carrying compose in either
-// arm — one node kind over from `@if`, where LT-470 closed the same silent
+// them, and the  refusal fires for a pass-carrying compose in either
+// arm — one node kind over from `@if`, where  closed the same silent
 // drop. A pass-less compose stays legal server markup.
 
 const COMPOSE_IN_HOST_TRY = (passOnBody: boolean) => ({
@@ -1356,7 +1356,7 @@ const COMPOSE_IN_HOST_TRY = (passOnBody: boolean) => ({
 })
 
 describe('a `truc:pass` compose in a server-only `try` is refused (LT-482)', () => {
-	// LT-488 worded the refusal's fix per enclosure; a `try` has no
+	//  worded the refusal's fix per enclosure; a `try` has no
 	// condition, so the conditional remedy must not leak into either arm.
 	const expectRefused = (
 		diagnostics: readonly { code: string; message: string }[],

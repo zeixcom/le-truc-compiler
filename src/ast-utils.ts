@@ -8,7 +8,7 @@
  *
  * This module holds no `@tsrx/core` VALUE import (only the `AstNode` type,
  * erased at compile time) — `compiler.ts` remains the ONE module importing
- * `@tsrx/core` for parsing (ADR 0024 sub-design 2). Its one value import,
+ * `@tsrx/core` for parsing (ADR 0005 sub-design 2). Its one value import,
  * `eslint-visitor-keys`, is pure data.
  */
 
@@ -75,7 +75,7 @@ const NON_CHILD_KEYS: ReadonlySet<string> = new Set([
  * order (the parser's, so "first found" results stay stable). Which keys
  * hold children is borrowed from `eslint-visitor-keys`, maintained against
  * every estree and JSX node type — the skip policy hand-rolled walks used to
- * re-answer, one list each (LT-229). Node types it doesn't know — TS nodes,
+ * re-answer, one list each (). Node types it doesn't know — TS nodes,
  * the TSRX directives (`JSXCodeBlock`, `JSXIfExpression`, …), the scoped
  * stylesheet's CSS nodes — fall back to every key that isn't bookkeeping.
  * Type-position keys follow `types` on both paths.
@@ -212,7 +212,7 @@ export const signalGetCallName = (node: unknown): string | null =>
  * keys, labels and non-computed member properties never count as reads;
  * statements in a block (or a `.tsrx` `@{ }` code block) bind their
  * declarations for the statements that follow, and function declarations
- * hoist to the whole block (LT-231). Import
+ * hoist to the whole block (). Import
  * declarations introduce names rather than read them, so they are skipped
  * — and bind nothing, which is what lets the authored-import check see an
  * unimported read.
@@ -220,7 +220,7 @@ export const signalGetCallName = (node: unknown): string | null =>
  * The one scope walk both `freeIdentifiers` and the authored-import check
  * (`reportLeTrucImportMismatch`) run on — the latter used to carry its own
  * copy, which never grew the loop/catch cases or the `@{ }` render slot
- * (LT-229).
+ * ().
  */
 export const forEachFreeIdentifier = (
 	node: unknown,
@@ -297,7 +297,7 @@ export const forEachFreeIdentifier = (
 				// declarator's own (self-only) re-visit `VariableDeclarator`
 				// gives it. Without this case the loop variable falls through to
 				// the generic `default` walk, unbound in every other clause —
-				// found migrating `form-colorgraph.tsrx` (LT-088), a canvas-draw
+				// found migrating `form-colorgraph.tsrx` (), a canvas-draw
 				// `for (let x = 0; x < n; x++)` reported `x` itself as free.
 				const inner = new Set(bound)
 				if (
@@ -379,7 +379,7 @@ export const forEachFreeIdentifier = (
 						// name before visiting a single declarator's own
 						// function/arrow initializer so this resolves instead
 						// of reporting the const's own name as free. Found
-						// migrating `form-colorgraph.tsrx` (LT-088): a
+						// migrating `form-colorgraph.tsrx` (): a
 						// pointerdown handler's own `handleUp` unregisters
 						// itself by reference.
 						const declarations = asArray(stmt.declarations)
@@ -427,7 +427,7 @@ export const forEachFreeIdentifier = (
  * variables (`forEachFreeIdentifier`, type positions skipped). A type name
  * (`x as Foo[]`, an annotation, a return type) is never a VALUE read;
  * counting one would wrongly fail the harvest/thunk free-name gates for any
- * initializer that happens to carry a type annotation or cast (LT-027).
+ * initializer that happens to carry a type annotation or cast ().
  */
 export const freeIdentifiers = (node: AstNode): Set<string> => {
 	const free = new Set<string>()
@@ -506,7 +506,7 @@ export const attrName = (attr: AstNode): string => {
 	// `truc:pass` parses as a JSXNamespacedName (namespace + name), which
 	// `jsxName` deliberately does not flatten — it is also used for element
 	// tags, where a namespace would mean something else. Host-owned
-	// attributes are namespaced (LT-053) to stay collision-proof against a
+	// attributes are namespaced () to stay collision-proof against a
 	// user prop legitimately called `pass`.
 	const name = attr.name
 	if (isNode(name) && name.type === 'JSXNamespacedName') {

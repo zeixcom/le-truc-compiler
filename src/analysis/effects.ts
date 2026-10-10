@@ -1,5 +1,5 @@
 /**
- * Per-construct client effect planning (LT-022, regrouping move M5): pass
+ * Per-construct client effect planning (regrouping move M5): pass
  * 4's orchestration — `runEffects`'s five phases and the document-ordered
  * walk driver `emitTopEffects` — over the subsystem modules the bands moved
  * into (2026-10-10 split): `construct-effects.ts` (construct lowering and
@@ -70,7 +70,7 @@ import {
 } from './selectors'
 
 /**
- * Pass 4's shared state (LT-226): what `runEffects`'s nested closures used
+ * Pass 4's shared state : what `runEffects`'s nested closures used
  * to capture, threaded explicitly so each comment band — construct
  * lowering, control-flow addressing, compose, the compose-`id` validation —
  * is a module-scope unit. Built once at the top of `runEffects` and never
@@ -101,17 +101,17 @@ export type EffectsContext = {
 	collectAmbient: (node: AstNode | null | undefined) => void
 	badFreeNames: (node: AstNode) => string[]
 	/**
-	 * `badFreeNames` for a list-body position (`analysis/plan.ts`, LT-349):
+	 * `badFreeNames` for a list-body position (`analysis/plan.ts`):
 	 * the setup consts and authored imports no client-need walk reaches.
-	 * Item-scoped planning (ADR 0046 s1) reports through this — a setup const
+	 * Item-scoped planning (ADR 0024 s1) reports through this — a setup const
 	 * read only inside an item is still never emitted client-side.
 	 */
 	badListBodyNames: (node: AstNode) => string[]
 	/** Registry-child tags addressed (type-flow imports), from `PassShared`. */
 	childTags: Set<string>
 	/**
-	 * The item and key bindings and the setup names (ADR 0046 s5) of the
-	 * reactive-list items currently being planned (ADR 0046 s1), empty
+	 * The item and key bindings and the setup names (ADR 0024 s5) of the
+	 * reactive-list items currently being planned (ADR 0024 s1), empty
 	 * outside one. Item-scoped sites are
 	 * per-item state the server deliberately omits in every tier — never a
 	 * routing signal, and never a suppression record (the revert would
@@ -120,7 +120,7 @@ export type EffectsContext = {
 	itemNames: ReadonlySet<string>
 	/**
 	 * The key bindings and per-item consts of every enclosing reactive-list
-	 * item (ADR 0046 s1 and s5, LT-424/LT-426), empty outside one — the
+	 * item (ADR 0024 s1 and s5, LT-424/LT-426), empty outside one — the
 	 * clone-time names. A `server` attribute over these alone is set once at
 	 * the mount of the scope that owns its element.
 	 */
@@ -132,7 +132,7 @@ export type EffectsContext = {
 	 */
 	scopeBadNames: (node: AstNode) => string[]
 	/**
-	 * Registry entries by TAG (LT-158). The compose registry is keyed by source
+	 * Registry entries by TAG . The compose registry is keyed by source
 	 * path because composition resolves through import specifiers; a
 	 * `pass={{ }}` on a raw dashed tag has only the tag, so it needs the
 	 * other index. Built from the same map rather than threading a second
@@ -141,26 +141,26 @@ export type EffectsContext = {
 	 */
 	entryByTag: Map<string, InternalRegistryEntry>
 	/**
-	 * A reactive conditional's arm locals (ADR 0037) are `bindArm`-scoped
+	 * A reactive conditional's arm locals (ADR 0015) are `bindArm`-scoped
 	 * variables, not factory queries: each one's selector over the whole
 	 * template, for the suppressed-site records `selectorOf` writes.
 	 */
 	armSelectors: Map<string, string>
-	// LT-085/LT-118: the two substitutable sets for `hostDerivedFold`
+	// The two substitutable sets for `hostDerivedFold`
 	// below — host props with a known server truth, and refs whose
 	// presence the server decides — computed once per component rather
 	// than per attribute. Both must match what `emit-server.ts` will
 	// actually fold, or LTC034 warns about an attribute that does render.
 	derivableHostProps: ReturnType<typeof foldableHostProps>
 	derivableRefGuards: ReturnType<typeof foldableRefGuards>
-	// LT-173 step 6: the render-scope names a host-derived fold may leave in
+	//  step 6: the render-scope names a host-derived fold may leave in
 	// a spliced thunk (args, signals, transitive-pure setup consts). Must be
 	// the same set `emit-server.ts` folds with, or this check warns about an
 	// attribute that does render (or silences one that doesn't).
 	foldScope: ReturnType<typeof foldableRenderScope>
 	/**
 	 * The compose sites whose handler args a scope's walk planned or refused
-	 * (LT-461): any other site carrying one is refused at the end of the
+	 * : any other site carrying one is refused at the end of the
 	 * pass, so no handler drops silently.
 	 */
 	handledComposes: Set<ComposeNode>
@@ -243,7 +243,7 @@ const emitTopEffects = (fx: EffectsContext, node: TemplateNode): void => {
 	if (node === component.root) {
 		for (const attr of component.root.attrs) {
 			if (attr.kind === 'style-map') {
-				// LT-028: the root's own reactive style is the one construct
+				//: the root's own reactive style is the one construct
 				// addressable without a query — the target is the ambient
 				// `host`, not a queried descendant.
 				collectAmbient(attr.object)
@@ -259,7 +259,7 @@ const emitTopEffects = (fx: EffectsContext, node: TemplateNode): void => {
 				continue
 			}
 			if (attr.kind === 'class-map') {
-				// LT-032: same root exemption as style-map — targets the
+				//: same root exemption as style-map — targets the
 				// ambient `host`, not a queried descendant.
 				collectAmbient(attr.object)
 				ambient.add('host')
@@ -291,10 +291,10 @@ const emitTopEffects = (fx: EffectsContext, node: TemplateNode): void => {
 				break
 			}
 		}
-		// LT-114: the root's lazy text CHILDREN are the text-binding
+		//: the root's lazy text CHILDREN are the text-binding
 		// counterpart of the style-map/class-map root exemptions above
-		// (LT-028/LT-032) — shared with the nested path through
-		// `emitLazyTextChildren` (LT-226).
+		// — shared with the nested path through
+		// `emitLazyTextChildren` .
 		emitLazyTextChildren(
 			fx,
 			component.root,
@@ -334,16 +334,16 @@ const emitTopEffects = (fx: EffectsContext, node: TemplateNode): void => {
 /* === Exported Functions === */
 
 /**
- * Pass 4: the document-ordered client effect walk (LT-022, regrouping move
+ * Pass 4: the document-ordered client effect walk (regrouping move
  * M5). Builds the pass context once, walks the template through
  * `emitTopEffects`, then runs the standalone compose-`id` validation —
- * the band units live at module scope (LT-226).
+ * the band units live at module scope .
  */
 export const runEffects = (
 	shared: PassShared,
 	{ forPlans, reconcilePlans }: LoopPlans,
 	/**
-	 * Unread here: the parameter carries the ORDER (ADR 0040 s5). Harvest
+	 * Unread here: the parameter carries the ORDER (ADR 0018 s5). Harvest
 	 * registers its queries first, and query registration order is the
 	 * byte-stable contract — so effects cannot be planned without it.
 	 */
@@ -367,7 +367,7 @@ export const runEffects = (
 		queries,
 	} = shared
 	/**
-	 * Registry entries by TAG (LT-158). The compose registry is keyed by
+	 * Registry entries by TAG . The compose registry is keyed by
 	 * source path because composition resolves through import specifiers; a
 	 * `pass={{ }}` on a raw dashed tag has only the tag, so it needs the
 	 * other index. Built from the same map rather than threading a second

@@ -1,9 +1,9 @@
 /**
  * An imported function is a client-known name in a client-only setup side
- * effect (ADR 0046 s5, LT-427; admitted since LT-088): a shared helper
+ * effect (ADR 0024 s5; admitted since ): a shared helper
  * module called from setup with `host` and a declared list compiles on both
  * surfaces, the statement stays client-only, and the import is placed into
- * the client module only (ADR 0024 s14). A compose import is not a helper:
+ * the client module only (ADR 0005 s14). A compose import is not a helper:
  * calling it from setup stays the unsupported-statement error.
  */
 import { describe, expect, test } from 'bun:test'

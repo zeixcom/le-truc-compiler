@@ -3,10 +3,10 @@
  *
  * The package ships no TypeScript declarations at all, and the compiler
  * uses one narrow slice of it: the declaration-grammar lexer behind
- * LTC065 (ADR 0033 s9, LT-268, LT-394). css.ts imports the package's prebuilt
+ * LTC065 (ADR 0011 s9). css.ts imports the package's prebuilt
  * `dist/csstree.esm.js` bundle — the entry loads its dictionary patch
  * through a runtime `createRequire`, which cannot ride the portability
- * check's self-contained module graph (ADR 0038). This shim is that
+ * check's self-contained module graph (ADR 0016). This shim is that
  * import specifier's type side: exactly the functions and the loose AST
  * shape the grammar pass uses, so a css-tree upgrade only ever touches
  * `css.ts` and this file. Runtime resolution is unaffected — Bun loads

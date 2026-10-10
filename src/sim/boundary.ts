@@ -1,8 +1,8 @@
 /**
- * The serialization boundary (ADR 0027 sub-design 9, LT-151, amended by
- * LT-154 on 2026-09-03).
+ * The serialization boundary (ADR 0006 sub-design 9, amended by
+ *  on 2026-09-03).
  *
- * LT-151 built this as a STRICTLY SYNCHRONOUS window: any microtask drain
+ *  built this as a STRICTLY SYNCHRONOUS window: any microtask drain
  * between instantiate and serialize threw. Measuring composition against the
  * corpus proved that wrong — `resolveDependencies` (`src/helpers/dom.ts`)
  * defers effect activation by a microtask whenever a component queries a
@@ -66,7 +66,7 @@ export function assertSynchronousWindow<T>(work: () => T, label: string): T {
 	if (isThenable(result))
 		throw new SimulationBoundaryError(
 			`Serialization boundary for ${label} returned a promise. ` +
-				'The instantiate→parse step must be synchronous (ADR 0027 ' +
+				'The instantiate→parse step must be synchronous (ADR 0006 ' +
 				'sub-design 9). Await build-time data in the resolution phase, ' +
 				'before the simulation.',
 		)
@@ -74,7 +74,7 @@ export function assertSynchronousWindow<T>(work: () => T, label: string): T {
 		throw new SimulationBoundaryError(
 			`Serialization boundary for ${label} awaited. The microtask queue ` +
 				'drained during the parse+upgrade pass itself, before quiescence ' +
-				'draining even began (ADR 0027 sub-design 9). Await build-time ' +
+				'draining even began (ADR 0006 sub-design 9). Await build-time ' +
 				'data in the resolution phase, before the simulation.',
 		)
 
@@ -96,7 +96,7 @@ export type QuiescenceResult = {
  * never fire and the drain cannot itself advance real time. Bounded: a
  * reactive loop that never settles returns `quiescent: false` after
  * `maxTurns` rather than hanging the build — callers turn that into a
- * `non-quiescent` diagnostic, never a throw (ADR 0027 sub-design 9).
+ * `non-quiescent` diagnostic, never a throw (ADR 0006 sub-design 9).
  *
  * The realm must stay alive for the caller's lifetime of this call —
  * draining after `dispose()` tears the patch-table globals out from under

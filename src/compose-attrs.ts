@@ -1,7 +1,7 @@
 /**
  * Compose-site addressing attributes on a composed element's rendered root
- * (LT-090). `class`/`id`/`data-*` authored on a compose site address the
- * COMPOSE SITE — the child's host element — not typed props (LT-089's discriminator
+ * (). `class`/`id`/`data-*` authored on a compose site address the
+ * COMPOSE SITE — the child's host element — not typed props (the ticket's discriminator
  * vocabulary): the compose emission filters them out of the forwarded
  * server args and applies them here instead, so the served DOM actually
  * carries the discriminator the client's `first('form-spinbutton.lightness')`
@@ -20,7 +20,7 @@ import { attr } from './runtime'
  * child component `tag`.
  *
  * `markup` must start with the child's own root open tag — a generated
- * server module's first push is always its root element (ADR 0024
+ * server module's first push is always its root element (ADR 0005
  * sub-design 5's single-root render shape). Anything else is a compiler
  * invariant violation and throws rather than silently dropping the
  * attributes back out of the DOM.

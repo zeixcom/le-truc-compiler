@@ -1,10 +1,10 @@
 /**
- * Tests for lazy text children directly on the component ROOT (LT-114):
+ * Tests for lazy text children directly on the component ROOT ():
  * `emitTopEffects`'s root branch special-cased only `style-map`/`class-map`
  * attributes, so the root's lazy text children were never visited — the
  * generated client emitted no `watch(source, bindText(...))` at all and the
  * component rendered permanently empty on hydration-only pages (a silent
- * omission, no diagnostic; found cutting basic-number over, NOTES LT-092).
+ * omission, no diagnostic; found cutting basic-number over, NOTES ).
  *
  * The fix mirrors the style-map/class-map root exemptions: the lazy child is
  * bound against the ambient `host`, with the same impure-ambient fold check
@@ -15,7 +15,7 @@
  *
  * Note: fixtures deliberately drive reactivity through `host.<prop>` reads
  * and `deriveCell` signals. A bare signal-IDENTIFIER lazy root child hits
- * the HARVEST pass's own root handling — fixed in LT-115 alongside the
+ * the HARVEST pass's own root handling — fixed in  alongside the
  * `paramDomRead` root sites (see root-harvest.test.ts): the text harvest now
  * reads `host.textContent` instead of emitting `first('<own-tag>')`.
  */
@@ -53,7 +53,7 @@ describe('a single lazy text child on the component root (LT-114)', () => {
 		expect(component?.clientCode).toMatch(/\(\{[^}]*\bhost\b[^}]*}\) =>/)
 	})
 
-	test('a bare host-member read is auto-wrapped into a watch thunk (LT-038)', () => {
+	test('a bare host-member read is auto-wrapped into a watch thunk', () => {
 		const { component, diagnostics } = compile('{host.value}')
 		expect(diagnostics.filter(d => d.severity === 'error')).toEqual([])
 		expect(component?.clientCode).toContain(
@@ -208,7 +208,7 @@ export function C({}: {})
 	const pure = impure.replace('Date.now()', '1')
 
 	test('a would-have-folded child reading Date is omitted silently — the client corrects it (LT-165 step 5)', () => {
-		// ADR 0029 s1 limb b: the expression has no server answer in any tier,
+		// ADR 0008 s1 limb b: the expression has no server answer in any tier,
 		// so it is omitted and the client's first binding pass supplies it —
 		// unresolvability, not an author error, so no diagnostic.
 		const { component, diagnostics } = compileComponent(

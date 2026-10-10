@@ -1,14 +1,14 @@
 /**
- * The build-report channel (ADR 0027 Consequences, LT-153 decision 1,
- * LT-163; moved out of `sim/report.ts` by LT-263, ADR 0035 sub-design 3
+ * The build-report channel (ADR 0006 Consequences decision 1,
+ * ; moved out of `sim/report.ts` by , ADR 0013 sub-design 3
  * limb 1).
  *
  * Simulation trades a compiler that refuses and names the mistake for a
  * driver that ships a wrong answer quietly; fixture-pinning is necessary
  * but is not a channel. This module is the channel: it turns a driver's
- * `diagnostics` (LT-154) into **build warnings attributed to a component**.
+ * `diagnostics` () into **build warnings attributed to a component**.
  *
- * **Tier 2, Contained** (ADR 0028 sub-design 1): the build completes and the
+ * **Tier 2, Contained** (ADR 0007 sub-design 1): the build completes and the
  * affected component keeps its server-rendered markup. Nothing here prevents
  * a build and nothing escalates — but nothing is silenced either.
  *
@@ -95,7 +95,7 @@ export const classificationFor = (
 /**
  * Format one diagnostic as the build-warning line the report prints.
  *
- * The copy follows the error-message lifecycle criteria (ADR 0028): the
+ * The copy follows the error-message lifecycle criteria (ADR 0007): the
  * condition in the component author's vocabulary, the component named, and
  * the decision to make — fix the condition, or classify the entry with a
  * reason when it genuinely cannot affect the serialized markup. Tier 2
@@ -125,7 +125,7 @@ export const formatSimDiagnostic = (diagnostic: SimDiagnostic): string => {
 			)
 		}
 		case 'network':
-			// The stub's message is final copy (LT-151): condition, closed
+			// The stub's message is final copy (): condition, closed
 			// realm, and the resolution-phase fix. Attribution is all this adds.
 			return `${who}: ${detail}`
 		case 'unhandled-rejection':

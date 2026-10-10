@@ -1,8 +1,8 @@
 /**
- * Query-table naming (LT-022, regrouping move M5): variable-name allocation
+ * Query-table naming (regrouping move M5): variable-name allocation
  * for the generated factory and the deduplicating query table. One home for
  * "what is this element called client-side" — and for its inverse, the
- * names only the server render binds (`renderOnlyBindings`, LT-231).
+ * names only the server render binds (`renderOnlyBindings`).
  */
 
 import type { ComponentIR } from '../ir'
@@ -39,7 +39,7 @@ export const addQuery = (
 	selector: string,
 	cardinality: 'one' | 'many' | 'maybe',
 ): string => {
-	// LT-123: an author-declared optional ref stays optional
+	//: an author-declared optional ref stays optional
 	// however unconditional its site looks — the component's
 	// markup may be page-authored, and a page may omit a child
 	// this template would have rendered.
@@ -63,7 +63,7 @@ export const addQuery = (
 	)
 		childTags.add(tag)
 	const name = uniqueName(usedNames, base)
-	// A `first()`-declared reference's own required-reason text (LT-055)
+	// A `first()`-declared reference's own required-reason text ()
 	// flows into the generated MissingElementError message verbatim — the
 	// one part of the author's call the compiler doesn't resynthesize (the
 	// selector itself stays compiler-proven, same as `ref={}` before it).

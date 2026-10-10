@@ -1,5 +1,5 @@
 /**
- * The published diagnostic record's ranges (ADR 0044 s1–s2, LT-371).
+ * The published diagnostic record's ranges (ADR 0022 s1–s2).
  *
  * One pin per producer family: the reported `location` covers the
  * offending construct, in the file the caller named. Each rule both
@@ -118,7 +118,7 @@ const CELL_IMPORT = "import { createCell } from '@zeix/le-truc'\n"
 
 /* === Tests === */
 
-describe('the record shape (ADR 0044 s1)', () => {
+describe('the record shape (ADR 0022 s1)', () => {
 	test('a reported diagnostic carries location and related, never line', () => {
 		const hit: CompileDiagnostic | undefined = reportOn(
 			{ template: '<script>x</script>' },
@@ -655,7 +655,7 @@ export function C({}: {}) {
 		const setup =
 			"\t\tconst items = createList<string>([], { keyConfig: 'item' })\n\t\texpose({})"
 		for (const shape of [
-			// form-tokenbox's fixed shape (LT-185): the input is exempt
+			// form-tokenbox's fixed shape (): the input is exempt
 			{
 				template:
 					'<ul data-container><input type="text" data-unreconciled>@for (const item of items) { <li>{item}</li> }</ul>',
@@ -670,7 +670,7 @@ export function C({}: {}) {
 					'<ul data-container>{items.map(item => <li>{item}</li>)}</ul>',
 			},
 			// the @empty arm's roots also sit beside the loop as `output`'s
-			// siblings — the server stamps them `data-unreconciled` (LT-212)
+			// siblings — the server stamps them `data-unreconciled` ()
 			{
 				template:
 					'<ul data-container>@for (const item of items) { <li>{item}</li> } @empty { <li class="none">Nothing yet</li> }</ul>',
@@ -718,7 +718,7 @@ export function C({}: {}) {
 			tsxTemplate:
 				'<ul data-container><truc:try pending={<li class="p">p</li>} catch={e => <li class="b">{e.message}</li>}><li class="a">{data}</li></truc:try>{items.map(item => <li>{item}</li>)}</ul>',
 		}
-		// The message names the boundary, not a conditional (LT-432).
+		// The message names the boundary, not a conditional ().
 		for (const { surface, hit } of reportOn(shape, 'LTC063')) {
 			expect(hit?.message).toStartWith(
 				surface === 'tsx'
@@ -778,7 +778,7 @@ export function C({}: {}) {
 	})
 })
 
-describe('positions the parser or the file supplies (ADR 0044 s2)', () => {
+describe('positions the parser or the file supplies (ADR 0022 s2)', () => {
 	test("a parse failure reports the parser's own position, inside the file", () => {
 		const source = 'export function C( {\n'
 		for (const { diagnostics } of [

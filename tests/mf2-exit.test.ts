@@ -1,5 +1,5 @@
 /**
- * MF2 migration insurance (LT-253, ADR 0030 Alternatives). MF1 is a bet
+ * MF2 migration insurance (ADR 0009 Alternatives). MF1 is a bet
  * with a kept-open exit; this suite turns "the migration is mechanical"
  * into a gate. Every corpus pattern goes MF1 → MF2 source text → back
  * through the MF2 parser, and both sides render a matrix of arguments in
@@ -224,7 +224,7 @@ describe('nested-to-flat arm expansion', () => {
 
 	test('arm count is the product of each locale’s spelled key sets', () => {
 		// The retired basic-pluralize's cy `tasks` (now the `c-plural`
-		// fixture's catalog, LT-467): six cardinal arms, six ordinal arms,
+		// fixture's catalog): six cardinal arms, six ordinal arms,
 		// both under `type`.
 		const pattern = C_PLURAL_CATALOG.cy?.tasks
 		if (!pattern) throw new Error('c-plural-catalog lacks cy.tasks')
@@ -434,7 +434,7 @@ describe('the supported MF1 surface through the exit', () => {
 	})
 })
 
-/* === The dependency boundary (ADR 0030 s8) === */
+/* === The dependency boundary (ADR 0009 s8) === */
 
 describe('dependency boundary', () => {
 	const compilerFiles = (dir: string): string[] =>

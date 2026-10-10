@@ -1,5 +1,5 @@
 /**
- * Server-module emitter (ADR 0024 milestone 1, LT-001).
+ * Server-module emitter (ADR 0005 milestone 1).
  *
  * Emits one module per component exporting `render<Name>(args): string`.
  * The generated function re-declares the source's `@{ }` setup verbatim —
@@ -12,7 +12,7 @@
  *   when the dependency closure is server-known (args, setup names, loop
  *   bindings, hoisted consts); otherwise the attribute is omitted — the
  *   first client binding pass sets it (dependency-provable evaluation,
- *   ADR 0024 sub-design 3)
+ *   ADR 0005 sub-design 3)
  * - `on*` event attributes and `ref` are stripped
  * - `@for` over server data renders once per item, hoisted consts included
  */
@@ -89,7 +89,7 @@ export type EmittedServerModule = {
 	/** Runtime helper names the module imports. */
 	runtimeImports: Set<string>
 	/**
-	 * Generated-file ↔ `.tsrx`-source span table (LT-011) for the verbatim
+	 * Generated-file ↔ `.tsrx`-source span table  for the verbatim
 	 * setup statements re-declared in this module. The server half is not
 	 * type-checked by `check:corpus` today (TS diagnostics only arise in code
 	 * that lowers into the client module), but the setup statements ARE
@@ -103,7 +103,7 @@ type TryNode = Extract<TemplateNode, { kind: 'try' }>
 type ComposeNode = Extract<TemplateNode, { kind: 'compose' }>
 
 /**
- * The harness names the emitter itself writes calls to (LT-302) — as
+ * The harness names the emitter itself writes calls to  — as
  * opposed to the authored vocabulary (`createCell`, `expose`, the parsers)
  * that reaches the module inside verbatim setup text. An arg, setup const,
  * loop variable or catch parameter of the same name would shadow the
@@ -162,7 +162,7 @@ const importSpecifier = (name: string, local: string): string =>
 	local === name ? name : `${name} as ${local}`
 
 /**
- * The template emitters' shared state (LT-225): what `emit`/`emitElement`/
+ * The template emitters' shared state : what `emit`/`emitElement`/
  * `emitFor`/`emitListFor` used to close over inside `emitServerModule`,
  * threaded explicitly so the emitters can live at module scope. The scalar
  * fields are reassigned in place by the emitters — the save/restore
@@ -174,7 +174,7 @@ type EmitContext = {
 	component: ComponentIR
 	/**
 	 * Composed (PascalCase) elements' targets, keyed by resolved `.tsrx`
-	 * source path (ADR 0024 sub-design 10). A compose node whose `source`
+	 * source path (ADR 0005 sub-design 10). A compose node whose `source`
 	 * is missing here was already diagnosed as an error upstream
 	 * (`index.ts`), so `emitCompose` never needs to handle a missing entry.
 	 */
@@ -189,7 +189,7 @@ type EmitContext = {
 	 * The current push target: `__html` normally; @try arms render into an
 	 * isolated `__arm` buffer so a mid-arm throw cannot leak partial markup
 	 * into the output (the catch arm renders its own fresh buffer), and
-	 * composed elements' children (LT-018) render into their own uniquely
+	 * composed elements' children  render into their own uniquely
 	 * named buffers — a nested arm must never shadow its enclosing one.
 	 */
 	buffer: string
@@ -197,7 +197,7 @@ type EmitContext = {
 	armCounter: number
 	childrenCounter: number
 	/**
-	 * The Children Region (ADR 0048 s1): the render function's owner
+	 * The Children Region (ADR 0026 s1): the render function's owner
 	 * parameter — the tag of the compiled component whose content fills this
 	 * one's `{children}`, absent for a page-rendered instance — and the
 	 * elements that carry it as the region marker. Null when the template
@@ -207,17 +207,17 @@ type EmitContext = {
 	childrenInsertions: ChildrenInsertions
 	/**
 	 * Set when a compose site supplies a child's reserved `i18n` record
-	 * (ADR 0030 sub-design 2): pulls the `i18nRecord` import into the module.
+	 * (ADR 0009 sub-design 2): pulls the `i18nRecord` import into the module.
 	 */
 	usedI18nRecord: boolean
 	/**
-	 * LT-173 step 6: the render-scope names a host-derived fold may leave in
+	 *  step 6: the render-scope names a host-derived fold may leave in
 	 * a spliced thunk — computed once per module, the same set the analyzer's
 	 * LTC034 check passes to `hostDerivedFold` (the two must agree).
 	 */
 	foldScope: ReadonlySet<string>
 	/**
-	 * LT-385c: set while an arm `<template>` renders (ADR 0037). A
+	 * LT-385c: set while an arm `<template>` renders (ADR 0015). A
 	 * client-written site inside it — a lazy text child, a reactive
 	 * attribute, a class/style map — has no initial value: the condition
 	 * picked another arm, so evaluating the site would read the world under
@@ -240,24 +240,24 @@ type EmitContext = {
 	 * The item names of the reactive lists whose server loop is open (ADR
 	 * 0046 s3): the loop binds each to the item CELL the list hands out, so
 	 * the bare `{item}` fill reads it with `.get()` — and so does a bare
-	 * read of a signal the item's setup declares (ADR 0046 s5).
+	 * read of a signal the item's setup declares (ADR 0024 s5).
 	 */
 	listItems: Set<string>
 	/**
 	 * The render-time flag of each reactive list below a server-known
-	 * branch (LT-454): set wherever the list renders — a live item, an arm
+	 * branch : set wherever the list renders — a live item, an arm
 	 * or an enclosing list's template, each folding the same branch — so its
 	 * hoisted template ships only when its container can exist.
 	 */
 	listFlags: Map<ReconcileForIR, string>
 	/**
-	 * The key-alias witnesses (ADR 0047 s2, LT-453): per alias scope, the
+	 * The key-alias witnesses (ADR 0025 s2): per alias scope, the
 	 * harvested list and the `__witnessN` array its live items push their
 	 * keys to, in render order.
 	 */
 	witnesses: Map<ReconcileForIR, { list: string; keys: string }>
 	/**
-	 * Every loop's `emptyArm` roots (LT-212). They sit in the template tree
+	 * Every loop's `emptyArm` roots . They sit in the template tree
 	 * as the loop output's following siblings, so selector resolution and
 	 * the id/prose checks see them, but they render from inside the loop
 	 * emission: the plain child walk skips them.
@@ -267,7 +267,7 @@ type EmitContext = {
 	emptyCounter: number
 	/**
 	 * The local name of a harness import the emitter synthesizes a call to
-	 * (LT-302): the bare name, or `__<name>` when a render-scope name
+	 * : the bare name, or `__<name>` when a render-scope name
 	 * shadows it. See {@link EMITTED_HARNESS_NAMES}.
 	 */
 	h: (name: EmittedHarnessName) => string
@@ -288,8 +288,8 @@ const push = (ctx: EmitContext, expr: string): void => {
 }
 
 /**
- * One text position into `out`'s buffer, through a typed text sink (ADR 0046
- * s6, LT-428): `text(value)`, or `textOf(thunk)` for an authored arrow. An
+ * One text position into `out`'s buffer, through a typed text sink (ADR 0024
+ * s6): `text(value)`, or `textOf(thunk)` for an authored arrow. An
  * object or a boolean reaching it is a tsc error, so when `value` is spelled
  * from the authored child's own text (`item`, `data.get()`, `e.message`) the
  * statement carries spans that let `check:corpus` report it at the authored
@@ -368,7 +368,7 @@ const retainReferenced = (
 /**
  * The Folded tier's setup: every statement verbatim, except a
  * server-unevaluable one (it reads a client-only primitive or ref) that
- * neither the markup nor another kept statement references (LT-323). Such a
+ * neither the markup nor another kept statement references . Such a
  * statement feeds only client-only positions — module-catalog's
  * `total = createMemo(() => all(…)…)`, read by a `truc:pass` thunk alone —
  * so the harness has nothing to evaluate it for, and declaring it would
@@ -432,11 +432,11 @@ const lazyValueExpression = (
 	// child referencing `host` (a client-only ambient, e.g. `formatHex(host
 	// .value)`) has no server value at all: render nothing initially, the
 	// client's `watch()` for this reactive child corrects it on connect (DOM-is-
-	// truth, ADR 0003) — same posture as an omitted non-server-known thunk
-	// attribute. Found and fixed alongside LT-034 (`card-colorscale.tsrx`'s
+	// truth, ADR 0001) — same posture as an omitted non-server-known thunk
+	// attribute. Found and fixed alongside  (`card-colorscale.tsrx`'s
 	// hex-value lazy child called `formatHex(host.value)`, which used to
 	// render verbatim server-side where `host` doesn't exist).
-	// LT-317: a `host.<prop>` thunk folds through the same two routes the
+	//: a `host.<prop>` thunk folds through the same two routes the
 	// `reactive` attribute case takes (the bare mirror, then the
 	// host-derived splice) before falling back to empty — so a
 	// Parser-exposed prop's text site ships its value before JS, exactly
@@ -456,7 +456,7 @@ const lazyValueExpression = (
 /**
  * The server expression for a `() => host.<prop>` mirror: the parser-exposed
  * prop's value at render time IS the root attribute's server expression
- * (DOM-is-truth — the host attribute is the prop's seed, ADR 0003). Null when
+ * (DOM-is-truth — the host attribute is the prop's seed, ADR 0001). Null when
  * the prop is not Parser-exposed or the root does not render its attribute.
  * The `() => host.<prop>` pattern match is `hostPropOf` (ast-utils), shared
  * with the analyzer's dispatch decision.
@@ -476,7 +476,7 @@ const hostPropMirrorExpr = (
 }
 
 /**
- * Register every runtime-harness name a spliced seed names (LT-386): a
+ * Register every runtime-harness name a spliced seed names : a
  * Parser-backed seed calls its factory (`asInteger()(attrValue(count))`),
  * and the module's import line must provide both it and `attrValue` — in
  * the Folded tier the verbatim setup already provides the factory, in the
@@ -493,7 +493,7 @@ const useSeedNames = (ctx: EmitContext, seed: string): void => {
 /**
  * The splice callback of every host-derived fold in this module, one body
  * for the seed account (TC-007): a ref read folds to whatever decides its
- * presence in the server's OWN output (LT-118) — `refBranchGuard`'s
+ * presence in the server's OWN output  — `refBranchGuard`'s
  * condition — and a prop read to `hostSeedExpr`'s seed (LT-386: the parser
  * applied to the root attribute, the plain-value initializer, the
  * attribute expression, or the harvesting arg — never a guess), which
@@ -507,10 +507,10 @@ const foldSeedOf =
 	(ctx: EmitContext) =>
 	(prop: string, kind: 'prop' | 'ref'): string => {
 		// A ref read folds to whatever decides its presence in the
-		// server's OWN output (LT-118) — `refBranchGuard`'s condition.
+		// server's OWN output  — `refBranchGuard`'s condition.
 		if (kind === 'ref') return foldableRefGuards(ctx.component).get(prop) ?? ''
 		// Membership in foldableHostProps and the seed are one account
-		// (evaluability.ts, LT-386): the parser applied to the root
+		// (evaluability.ts): the parser applied to the root
 		// attribute, the plain-value initializer, the attribute
 		// expression, or the harvesting arg — never a guess.
 		const seed = hostSeedExpr(ctx.component, prop)
@@ -520,7 +520,7 @@ const foldSeedOf =
 
 /**
  * The server expression for a thunk that reads ONLY `host.<prop>` members
- * (LT-085, CHECKLIST §5 widening of the fold rule beyond the bare mirror
+ * (CHECKLIST §5 widening of the fold rule beyond the bare mirror
  * above): each `host.<prop>` range is spliced for that prop's server seed
  * (`hostSeedExpr`, evaluability.ts — the parser applied to the root
  * attribute, a plain-value initializer, the attribute expression, or the
@@ -553,13 +553,13 @@ const hostDerivedExpr = (
 }
 
 /**
- * The extracted `<template>` (ADR 0046 s2): stamped `data-list="N"` — the
+ * The extracted `<template>` (ADR 0024 s2): stamped `data-list="N"` — the
  * list's compile-time document-order index, which the client's `reconcile`
  * call queries from the host — statics render, and
  * server-known content folds in at render time as today. Item-dependent
- * sites bake EMPTY (ADR 0037 s1's losing-arm rule): a lazy child (the bare
+ * sites bake EMPTY (ADR 0015 s1's losing-arm rule): a lazy child (the bare
  * `{item}` shorthand and its arrow spelling alike — the item mount writes
- * either on enter, so the two surfaces bake the same bytes; LT-425 retired
+ * either on enter, so the two surfaces bake the same bytes;  retired
  * the slot-fill `<slot>` marker), a reactive or map attribute, and a
  * key-derived attribute (a `server` attribute over the key binding alone — the mount sets it against the clone's key parameter;
  * the live items render the same value from the loop's own key binding) all
@@ -581,7 +581,7 @@ const listTemplate = (
 	}
 	pushTo(`'<template data-list="${listIndex}">'`)
 	// The item's own names are unbound in the template render, which runs
-	// once, outside the loop (ADR 0046 s5).
+	// once, outside the loop (ADR 0024 s5).
 	const unbound = [
 		loop.itemName,
 		...(loop.keyName === null ? [] : [loop.keyName]),
@@ -591,10 +591,10 @@ const listTemplate = (
 		loop.setup.flatMap(stmt => (stmt.kind === 'const' ? [stmt.name] : [])),
 	)
 	if (loop.keyName !== null) cloneTime.add(loop.keyName)
-	// A nested arm set or loop (LT-424) renders through the main emitter in
+	// A nested arm set or loop  renders through the main emitter in
 	// template mode — no live arm, no items, the enclosing items' bindings
 	// unbound — into this template. A nested list's own template is not
-	// copied in: it renders once, at the host's end (ADR 0046 s2).
+	// copied in: it renders once, at the host's end (ADR 0024 s2).
 	const nested = (node: TemplateNode): void => {
 		const saved = {
 			out: ctx.out,
@@ -664,13 +664,13 @@ const listTemplate = (
 		for (const attr of node.attrs) {
 			if (attr.kind === 'static') html.attr(attr.name, attr.value)
 			else if (attr.kind === 'server') {
-				// A key-derived attribute (ADR 0046 s1) bakes empty — the
+				// A key-derived attribute (ADR 0024 s1) bakes empty — the
 				// mount sets it once at clone; `validateListBody` proved the
 				// expression reads the key binding alone.
 				const reads = [...freeIdentifiers(attr.node)]
 				if (reads.length > 0 && reads.every(n => cloneTime.has(n))) continue
 				// An enclosing list's key, while that list's own template renders
-				// (LT-424): unbound here, set by the owning mount.
+				// : unbound here, set by the owning mount.
 				if (reads.some(n => ctx.templateUnbound.has(n))) continue
 				// esc() escapes quotes too, so the value is safe inside the
 				// double-quoted attribute the static parts open and close.
@@ -695,7 +695,7 @@ const listTemplate = (
 /**
  * A `let __listN = false` flag, at the render function's top level, for
  * every reactive list below a server-known branch — a server-mode
- * conditional or a synchronous `@try` (LT-454). A list outside any such
+ * conditional or a synchronous `@try` . A list outside any such
  * branch always renders, so it needs none, and its template ships
  * unconditionally.
  */
@@ -723,7 +723,7 @@ const declareListFlags = (ctx: EmitContext): void => {
 
 /**
  * A `const __witnessN: string[] = []` per list harvested through a key
- * alias (ADR 0047 s2): the alias scope's live items push their keys to it,
+ * alias (ADR 0025 s2): the alias scope's live items push their keys to it,
  * in render order. The harvest pass has refused every other alias shape,
  * so the first alias names the scope.
  */
@@ -745,7 +745,7 @@ const declareWitnesses = (ctx: EmitContext): void => {
 }
 
 /**
- * The render witness (ADR 0047 s2): once the render has run, the keys the
+ * The render witness (ADR 0025 s2): once the render has run, the keys the
  * alias scope rendered must reach every key of the harvested list, first
  * occurrences in list order — else `witnessHarvest` throws, and the build
  * fails before a page ships a list the client would rebuild incomplete.
@@ -761,12 +761,12 @@ const checkWitnesses = (ctx: EmitContext): void => {
 
 /**
  * Every reactive list's extracted template, as the host's last children, in
- * document order of N (ADR 0046 s2): one copy per instance, whatever the
+ * document order of N (ADR 0024 s2): one copy per instance, whatever the
  * nesting depth, so a list container may be any element — a Mount Scope
  * root included — and the client queries it from the host. A nested list's
  * template renders with every enclosing scope unbound: its enclosing items'
  * names bake empty (the inner mount writes them on adopt and clone), and
- * client-written sites bake empty as in an arm template (LT-385c). A list
+ * client-written sites bake empty as in an arm template . A list
  * below a server-known branch ships its template only when that branch
  * rendered it (`listFlags`); the client queries no template for a container
  * the render left out.
@@ -813,7 +813,7 @@ const emitListTemplates = (ctx: EmitContext): void => {
 }
 
 /**
- * An item's setup in the server's loop (ADR 0046 s5): its plain consts and
+ * An item's setup in the server's loop (ADR 0024 s5): its plain consts and
  * signal declarations, verbatim, once per initial item — the value harness
  * evaluates each signal once. A `createSensor` start callback or a function
  * const's body may name what only the client binds (`host`, a ref, `on`):
@@ -851,7 +851,7 @@ const emitItemSetup = (
 }
 
 /**
- * Reactive `@for` over a declared List (ADR 0024 sub-design 5): initial
+ * Reactive `@for` over a declared List (ADR 0005 sub-design 5): initial
  * keyed items render in place (adopted children are complete) with
  * `data-key` from the shim's cause-effect-parity key generation. The item
  * shape is extracted as a `<template>` at the host's end
@@ -869,7 +869,7 @@ const emitListFor = (
 	const setup = loop.setup.filter(onServer)
 	for (const stmt of setup) loopScope.add(stmt.name as string)
 	const emptyFlag = openEmptyFlag(ctx, loop)
-	// Inside a template (an arm's, an enclosing list's; LT-424) the list
+	// Inside a template (an arm's, an enclosing list's; ) the list
 	// renders no items: the clone's mount reconciles them from the List.
 	if (!ctx.inArmTemplate) {
 		ctx.out.open(
@@ -906,7 +906,7 @@ const emitListFor = (
 		ctx.out.close()
 	}
 
-	// The empty arm stays in the container on the toggle path (ADR 0037
+	// The empty arm stays in the container on the toggle path (ADR 0015
 	// s5): always rendered, exempt from reconciliation, hidden while the
 	// list has items. The client toggles `hidden` from the list's length.
 	if (emptyFlag && loop.emptyArm) {
@@ -928,14 +928,14 @@ const emitListFor = (
 		}
 	}
 	// The extracted template renders once, at the host's end
-	// (`emitListTemplates`, ADR 0046 s2) — below a server-known branch, only
+	// (`emitListTemplates`, ADR 0024 s2) — below a server-known branch, only
 	// once the list rendered somewhere.
 	const listFlag = ctx.listFlags.get(loop)
 	if (listFlag) ctx.out.line(`${listFlag} = true`)
 }
 
 /**
- * A loop with an empty arm (LT-212) tracks whether it rendered any item in
+ * A loop with an empty arm  tracks whether it rendered any item in
  * a `let __emptyN = true` flag, so the arm works over any iterable, not
  * only over values with a `length`. Returns the flag name, or null (and
  * emits nothing) for a loop without an arm.
@@ -1017,7 +1017,7 @@ const emitElement = (
 				else html.attr(attr.name, attr.value)
 				break
 			case 'server':
-				// LT-424: an authored attribute over an enclosing list's item or
+				//: an authored attribute over an enclosing list's item or
 				// key bakes empty in that list's template — the mount sets it.
 				// (The emitter's own `extraAttrs` carry placeholder nodes.)
 				if (
@@ -1030,7 +1030,7 @@ const emitElement = (
 				html.expr(attrCall(attr.name, attr.exprText))
 				break
 			case 'reactive': {
-				// LT-385c: a reactive attribute bakes nothing inside an arm
+				//: a reactive attribute bakes nothing inside an arm
 				// template — the mount writes it on enter.
 				if (ctx.inArmTemplate) break
 				const mirror = hostPropMirrorExpr(ctx.component, attr.thunk)
@@ -1051,14 +1051,14 @@ const emitElement = (
 				break
 			}
 			case 'class-map':
-				// LT-385c: map entries bake nothing inside an arm template.
+				//: map entries bake nothing inside an arm template.
 				if (!ctx.inArmTemplate && isServerEvaluable(attr.object, scope)) {
 					ctx.used.add('cls')
 					classExpr = `${ctx.h('cls')}((${attr.thunkText})())`
 				}
 				break
 			case 'style-map':
-				// LT-385c: same as class-map.
+				//: same as class-map.
 				if (!ctx.inArmTemplate && isServerEvaluable(attr.object, scope)) {
 					ctx.used.add('attr')
 					ctx.used.add('styleAttr')
@@ -1072,7 +1072,7 @@ const emitElement = (
 				break
 			case 'event':
 			case 'ref':
-			// A handler-arg placement renders nothing (LT-461).
+			// A handler-arg placement renders nothing .
 			case 'handler-arg':
 				break
 		}
@@ -1098,18 +1098,18 @@ const isComposeHostAttr = (name: string): boolean =>
 	name === 'class' || name === 'id' || name.startsWith('data-')
 
 /**
- * A composed element (ADR 0024 sub-design 10): splice the child's
+ * A composed element (ADR 0005 sub-design 10): splice the child's
  * generated `render<Name>()` call inline. Composed elements never had
  * their diagnostics escalate to an error (index.ts validates every
  * `node.source` against composeRegistry before emitServerModule runs at
  * all), so a missing entry is unreachable here.
  *
- * The option carrier (LT-460) serves the arm-root form: `extraHostAttrs`
+ * The option carrier  serves the arm-root form: `extraHostAttrs`
  * splices the arm's `data-key` onto the child's rendered root through the
  * same `composeHostAttrs` path as authored `class`/`id`/`data-*`. The
  * composed content emits through the generic paths — the catch parameter's
  * reads inside a message element are ordinary reactive text sites (live
- * arm: in scope; inert template: baked empty, LT-385c), and a reactive
+ * arm: in scope; inert template: baked empty), and a reactive
  * expression directly inside composed content is refused upstream.
  */
 const emitCompose = (
@@ -1131,14 +1131,14 @@ const emitCompose = (
 				// COMPOSE SITE (the child's host element), not typed props —
 				// filtered out of the forwarded args and spliced onto
 				// the child's rendered root via `composeHostAttrs` below
-				// (LT-089's discriminator vocabulary, materialized by
-				// LT-090; `data-*` since LT-320, when a per-item
+				// (the ticket's discriminator vocabulary, materialized by
+				// ; `data-*` since , when a per-item
 				// `data-product={product.id}` was forwarded as an unknown
 				// arg and dropped).
 				!isComposeHostAttr(a.name),
 		)
 		.map(a => `${jsString(a.name, 'double')}: ${a.exprText}`)
-	// A composed element's children (LT-018) render into their own
+	// A composed element's children  render into their own
 	// buffer, once, server-side — the joined string is forwarded as
 	// the child's `children` server arg (self-closing tags pass none,
 	// matching "no children supplied" at the type level).
@@ -1151,11 +1151,11 @@ const emitCompose = (
 		ctx.buffer = outerBuffer
 		args.push(`children: ${childrenVar}.join('')`)
 	}
-	// The reserved `i18n` record (ADR 0030 sub-design 2, LT-173): the
+	// The reserved `i18n` record (ADR 0009 sub-design 2): the
 	// compiler supplies it at every render call boundary — callers
 	// never author it (a caller-authored `i18n` attribute is rejected
-	// in classify-attributes). Locale precedence (ADR 0030 sub-design
-	// 3 as amended by LT-191): the compose site's own `lang` arg, else
+	// in classify-attributes). Locale precedence (ADR 0009 sub-design
+	// 3 as amended by ): the compose site's own `lang` arg, else
 	// the PARENT'S effective locale — compose-graph inheritance, the
 	// SSR analog of the DOM ancestor walk, since the composition tree
 	// is the rendered ancestor chain — else the child's authored
@@ -1185,20 +1185,20 @@ const emitCompose = (
 				: `i18n: ${ctx.h('i18nRecord')}(${tag})`,
 		)
 	}
-	// LT-090: materialize compose-site class/id/data-* on the child root
+	//: materialize compose-site class/id/data-* on the child root
 	// so the discriminator the client selector relies on (e.g.
 	// `first('form-spinbutton.lightness')`) exists in the served DOM.
 	// Values pass through as the authored expressions — static string
 	// literals AND server-evaluable dynamic ones — evaluated at render
 	// time in this module's scope, exactly like any other arg. Only a
 	// static value is ever a discriminator candidate (`composeStaticAttrs`
-	// reads literals only); a dynamic one is render-only (LT-320).
+	// reads literals only); a dynamic one is render-only .
 	const hostAttrs = node.attrs.filter(
 		(a): a is Extract<typeof a, { kind: 'arg' }> =>
 			a.kind === 'arg' && isComposeHostAttr(a.name),
 	)
 	const extra = opts.extraHostAttrs ?? []
-	// The region owner (ADR 0048 s1): this component's tag when it writes
+	// The region owner (ADR 0026 s1): this component's tag when it writes
 	// the content, its own owner when the content is its `{children}`
 	// passed straight through. Only a child that inserts `children` takes
 	// one, and only content gives it a region to mark.
@@ -1228,7 +1228,7 @@ const emitCompose = (
 }
 
 /**
- * One inert arm `<template data-arms data-key>` (ADR 0037 s1), one body
+ * One inert arm `<template data-arms data-key>` (ADR 0015 s1), one body
  * for both stamping sites (TC-007): the stamp — whose exact selector the
  * generated clients and the realm run (`dataArmsSelector`, codegen.ts) —
  * the arm root rendered between its halves with client-written sites baked
@@ -1257,15 +1257,15 @@ const stampArmTemplate = (
 }
 
 /**
- * The async boundary form of `@try` (ADR 0024 sub-design 13, LT-012; ADR
- * 0037 s4, LT-276): the arm that won at render time renders live, keyed
+ * The async boundary form of `@try` (ADR 0005 sub-design 13; ADR
+ * 0037 s4): the arm that won at render time renders live, keyed
  * `ok`/`nil`/`err` by its root's `data-key`, followed by one inert
  * `<template data-arms data-key>` per arm. The client's `reconcile()` adopts
  * the winner and clones the other arms as the task settles — only one arm is
  * ever in the document, so no named control in another arm can submit and
  * no fieldset or `hidden` sweep is needed. The analysis already proved each
  * arm is a single root element and found the guarded signal. There is no
- * `stale` arm — the owner withdrew the four-arm spelling (LT-211); a
+ * `stale` arm — the owner withdrew the four-arm spelling ; a
  * re-fetching task keeps its `ok` arm, and the reactive idiom for the
  * in-flight state is an `isPending(signal)` read beside the boundary, which
  * folds right here (the harness answers it).
@@ -1294,7 +1294,7 @@ const emitAsyncBoundary = (
 			c.expr.type === 'Identifier',
 	)
 	// The driver's name, child channel or the `truc:html` thunk channel
-	// (LT-449) — the analysis admitted exactly one, so mirror its choice.
+	//  — the analysis admitted exactly one, so mirror its choice.
 	const signalName = signalChild
 		? String((signalChild.expr as AstNode).name)
 		: (htmlThunkSignalName(okRoot) ?? '')
@@ -1303,7 +1303,7 @@ const emitAsyncBoundary = (
 	// An arm root, with its recognized lazy child (the guarded signal; the
 	// catch param or a member read over it) written as `value`: the live
 	// winner's resolved value or error text, and nothing in a template —
-	// the client's arm mount writes it. A compose root (LT-460) lowers as
+	// the client's arm mount writes it. A compose root  lowers as
 	// a compose site: `data-key` and the arm marker attributes splice onto
 	// the child's rendered root via `composeHostAttrs`, and the composed
 	// content — the message element and its catch-parameter read — emits
@@ -1340,7 +1340,7 @@ const emitAsyncBoundary = (
 			['nil', pendingRoot, scope],
 			['err', errRoot, errScope],
 		] as const) {
-			// LT-385c: same rule as the conditional's templates — client-written
+			//: same rule as the conditional's templates — client-written
 			// sites bake empty in the boundary's arms too (a pending task's
 			// `get()` would throw); the mounts write them on enter.
 			stampArmTemplate(ctx, armSet, key, () =>
@@ -1348,7 +1348,7 @@ const emitAsyncBoundary = (
 			)
 		}
 	}
-	// Inside a template (an arm's, a list item's; LT-424) nothing is live:
+	// Inside a template (an arm's, a list item's; ) nothing is live:
 	// the arm templates only — the clone's mount picks the arm.
 	if (ctx.inArmTemplate) {
 		templates()
@@ -1375,7 +1375,7 @@ const emitAsyncBoundary = (
 			(c): c is TemplateNode & { kind: 'expr' } =>
 				c.kind === 'expr' && c.reactivity === 'reactive',
 		) ??
-		// The nested message element's lazy child (LT-449) — the live err
+		// The nested message element's lazy child  — the live err
 		// arm emits it through the general element emission, which
 		// evaluates `error.message` with the catch parameter in scope.
 		lazyCatchMessageEl(errRoot, node.catchParam)?.children.find(
@@ -1385,7 +1385,7 @@ const emitAsyncBoundary = (
 	ctx.out.open(`if (${stateVar} === 'ok') {`)
 	emitArmRoot(okRoot, scope, `${signalName}.get()`, keyed('ok'))
 	ctx.out.between(`} else if (${stateVar} === 'err') {`)
-	// Typed as the authored arm types it (`err: Error`, LT-208), so the
+	// Typed as the authored arm types it (`err: Error`), so the
 	// catch arm's text (`{e.message}`) typechecks in the server module.
 	if (node.catchParam)
 		ctx.out.line(`const ${node.catchParam} = ${errVar} as Error`)
@@ -1447,7 +1447,7 @@ const emitJsConditional = (
  * value harness can evaluate it, else the test with each `host.<prop>`
  * read spliced for the prop's server seed through the shared
  * {@link foldSeedOf} callback (`hostSeedExpr` — the parser applied to the
- * root attribute for a Parser-backed prop, LT-386).
+ * root attribute for a Parser-backed prop).
  */
 const serverTestExpr = (
 	ctx: EmitContext,
@@ -1476,13 +1476,13 @@ const serverTestExpr = (
 }
 
 /**
- * A reactive conditional (ADR 0037 s1): the initial winner renders live,
+ * A reactive conditional (ADR 0015 s1): the initial winner renders live,
  * its root keyed by the arm's `data-key`, followed by one inert
  * `<template data-arms data-key>` per arm that renders anything — the
  * client's `reconcile()` adopts the winner by key and clones the rest.
  * The winner folds through the value harness, as every reactive site does;
  * a compile-time constant renders unconditionally, and an unresolvable
- * test renders no live arm (ADR 0037 s5). The analysis proved each
+ * test renders no live arm (ADR 0015 s5). The analysis proved each
  * rendering arm has one root element, beside client-only statements.
  */
 const emitReactiveConditional = (
@@ -1490,7 +1490,7 @@ const emitReactiveConditional = (
 	node: ConditionalNode,
 	scope: ReadonlySet<string>,
 ): void => {
-	// A compose site is an arm root too (LT-460): its rendered root is the
+	// A compose site is an arm root too : its rendered root is the
 	// child's own element, keyed through `composeHostAttrs`.
 	const rootOf = (arm: ArmTemplate): BoundaryArmRoot | undefined =>
 		arm.children.find(isBoundaryArmRoot)
@@ -1509,7 +1509,7 @@ const emitReactiveConditional = (
 	}
 	const initial = node.initial
 	const test = 'constant' in initial ? null : serverTestExpr(ctx, node, scope)
-	// Inside a template (an arm's, a list item's; LT-424) nothing is live:
+	// Inside a template (an arm's, a list item's; ) nothing is live:
 	// the clone's mount picks the arm.
 	if (ctx.inArmTemplate) {
 		// no live arm
@@ -1524,7 +1524,7 @@ const emitReactiveConditional = (
 	for (const arm of node.arms) {
 		const root = rootOf(arm)
 		if (!root) continue
-		// LT-385c: the losing arms bake client-written sites empty — their
+		//: the losing arms bake client-written sites empty — their
 		// condition did not hold at render time. The live winner above keeps
 		// its values.
 		stampArmTemplate(ctx, armSet, arm.key, () => {
@@ -1535,7 +1535,7 @@ const emitReactiveConditional = (
 }
 
 /**
- * The template emitter dispatcher (LT-225): one arm per `TemplateNode`
+ * The template emitter dispatcher : one arm per `TemplateNode`
  * kind, with the two standalone branches (`emitAsyncBoundary`,
  * `emitCompose`) split out. The element tail resolves reactive-`@for`
  * output nodes to their loop and dispatches plain elements. Depth is the
@@ -1561,8 +1561,8 @@ const emit = (
 		return
 	}
 	if (node.kind === 'expr') {
-		// The reserved `{children}` insertion point (ADR 0024 sub-design 10,
-		// LT-018): a composed call already rendered this component's own
+		// The reserved `{children}` insertion point (ADR 0005 sub-design 10,
+		// ): a composed call already rendered this component's own
 		// children into an HTML string — trusted, compiler-generated markup,
 		// not user input, so it renders UNESCAPED here (analogous to the
 		// MANAGED_TEXT_PROPS/host-prop-mirror special-casing above).
@@ -1570,7 +1570,7 @@ const emit = (
 			push(ctx, 'String(children)')
 			return
 		}
-		// LT-385c: inside an arm template a lazy (client-written) site bakes
+		//: inside an arm template a lazy (client-written) site bakes
 		// empty — the server has no initial value for it under the arm's
 		// condition; the mount writes it on enter.
 		if (node.reactivity === 'reactive' && ctx.inArmTemplate) return
@@ -1682,13 +1682,13 @@ export const emitServerModule = (
 		sourcePath: string
 		/**
 		 * Composed (PascalCase) elements' targets, keyed by resolved `.tsrx`
-		 * source path (ADR 0024 sub-design 10). A compose node whose `source`
+		 * source path (ADR 0005 sub-design 10). A compose node whose `source`
 		 * is missing here was already diagnosed as an error upstream
 		 * (`index.ts`), so `emitCompose` never needs to handle a missing entry.
 		 */
 		composeRegistry?: ReadonlyMap<string, InternalRegistryEntry> | undefined
 		/**
-		 * The component's evaluation tier (ADR 0029 sub-design 4, LT-165).
+		 * The component's evaluation tier (ADR 0008 sub-design 4).
 		 * Defaults to `'folded'`, which is the pre-LT-165 behaviour — every
 		 * caller that does not classify gets the full re-declaration.
 		 *
@@ -1707,7 +1707,7 @@ export const emitServerModule = (
 		tier?: EvaluationTier | undefined
 		/**
 		 * The message keys client positions read (`ClientPlan.clientMessageKeys`,
-		 * LT-218). Non-empty renders the root `i18n` attribute.
+		 * ). Non-empty renders the root `i18n` attribute.
 		 */
 		clientMessageKeys?: readonly string[] | undefined
 	},
@@ -1776,7 +1776,7 @@ export const emitServerModule = (
 			used.add('attr')
 			rootHtml.expr(attrCall(attr.name, attr.exprText))
 		} else if (attr.kind === 'style-map') {
-			// LT-028: the root's reactive style is the one construct the client
+			//: the root's reactive style is the one construct the client
 			// analyzer accepts (targeting `host`) — render its initial value here
 			// the same way `class-map` does for descendants.
 			if (isServerEvaluable(attr.object, component.serverKnown)) {
@@ -1790,7 +1790,7 @@ export const emitServerModule = (
 				)
 			}
 		} else if (attr.kind === 'class-map') {
-			// LT-032: same root exemption as style-map — render the initial
+			//: same root exemption as style-map — render the initial
 			// class list here, the same way `class-map` does for descendants.
 			if (isServerEvaluable(attr.object, component.serverKnown)) {
 				used.add('attr')
@@ -1801,11 +1801,11 @@ export const emitServerModule = (
 			}
 		}
 	}
-	// ADR 0030 sub-design 3 (LT-173 step 2): the EFFECTIVE locale renders
+	// ADR 0009 sub-design 3 ( step 2): the EFFECTIVE locale renders
 	// onto the root `lang` attribute. When the component declares the
 	// reserved `i18n` parameter and binds a `lang` it does not render
 	// itself, the compiler renders it here — the root IS the host, so a
-	// value rendered there is the channel, not a duplicate copy (ADR 0024
+	// value rendered there is the channel, not a duplicate copy (ADR 0005
 	// sub-design 3's root-attribute exclusion; confirmed: no new LTC039
 	// exemption is needed, because `reportDuplicatedChannels` already skips
 	// the root element outright).
@@ -1817,12 +1817,12 @@ export const emitServerModule = (
 		used.add('attr')
 		rootHtml.expr(attrCall('lang', component.langBinding))
 	}
-	// ADR 0030 s9 (LT-218): the client message channel. The render call's
+	// ADR 0009 s9 : the client message channel. The render call's
 	// own `t` serializes the client-referenced keys the locale changes
 	// against the preamble's source record, so each locale bakes its own
 	// messages and a composed child inherits the parent's record
 	// unchanged. No keys, no attribute: every other component renders
-	// byte-identical. The locale is not in the messages (ADR 0030 s6):
+	// byte-identical. The locale is not in the messages (ADR 0009 s6):
 	// a component whose client messages format, and that renders no `lang`
 	// of its own, gets the render locale on its root.
 	const tBinding = component.messageTBindings?.[0]
@@ -1855,7 +1855,7 @@ export const emitServerModule = (
 		)
 	}
 	// The root encloses a `{children}` insertion directly: it is the
-	// region's marked element (ADR 0048 s1).
+	// region's marked element (ADR 0026 s1).
 	if (childrenOwner && childrenInsertions.holders.has(component.root)) {
 		used.add('attr')
 		rootHtml.expr(attrCall(CHILDREN_MARKER, childrenOwner))
@@ -1864,7 +1864,7 @@ export const emitServerModule = (
 	const rootMarkup = `${rootHtml}`
 
 	/**
-	 * ADR 0029 sub-design 4: only the Folded tier re-declares the `@{ }`
+	 * ADR 0008 sub-design 4: only the Folded tier re-declares the `@{ }`
 	 * value harness. A Simulated-tier module emits the skeleton and leaves
 	 * the rest to the realm; a Static-tier module emits the same skeleton and
 	 * leaves the rest to the client.
@@ -1884,7 +1884,7 @@ export const emitServerModule = (
 	 * is dropped by the same rule rather than by name — it declares nothing, and
 	 * an exposed-prop lazy child resolves through the prop→signal map at COMPILE
 	 * time to a literal, so no markup expression ever references it.
-	 * [Architect ruling, 2026-09-06 (LT-182); ADR 0029 s4 carries the matching
+	 * [Architect ruling, 2026-09-06 ; ADR 0008 s4 carries the matching
 	 * correction.]
 	 *
 	 * The test is a word-boundary match against the generated code, which is
@@ -1897,7 +1897,7 @@ export const emitServerModule = (
 	 */
 	const harnessSuppressed = (options.tier ?? 'folded') !== 'folded'
 	/**
-	 * LT-165 step 5: statements the value harness can never evaluate — they
+	 *  step 5: statements the value harness can never evaluate — they
 	 * read a client-only primitive (`first`/`all`/`watch`/…) or a
 	 * `first()`-bound ref (the retired `LTC013`/`LTC043` shapes). The
 	 * retention rule keeps what the emitted code references, and its token
@@ -1941,7 +1941,7 @@ export const emitServerModule = (
 		emittedSetup.map(stmt => stmt.name).filter(name => name !== null),
 	)
 	// A signal declaration reading `host` folds each read for the prop's
-	// server seed (LT-451): the parser applied to the root attribute, the
+	// server seed : the parser applied to the root attribute, the
 	// same splice a reactive site's fold makes (`hostSeedExpr`). One with no
 	// server truth is `unresolvable` (`assemble-ir.ts`) and stays verbatim —
 	// no emitted site reads it, so the retention rule keeps it only for a
@@ -1986,7 +1986,7 @@ export const emitServerModule = (
 		// dropped declaration whose name survives in the markup, which is the
 		// `TS2304` this rule exists to prevent.
 		if (!emittedNames.has(signal.name)) continue
-		// requestContext-declared signals (LT-035): `requestContext` doesn't
+		// requestContext-declared signals : `requestContext` doesn't
 		// exist server-side (no `host` to dispatch a context-request against)
 		// — the setup-statement loop below substitutes `createCell(fallback)`
 		// for the whole call, so the runtime import needed is `createCell`,
@@ -1998,7 +1998,7 @@ export const emitServerModule = (
 		}
 		used.add(signal.constructor)
 		// A harness export named inside the initializer's OPTIONS —
-		// `createItem: createStore` on a reactive list (ADR 0046 s3) — is
+		// `createItem: createStore` on a reactive list (ADR 0024 s3) — is
 		// filtered out of the authored import line by
 		// `RUNTIME_HARNESS_EXPORTS` (imports.ts), so the runtime import line
 		// must provide it: register every harness name the declaration's own
@@ -2021,7 +2021,7 @@ export const emitServerModule = (
 	// exist only so the dropped call's own free names resolve.
 	const { expose } = component
 	// A harness export named inside `expose()` (an inline `createSensor(…)`,
-	// ADR 0046 s5) binds from the harness: the authored import of it is
+	// ADR 0024 s5) binds from the harness: the authored import of it is
 	// filtered out server-side, and an `any` stub would refuse its type
 	// arguments.
 	const exposeHarnessNames =
@@ -2043,7 +2043,7 @@ export const emitServerModule = (
 							!RUNTIME_HARNESS_EXPORTS.has(name) &&
 							!component.serverKnown.has(name) &&
 							!expose.ambients.includes(name) &&
-							// LT-034: a custom Parser factory (e.g. `asOklch`) may now
+							//: a custom Parser factory (e.g. `asOklch`) may now
 							// resolve to a real plain import instead — stubbing it as
 							// `any` would shadow that import with a broken local const.
 							!component.imports.serverLocalNames.has(name),
@@ -2056,12 +2056,12 @@ export const emitServerModule = (
 	// called — but its free context members still have to RESOLVE for the
 	// module to type-check. `host` usually rides in on `expose()`'s argument;
 	// `internals` need not, and did not once form-spinbutton's commit path
-	// was extracted out of `expose()` (LT-118).
+	// was extracted out of `expose()` .
 	//
 	// Deliberately narrow: only the two context MEMBERS, never refs. A ref
 	// stub that is merely declared is fine, but one whose value reaches the
 	// markup renders an empty string where the author asked for a DOM read —
-	// a build error traded for a silently wrong page (see LT-125). A context
+	// a build error traded for a silently wrong page (see ). A context
 	// member cannot reach the markup: it is never server-known at all.
 	const setupContextNames = new Set<string>()
 	for (const stmt of emittedSetup)
@@ -2074,12 +2074,12 @@ export const emitServerModule = (
 	const stubNamesAll = [...new Set([...stubNames, ...setupContextNames])].sort()
 	if (stubNamesAll.length > 0) used.add('refStub')
 
-	// `isPending` is harness-provided (LT-211): an authored import of it is
+	// `isPending` is harness-provided : an authored import of it is
 	// filtered out server-side (RUNTIME_HARNESS_EXPORTS), so the module's
 	// binding must come from here whenever any emitted position references
 	// it — markup lines, the re-declared setup, `expose()`, or the ROOT
 	// element's folded attributes (rootParts bypass `lines` and are pushed
-	// into the module body only after this scan; the LT-211 review found a
+	// into the module body only after this scan; the  review found a
 	// root `class={() => ({ dimmed: isPending(data) })}` emitting an unbound
 	// reference without this clause). Tokenized like `retainReferenced`
 	// (identifier-boundary over the generated text): it can over-retain on
@@ -2112,10 +2112,10 @@ export const emitServerModule = (
 	 * otherwise the occurrence is unrenderable and the helper returns null
 	 * (the renderer leaves it authored and says so). `lang` and `i18n` are
 	 * the renderer's to supply: the resolved page-position locale and the
-	 * `i18nRecord` at it (ADR 0030 sub-design 3's precedence, rung 1+2).
+	 * `i18nRecord` at it (ADR 0009 sub-design 3's precedence, rung 1+2).
 	 *
 	 * A Parser expression is emitted VERBATIM — but only when its fallback
-	 * resolves at MODULE scope (LT-290): the helper is a separate export,
+	 * resolves at MODULE scope : the helper is a separate export,
 	 * so a fallback reading a `first()` ref, a setup const, `host`, or
 	 * another arg names a binding that exists only inside the render
 	 * function (form-spinbutton's `asNumber(asNumber(0)(input.value))` was
@@ -2163,7 +2163,7 @@ export const emitServerModule = (
 						const optionalish = param.optional || param.hasDefault
 						const key = jsString(param.name, 'double')
 						// The occurrence's attribute is the arg's kebab-case name
-						// (`readingTime` ← `reading-time`, LT-095): parse5 reports
+						// (`readingTime` ← `reading-time`): parse5 reports
 						// attribute names lowercased, so a camelCase lookup could
 						// never match. A one-word arg is its own attribute name.
 						const attrKey = jsString(
@@ -2173,7 +2173,7 @@ export const emitServerModule = (
 						const attrVar = `${param.name}Attr`
 						const parser = component.exposeProps.get(param.name)?.parser
 						if (parser && !resolvesInHelper(parser.fallbackNode)) {
-							// LT-290: no attribute channel — the gate above proved
+							//: no attribute channel — the gate above proved
 							// the arg optional/defaulted, so an absent attribute
 							// omits the key and a present one is unrenderable.
 							stmts.push(`\tif (attrs[${attrKey}] != null) return null`)
@@ -2252,7 +2252,7 @@ export const emitServerModule = (
 	}
 	for (const [name, specifier] of [...composeImports].sort())
 		body.line(`import { render${name} } from ${jsString(specifier)}`)
-	// ADR 0030 (LT-173): the reserved record's type and constructor live in
+	// ADR 0009 : the reserved record's type and constructor live in
 	// the generated `i18n` module the corpus effect writes beside these
 	// artifacts. Type import when this component declares the parameter;
 	// value import when this module composes a child that declares it.
@@ -2261,8 +2261,8 @@ export const emitServerModule = (
 		body.line(
 			`import { ${importSpecifier('i18nRecord', ctx.h('i18nRecord'))} } from './i18n'`,
 		)
-	// The `Children<…>` args annotation (ADR 0048 s2) rides the verbatim
-	// params slice below; authored type-only imports are dropped (LT-082),
+	// The `Children<…>` args annotation (ADR 0026 s2) rides the verbatim
+	// params slice below; authored type-only imports are dropped ,
 	// so the reference is re-imported here.
 	if (component.childrenContract)
 		body.line(`import type { Children } from '@zeix/le-truc'`)
@@ -2277,7 +2277,7 @@ export const emitServerModule = (
 	).split('\n')
 	const paramFirst = paramLines[0]?.replace(/^\t\t/, '') ?? ''
 	// The Children Region's owner rides as a second, optional parameter
-	// (ADR 0048 s1): a compiled compose site passes it, a page render does
+	// (ADR 0026 s1): a compiled compose site passes it, a page render does
 	// not, so a page-rendered instance carries no marker.
 	const ownerParam = childrenOwner ? `, ${childrenOwner}?: string` : ''
 	if (paramLines.length === 1) {
@@ -2293,19 +2293,19 @@ export const emitServerModule = (
 	// = '' })`) closes over context members and refs the server render
 	// function never declares, and is dead code server-side
 	// (`defineMethod` is identity there, never invoked) — but the module
-	// still needs it to TYPE-CHECK (LT-019). `expose()`'s own argument
+	// still needs it to TYPE-CHECK . `expose()`'s own argument
 	// object, unlike those bodies, IS evaluated, so the stub has to
-	// survive being read and called, not just resolve (LT-121).
+	// survive being read and called, not just resolve .
 	for (const name of stubNamesAll)
 		body.line(`const ${name}: any = ${ctx.h('refStub')}`)
 	// Setup statements keep their relative shape: the shallowest continuation
 	// line lands at one tab (statement depth), deeper lines keep their
-	// relative indent, template-literal interiors stay byte-identical (LT-010).
+	// relative indent, template-literal interiors stay byte-identical .
 	// Each statement is also verbatim source, so its span is recorded
-	// (LT-011); `append` rebases the spans onto the module.
+	// ; `append` rebases the spans onto the module.
 	const setup = new CodeBuilder({ depth: 1, reindent: true })
 	for (const stmt of emittedSetup) {
-		// requestContext-declared signals (LT-035): `stmt.text` is the verbatim
+		// requestContext-declared signals : `stmt.text` is the verbatim
 		// `requestContext(Context, fallback)` call, which doesn't exist
 		// server-side — substitute a `createCell(fallback)` declaration
 		// instead, so `.get()` still works the same way any other signal's
@@ -2325,7 +2325,7 @@ export const emitServerModule = (
 				? folded.map(slice => slice.text).join('')
 				: stmt.text
 		// A `harvest()` seed's statement reads the marker through to its seed
-		// (ADR 0046 s7), so its slices map around the cut.
+		// (ADR 0024 s7), so its slices map around the cut.
 		setup.line(
 			stmtText,
 			(!ctxSignal && (folded ?? stmt.slices)) || [

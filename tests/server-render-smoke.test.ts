@@ -1,5 +1,5 @@
 /**
- * Server-render smoke gate (LT-121).
+ * Server-render smoke gate ().
  *
  * `server.golden.test.ts` asserts byte-exact markup, but only for the
  * six tags it names — so a generated `render*()` that THROWS the
@@ -42,7 +42,7 @@ const renderName = (tag: string): string =>
 
 /**
  * Args for the components whose contract has genuinely required
- * fields — and, since the LT-195 i18n round, the reserved `i18n`
+ * fields — and, since the  i18n round, the reserved `i18n`
  * records (an omitted record throws at the `i18n: { t }` destructure).
  * Everything absent here renders from `{}` on purpose.
  */
@@ -126,12 +126,12 @@ const ARGS: Record<string, Record<string, unknown>> = {
 	},
 }
 
-// The CONFIGURED corpus scan (LT-273) — the same source set the build
+// The CONFIGURED corpus scan () — the same source set the build
 // compiles, not a hand-rolled single-extension glob.
 const corpus = async () => await collectCorpusSources(resolveCorpusConfig(ROOT))
 
 // The REAL corpus runner writes every generated module; a per-run directory
-// keeps that out of the build pipeline's own output (LT-140). Render happens
+// keeps that out of the build pipeline's own output (). Render happens
 // through `info.serverModulePath`, so the redirect is transparent.
 const generated = createGeneratedDir('render-smoke')
 afterAll(() => generated.cleanup())
@@ -159,9 +159,9 @@ describe('server render smoke — every corpus tag renders (LT-121)', () => {
 })
 
 /**
- * `reconcile()`'s template root count (LT-157c, ADR 0028 sub-design 5).
+ * `reconcile()`'s template root count (ADR 0007 sub-design 5).
  *
- * `InvalidTemplateError` is the one entry in ADR 0028's inventory that gets
+ * `InvalidTemplateError` is the one entry in ADR 0007's inventory that gets
  * no diagnostic and needs none: `emit-server.ts`'s `listTemplateLines` calls
  * `shape(loop.output, …)` on a SINGLE element node, so the emitted
  * `<template>` has exactly one root element by construction. There is

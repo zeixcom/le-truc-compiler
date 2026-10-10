@@ -1,5 +1,5 @@
 /**
- * Direct unit test for `evaluability.ts` (LT-043/LT-047): the single home of
+ * Direct unit test for `evaluability.ts` : the single home of
  * the server-known dependency-closure rule that decides WHAT THE SERVER
  * RENDERS. Pinned directly rather than only transitively through golden
  * tests — a divergence here is a wrong component, not a wrong message.
@@ -123,7 +123,7 @@ describe('isServerEvaluable', () => {
 	})
 })
 
-// LT-142: `Intl` is split from `Date` — `Intl.*` folds when its locale
+//: `Intl` is split from `Date` — `Intl.*` folds when its locale
 // argument resolves to a server-known value (a server arg, a literal, or a
 // server-known const); `Date` stays unconditionally impure, since
 // `Date.now()`/`new Date()` have no argument that could make them
@@ -230,7 +230,7 @@ describe('LT-142: Intl split from Date', () => {
 		// `new Date(y, m, d)` over server-known args reads no viewing-moment
 		// fact, but the local-time constructor (and the zone-less formatter)
 		// interpret in the build machine's timezone — limb (b) ambient state:
-		// the rendered day must not depend on where the build ran. ADR 0030 s2
+		// the rendered day must not depend on where the build ran. ADR 0009 s2
 		// prescribes the `Date.UTC` + `timeZone: 'UTC'` shape instead.
 		const thunk = thunkOf(
 			`export function C({ y, m, d }: { y: number; m: number; d: number })
@@ -251,7 +251,7 @@ describe('LT-142: Intl split from Date', () => {
 
 	test('Date.UTC over server-known args is pure — the one admissible Date form (LT-165 step 5)', () => {
 		// The UTC conversion is a fixed function of its arguments: no wall
-		// clock, no timezone read. This is what makes LT-095's prescribed
+		// clock, no timezone read. This is what makes the ticket's prescribed
 		// `Date.UTC(y, m - 1, d)` + `timeZone: 'UTC'` blogmeta shape foldable.
 		const thunk = thunkOf(
 			`export function C({ y, m, d }: { y: number; m: number; d: number })

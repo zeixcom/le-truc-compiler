@@ -1,6 +1,6 @@
 /**
- * Component composition — server-side PascalCase invocation (ADR 0024
- * sub-design 10, LT-015). Scoped to server splicing: a capitalized JSX tag
+ * Component composition — server-side PascalCase invocation (ADR 0005
+ * sub-design 10). Scoped to server splicing: a capitalized JSX tag
  * bound to an `import` of another `.tsrx` module resolves against a
  * corpus-wide compose registry (keyed by resolved source path, mirroring
  * `server/effects/compile.ts`'s two-pass compile) and the parent's generated
@@ -14,7 +14,7 @@ import { compileComponentTsx } from '../src/frontend/tsx'
 import type { InternalRegistryEntry } from '../src/registry'
 import { createGeneratedDir } from './helpers/generated-corpus'
 
-// `value` is exposed from a plain literal, i.e. Slot-backed (LT-158): the
+// `value` is exposed from a plain literal, i.e. Slot-backed : the
 // parent fixtures below pass to it, and since LTC012 now decides a pass
 // target's prop against the CHILD's own expose(), a child that exposed
 // nothing would make every one of them a compile error.
@@ -40,17 +40,17 @@ const compileChild = (path: string, source = child) => {
 const composeRegistryOf = (...entries: InternalRegistryEntry[]) =>
 	new Map(entries.map(e => [e.source, e]))
 
-// Generated server modules must exist for in-process execution (LT-090);
+// Generated server modules must exist for in-process execution ;
 // the effect normally writes them, tests must not depend on a prior build.
 // Same harness as server.golden.test.ts — a per-run directory, never the
-// build pipeline's own output (LT-140).
+// build pipeline's own output .
 const generated = createGeneratedDir('compose')
 afterAll(() => generated.cleanup())
 const ensureEmitted = (tag: string, code: string): void => {
 	generated.emit(`${tag}.server.ts`, code)
 }
 
-describe('component composition (ADR 0024 sub-design 10)', () => {
+describe('component composition (ADR 0005 sub-design 10)', () => {
 	test('splices the child render call with server args', () => {
 		const childComponent = compileChild('examples/child/basic-child.tsrx')
 		const parent = `import { BasicChild } from '../child/basic-child.tsrx'
@@ -173,7 +173,7 @@ export function BasicParent({}: {})
 		)
 		if (!component)
 			throw new Error(`parent must compile: ${JSON.stringify(diagnostics)}`)
-		// Spliced onto the child's root, not forwarded as an arg (LT-320).
+		// Spliced onto the child's root, not forwarded as an arg .
 		expect(component.serverCode).toContain(
 			'composeHostAttrs(renderBasicChild({  }), "basic-child", { "data-testid": "hello" })',
 		)
@@ -363,7 +363,7 @@ export function BasicParent({ title }: { title: string })
 			throw new Error(`parent must compile: ${JSON.stringify(diagnostics)}`)
 		expect(component.serverCode).toContain('const __children1: string[] = []')
 		expect(component.serverCode).toContain(
-			// The region owner rides as the second argument (ADR 0048 s1).
+			// The region owner rides as the second argument (ADR 0026 s1).
 			'renderBasicChild({ "label": title, children: __children1.join(\'\') }, "basic-parent")',
 		)
 		// The child's root encloses the insertion: it carries the marker,
@@ -720,7 +720,7 @@ export function BasicParent({ title }: { title: string })
 		)
 	})
 
-	test('a plain setup const used only inside a compose pass thunk is placed client-side (LT-088)', () => {
+	test('a plain setup const used only inside a compose pass thunk is placed client-side', () => {
 		const childComponent = compileChild('examples/child/basic-child.tsrx')
 		const parent = `import { BasicChild } from '../child/basic-child.tsrx'
 
@@ -755,7 +755,7 @@ export function BasicParent({ title }: { title: string })
 		)
 	})
 
-	test('two same-source composed instances discriminated by a static class each get their own ref (LT-089)', () => {
+	test('two same-source composed instances discriminated by a static class each get their own ref', () => {
 		const childComponent = compileChild('examples/child/basic-child.tsrx')
 		const parent = `import { BasicChild } from '../child/basic-child.tsrx'
 
@@ -1007,7 +1007,7 @@ export function BasicParent({ title }: { title: string })
 		})
 	})
 
-	test('compose-site class/id are materialized on the child root in the rendered HTML (LT-090)', async () => {
+	test('compose-site class/id are materialized on the child root in the rendered HTML', async () => {
 		const childComponent = compileChild('examples/child/basic-child.tsrx')
 		const parent = `import { BasicChild } from '../child/basic-child.tsrx'
 
@@ -1145,7 +1145,7 @@ export function BasicParent({ title }: { title: string })
 		expect(diagnostics.filter(d => d.code === 'LTC012')).toHaveLength(0)
 	})
 
-	test('the same static id on two compose sites is diagnosed (LTC038, LT-090)', () => {
+	test('the same static id on two compose sites is diagnosed', () => {
 		const childComponent = compileChild('examples/child/basic-child.tsrx')
 		const parent = `import { BasicChild } from '../child/basic-child.tsrx'
 
@@ -1241,10 +1241,10 @@ export function BasicParent({ title }: { title: string })
 })
 
 describe('compose site inside a @pending arm (LT-221 §1.4 probe, overruled by LT-460)', () => {
-	// The LT-221 probe refused a compose site as a @pending arm root: the
+	// The  probe refused a compose site as a @pending arm root: the
 	// arm-shape rule filtered `kind === 'element'`, so a single compose
 	// root could never satisfy it, and the compose walks omitting pending
-	// arms was ruled consistent garbage-in protection. LT-460 overruled
+	// arms was ruled consistent garbage-in protection.  overruled
 	// that (owner: bug — the arm root path was never routed through compose
 	// lowering): an arm root that is a compose site lowers as a compose
 	// site, and `data-key` splices onto the child's rendered root through
@@ -1254,7 +1254,7 @@ describe('compose site inside a @pending arm (LT-221 §1.4 probe, overruled by L
 
 describe('compose site nested below a @pending root (LT-230 walk policy)', () => {
 	// Every walk enters `@pending` arms (walk.ts): the arm's markup renders —
-	// the winner live, the other arms as inert templates (ADR 0037 s4) — so a
+	// the winner live, the other arms as inert templates (ADR 0015 s4) — so a
 	// compose site nested below its root coexists in the DOM with the body's.
 	const parentWith = (
 		pendingChild: string,
@@ -1430,7 +1430,7 @@ export function BasicParent({}: {})
 		// The LIVE err arm evaluates the read where `e` is bound...
 		expect(component.serverCode).toContain('text(e.message)')
 		// ...exactly once: the err arm TEMPLATE bakes the site empty —
-		// before LT-460 the generated module read `e` there, out of scope
+		// before  the generated module read `e` there, out of scope
 		// (TS2552 under check:corpus; a ReferenceError at execution).
 		expect(component.serverCode.match(/text\(e\.message\)/g)).toHaveLength(1)
 		// The client rebinds through the boundary's err watch, targeting the
@@ -1831,10 +1831,10 @@ export function BasicParent({}: {}) {
 })
 
 describe('compose arm roots plan their `truc:pass` entries (LT-481)', () => {
-	// LT-460 made a compose site legal as an arm root but never planned its
+	//  made a compose site legal as an arm root but never planned its
 	// `truc:pass` entries: the arm walk checked only the root's DESCENDANTS
 	// against `unmountableInArm`, so a pass on the root was neither refused
-	// nor lowered — the silent drop LT-470's remedy ("make the condition
+	// nor lowered — the silent drop the ticket's remedy ("make the condition
 	// reactive: the composed child then renders as its arm's root") steered
 	// authors into. The entries now plan as `pass()` effects in the arm's
 	// mount against the arm element parameter — the arm root IS the child's
@@ -1843,7 +1843,7 @@ describe('compose arm roots plan their `truc:pass` entries (LT-481)', () => {
 
 	// A child that renders its passed prop, so a flip test can see the
 	// pass: `value` is exposed from a plain literal, i.e. Slot-backed
-	// (LT-158), and `{host.value}` is the reactive lazy child over it.
+	// , and `{host.value}` is the reactive lazy child over it.
 	const valueChild = `export function ValueChild({}: {})
 	@{
 		expose({ value: '' })
@@ -2125,7 +2125,7 @@ export function BasicParent({}: {}) {
 describe('a pass entry on a boundary compose root in a list item refuses setup-const reads (LT-483)', () => {
 	// The pending/err compose roots' pass entries rode `badFreeNames`, the
 	// host-level rule, where the ok arm's constructs now read
-	// `fx.scopeBadNames` (LT-483): inside a reactive-list item the entry is
+	// `fx.scopeBadNames` : inside a reactive-list item the entry is
 	// LTC005's list-body face, like a pass on a composed child anywhere else
 	// in an item. The probe compiled clean BEFORE the alignment — the const
 	// was emitted and worked — so the point is the uniform authoring rule.

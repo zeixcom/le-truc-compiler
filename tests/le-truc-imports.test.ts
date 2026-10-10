@@ -1,5 +1,5 @@
 /**
- * Authored `'@zeix/le-truc'` imports (ADR 0024 sub-design 16, LT-082):
+ * Authored `'@zeix/le-truc'` imports (ADR 0005 sub-design 16):
  *
  * - LTC036 — a real package export used in authored code without an
  *   import; scope-aware, so a local shadowing an export name never fires.
@@ -85,7 +85,7 @@ describe('sub-design 16 — real-export imports', () => {
 	test('a local shadowing an export name does not fire — scope-aware scan', () => {
 		// `match` is a real CE export; the local declarator binds every later
 		// read inside the @{ } container. Only the genuinely unimported
-		// `createCell` fires (LT-079 review defect: declarator bindings were
+		// `createCell` fires ( review defect: declarator bindings were
 		// not tracked, and the @{ } JSXCodeBlock needs sequential scoping).
 		const { diagnostics } = compile(
 			fixture('', "\tconst match = createCell('x')\n\tconst count = match"),
@@ -218,7 +218,7 @@ describe('sub-design 16 — generated-module placement', () => {
 		// createCell comes from the runtime harness (plain-value shim), not
 		// from a re-emitted authored import — no duplicate binding. The
 		// harness specifier is the published package's `./runtime` subpath
-		// (LT-254's default).
+		// (the ticket's default).
 		expect(code).not.toContain("import { createCell } from '@zeix/le-truc'")
 		expect(code).toContain("from '@zeix/le-truc-compiler/runtime'")
 	})

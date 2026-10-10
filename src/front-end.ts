@@ -1,5 +1,5 @@
 /**
- * The shared front-end driver (LT-233; ADR 0032 sub-design 6's anti-drift
+ * The shared front-end driver (LT-233; ADR 0010 sub-design 6's anti-drift
  * contract). Both surfaces run ONE script from a parsed module to a
  * `ComponentIR`: the module scans, locating the single component function,
  * the `async` rejection, the params contract, setup extraction, the output
@@ -51,7 +51,7 @@ export type CompileResult = {
 	component: ComponentIR | null
 	diagnostics: LocalDiagnostic[]
 	/**
-	 * Setup-extraction routing signals (ADR 0029, LT-165). Merged with the
+	 * Setup-extraction routing signals (ADR 0008). Merged with the
 	 * analysis pass's own in `pipeline.ts`, where the tier is classified.
 	 */
 	routingSignals: LocalRoutingSignal[]
@@ -195,16 +195,16 @@ export const runFrontEnd = (
 		return done()
 	}
 
-	// An `async` component function (LTC008, LT-157d): every statement
+	// An `async` component function (LTC008): every statement
 	// after the first `await` runs in a later microtask, when the ambient
 	// effect collector is gone (ADR 0018) — so `expose()`/`watch()`/`on()`
 	// there throw `NoActiveCollectorError`, contained and silent since
-	// LT-155. The server half is worse: `emit-server.ts` calls the render
+	// . The server half is worse: `emit-server.ts` calls the render
 	// function synchronously and would stringify a Promise. Rejected
 	// outright rather than diagnosed per call site, since neither half of
 	// the isomorphic pair can honour it.
 	if (fn.async === true) {
-		// The `async` token itself (LT-416), not the whole statement: one
+		// The `async` token itself , not the whole statement: one
 		// keyword, and when the file holds only the component the statement
 		// equals the file, so a line-label view would print no line. The
 		// parsers disagree on where the declaration starts but agree on the
@@ -230,7 +230,7 @@ export const runFrontEnd = (
 	shadowMarkers(ctx, componentScopeNames(params.paramNames, split.setup))
 	const name = identifierName(fn.id) ?? 'Component'
 	// Read before setup extraction: its client-only gate admits a static
-	// `t.<key>` read of a declared key (LT-349).
+	// `t.<key>` read of a declared key .
 	const decls = readModuleDecls(ctx, ast, name)
 	const extraction = extractSetup(
 		ctx,
@@ -245,7 +245,7 @@ export const runFrontEnd = (
 	)
 
 	// Output: a single root element — the host element spelled as the
-	// component's tag (ADR 0032 s1, LT-375). There is no fragment root: the
+	// component's tag (ADR 0010 s1). There is no fragment root: the
 	// `<style>` block is a child of the root, and `resolveTemplateOutput`
 	// hoists it out of the root's children before anything emits. A fragment
 	// output is LTC060; anything else is the output-shape violation (LTC008).
@@ -282,7 +282,7 @@ export const runFrontEnd = (
 	)
 	if (!resolved) return done()
 
-	// Every marker reference no consumer read is refused (ADR 0034 s1).
+	// Every marker reference no consumer read is refused (ADR 0012 s1).
 	reportUnclaimedMarkers(ctx, fn, importedMarkers)
 	validateLoweredComponent(ctx, {
 		root: resolved.root,

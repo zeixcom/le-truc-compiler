@@ -1,6 +1,6 @@
 /**
  * The corpus compile — the compiler package's ONE entry point (D-32, owner
- * ruling 2026-10-06; moved from `server/corpus-compile.ts` at LT-480).
+ * ruling 2026-10-06; moved from `server/corpus-compile.ts` at ).
  *
  * `compileCorpus(config)` is what an installing project calls: it scans the
  * configured sources, runs both corpus passes, writes every artifact — the
@@ -11,10 +11,10 @@
  * return values; compile errors are RETURNED, never thrown — a caller that
  * fails its build on them says so itself (this repo's thin wrapper in
  * `server/corpus-compile.ts` does). Configuration errors still throw
- * (LT-273): they happen before any component is parsed.
+ * (): they happen before any component is parsed.
  *
  * The two-pass compile, the severity policy and the artifact layout are
- * LT-255/LT-202 heritage, unchanged by the move. Since LT-283 (ADR 0039) a
+ *  heritage, unchanged by the move. Since  (ADR 0017) a
  * corpus folder may carry a variant set — one authored source per surface,
  * one base name, one directory: every member compiles, the set's CSS must
  * be byte-identical (LTC051), and only the selected surface's artifacts are
@@ -34,7 +34,7 @@
  * orchestration to rebuild, and one that skips the contamination fixpoint
  * ships wrong tiers without an error. `compileCorpusFiles` is the internal
  * files-accepting form the repo's wrapper and the tests drive (a test
- * compiles in-memory file lists so it never races the build, LT-140).
+ * compiles in-memory file lists so it never races the build).
  */
 
 import { dirname, join, relative } from 'node:path'
@@ -72,8 +72,8 @@ import {
 /* === Types === */
 
 /**
- * One compiled component's generated-module span tables (LT-011,
- * `check:corpus`; server coverage added by LT-019 — composition is the
+ * One compiled component's generated-module span tables (
+ * `check:corpus`; server coverage added by  — composition is the
  * first construct that makes server modules import each other's real
  * types). Internal: `check:corpus` remaps tsc diagnostics through it.
  */
@@ -91,7 +91,7 @@ export type CompiledSpanInfo = {
 	cssPath: string
 	/**
 	 * The stylesheet as authored, before scoping and lowering — what the
-	 * baseline guard (LT-305) subtracts to see what the compiler added.
+	 * baseline guard () subtracts to see what the compiler added.
 	 */
 	authoredCss: string
 }
@@ -106,7 +106,7 @@ export type CorpusSummary = {
 	/**
 	 * Post-contamination tier census, one count per tier including zeroes —
 	 * a component drifting Folded → Simulated is a build-cost regression,
-	 * and the census is where it shows (ADR 0029 s6).
+	 * and the census is where it shows (ADR 0008 s6).
 	 */
 	tiers: Record<EvaluationTier, number>
 	/** Locales the translation census walked (zero for an untranslated corpus). */
@@ -138,11 +138,11 @@ export type InternalCorpusResult = CorpusResult & {
 /* === Internal Functions === */
 
 /**
- * The corpus covers BOTH authored surfaces (ADR 0032 sub-design 6, LT-202):
+ * The corpus covers BOTH authored surfaces (ADR 0010 sub-design 6):
  * one registry, one generated directory, the front end chosen per file by
  * extension. A tag declared by two sources fails the compile naming both
  * files (LTC048, tier 1 Prevented) — unless the sources are a folder-local
- * variant set (ADR 0039, LT-283), which compiles every member and serves
+ * variant set (ADR 0017), which compiles every member and serves
  * the selected surface.
  */
 const compileCorpusFile = (
@@ -177,7 +177,7 @@ const corpusTagOf = (filename: string): string =>
 
 /**
  * Re-anchor a generated client's relative specifiers one directory deeper,
- * for the unserved variant client written to `variants/` (LT-284): every
+ * for the unserved variant client written to `variants/` (): every
  * static `import`/`export … from` and dynamic `import()` whose specifier
  * starts with `./` or `../` climbs one more level — child imports
  * (`'./x.client'` → `'../x.client'`) and author imports already rewritten
@@ -195,7 +195,7 @@ const surfaceOf = (rel: string): VariantSurface =>
 	rel.endsWith('.tsx') ? 'tsx' : 'tsrx'
 
 /**
- * A folder-local variant set (ADR 0039): every source in ONE directory, at
+ * A folder-local variant set (ADR 0017): every source in ONE directory, at
  * most one authored source per surface. The `.ts` twin never reaches the
  * scan (`DEFAULT_SIBLING_MODULES` glob) — it only seeds sibling-module tag
  * knowledge — so a set is the `.tsrx` and the `.tsx` spelling in practice;
@@ -206,7 +206,7 @@ const isVariantSet = (sources: readonly string[]): boolean =>
 	new Set(sources.map(surfaceOf)).size === sources.length
 
 /**
- * Delete every file under `variantsDir` not named in `keep` (LT-296). A
+ * Delete every file under `variantsDir` not named in `keep` (). A
  * missing directory — no variant set has ever compiled here — is a no-op.
  */
 const pruneVariantClients = async (
@@ -244,7 +244,7 @@ export const compileCorpusFiles = async (
 	// Registry-aware dispatch needs every compilable tag up front: first
 	// pass collects tags (warnings already skip their files), second pass
 	// compiles against the full registry. The same first pass also builds
-	// the compose registry (ADR 0024 sub-design 10) — a composed element's
+	// the compose registry (ADR 0005 sub-design 10) — a composed element's
 	// import specifier resolves to another file's own repo-relative path,
 	// so every file's entry is keyed by that path for the second pass to
 	// look up regardless of compile order (composition is not order-dependent
@@ -276,7 +276,7 @@ export const compileCorpusFiles = async (
 	const errorLabels = new Map<string, string>()
 	// Authored text by project-relative path: the terminal view prints a
 	// location's start as a line, and corpus-level rules locate whole files
-	// (ADR 0044 s1–s2).
+	// (ADR 0022 s1–s2).
 	const contentOf = new Map(
 		files.map(file => [relative(root, file.path), file.content]),
 	)
@@ -301,7 +301,7 @@ export const compileCorpusFiles = async (
 			diagnostics.push(d)
 		}
 	}
-	// Dual-surface duplicate detection (LTC048, narrowed by ADR 0039): a tag
+	// Dual-surface duplicate detection (LTC048, narrowed by ADR 0017): a tag
 	// two corpus files both declare is ambiguous at the registry level —
 	// neither file can be compiled, because pass 2's registry would have
 	// last-write-wins semantics for the generated module names, the tag map
@@ -309,7 +309,7 @@ export const compileCorpusFiles = async (
 	// are a folder-local variant set, the legal multi-source shape: it
 	// compiles every member below and serves the selected surface's
 	// artifacts under the canonical names. Checked BEFORE pass 2, naming
-	// every involved file (ADR 0032 sub-design 6; tier 1 Prevented —
+	// every involved file (ADR 0010 sub-design 6; tier 1 Prevented —
 	// statically decidable, no runtime half).
 	const tagsBySource = new Map<string, string[]>()
 	for (const file of files) {
@@ -337,13 +337,13 @@ export const compileCorpusFiles = async (
 		}
 	}
 	// A `variantOverrides` entry naming no variant set is a configuration
-	// error (LT-292): the sets are only known now, after the scan.
+	// error (): the sets are only known now, after the scan.
 	validateVariantOverrides(config, tagsBySource)
 	for (const file of files) {
 		const rel = relative(root, file.path)
 		if (errorLabels.has(rel)) continue
 		// Pass 1 must see the hand-written tags too (`registry` starts seeded
-		// from `childImports`, LT-020 fix): a raw-tag `pass={{ }}` target
+		// from `childImports` fix): a raw-tag `pass={{ }}` target
 		// (e.g. `basic-button`) is otherwise flagged "not registry-known" in
 		// THIS pass even though it always was, silently dropping the whole
 		// file before pass 2 ever gets a chance to compile it for real.
@@ -361,32 +361,32 @@ export const compileCorpusFiles = async (
 			composeRegistry.set(rel, component.entry)
 		}
 	}
-	// Runtime registration follows the SERVED surface (ADR 0039, LT-291): a
+	// Runtime registration follows the SERVED surface (ADR 0017): a
 	// compiled tag's child import is always its generated client, whether or
 	// not a hand-written `.ts` twin is still on disk. The twin is the
 	// artifact of record and is never served — `examples/main.ts` imports
 	// the generated client — so importing it would define the tag twice in
 	// the bundle, or ship the unselected surface. Type visibility rides the
 	// same import: every variant-set member declares its own
-	// `HTMLElementTagNameMap` entry (ADR 0039 s4), so the served client
+	// `HTMLElementTagNameMap` entry (ADR 0017 s4), so the served client
 	// carries it for the parent's `first()`/`pass()` sites. Only a tag that
 	// is not compiled at all keeps its hand-written module.
 	for (const tag of compiledTags) childImports.set(tag, `./${tag}.client`)
 
 	const entries: InternalRegistryEntry[] = []
 	const spanInfos: CompiledSpanInfo[] = []
-	// Every variants/ client THIS run writes (LT-296): the directory is
+	// Every variants/ client THIS run writes (): the directory is
 	// owned by the compile, so anything else in it is pruned below.
 	const variantClients = new Set<string>()
-	// Every compiled `.tsrx` source, by tag (LT-312): `tsrx-imports.d.ts`
+	// Every compiled `.tsrx` source, by tag (): `tsrx-imports.d.ts`
 	// types each through its tag's SERVED server module, so a variant set's
 	// unserved `.tsrx` member is listed too — one contract per tag.
 	const tsrxSources = new Map<string, string[]>()
-	// Served tags whose host is form-associated (LT-325): the tag-map entry's
+	// Served tags whose host is form-associated (): the tag-map entry's
 	// host type, which the registry does not record.
 	const formAssociatedTags = new Set<string>()
 	// Group the compilable sources by tag — pass 1's visit order preserved —
-	// so a variant set's members compile together (ADR 0039): every member
+	// so a variant set's members compile together (ADR 0017): every member
 	// compiles clean or fails as today, the set's CSS must agree
 	// byte-for-byte (LTC051), and only the SELECTED surface's artifacts are
 	// written under the canonical names. Singleton tags — the whole corpus
@@ -413,7 +413,7 @@ export const compileCorpusFiles = async (
 				tsrxSources.set(tag, [...(tsrxSources.get(tag) ?? []), rel])
 			return { rel, component }
 		})
-		// CSS parity across a set's compiled members (ADR 0039, ADR 0033
+		// CSS parity across a set's compiled members (ADR 0017, ADR 0011
 		// s10): the AUTHORED sheets must be byte-identical. The emission adds
 		// nothing of its own to a sheet (no derived boundaries), so identical
 		// sheets emit identical CSS. Skipped when a member failed — its own
@@ -443,7 +443,7 @@ export const compileCorpusFiles = async (
 			}
 		}
 		// Serve the selected surface's artifacts under the canonical names
-		// (ADR 0039): `.tsx` by default, overridden per tag by
+		// (ADR 0017): `.tsx` by default, overridden per tag by
 		// `variantOverrides` and corpus-wide by `variantSurface`. Selection
 		// applies WITHIN a set — a single-source tag is its own served
 		// surface, whatever it is authored in. A member whose surface is
@@ -460,8 +460,8 @@ export const compileCorpusFiles = async (
 		for (const { rel, component } of results) {
 			if (!component) continue
 			if (rel !== servedRel) {
-				// The non-selected member's CLIENT is still written (LT-284,
-				// ADR 0039 decision 2): the component test route serves it for
+				// The non-selected member's CLIENT is still written (
+				// ADR 0017 decision 2): the component test route serves it for
 				// the per-surface spec matrix, under a per-surface name in
 				// variants/ so no canonical consumer can mistake it — the CEM
 				// globs are flat, the registry stays one entry per tag, and
@@ -504,14 +504,14 @@ export const compileCorpusFiles = async (
 		}
 	}
 
-	// Prune variants/ of every client this run did not write (LT-296): a
+	// Prune variants/ of every client this run did not write (): a
 	// dissolved set (a member deleted), a flipped `variantOverrides`, a set
 	// dropped by LTC051, or a member that stopped compiling would otherwise
 	// leave a stale client the component test route's `?surface=` serves
 	// with 200 instead of 404.
 	await pruneVariantClients(join(outDir, 'variants'), variantClients)
 
-	// ADR 0029 sub-design 3, LT-165: compose contamination is a FIXPOINT over
+	// ADR 0008 sub-design 3: compose contamination is a FIXPOINT over
 	// the whole corpus's compose-read graph, so it can only run here — the
 	// first point where every component's own first-pass tier is known. A
 	// component's tier can only move downward (towards the Simulated tier).
@@ -551,7 +551,7 @@ export const compileCorpusFiles = async (
 				.map(([prop]) => prop),
 		})),
 	)
-	// Tag-map entries only for a tag SERVED from `.tsrx` (LT-325): a served
+	// Tag-map entries only for a tag SERVED from `.tsrx` (): a served
 	// `.tsx` source is visible to tsc and carries its own entry.
 	const tagMap: TsrxTagMapEntry[] = entries
 		.filter(entry => entry.source.endsWith('.tsrx'))
@@ -565,7 +565,7 @@ export const compileCorpusFiles = async (
 		join(outDir, TSRX_IMPORTS_FILE),
 		tsrxImportTypings(typings, tagMap),
 	)
-	// ADR 0030 sub-designs 4+5 (LT-173): the catalog pipeline's corpus half.
+	// ADR 0009 sub-designs 4+5 (): the catalog pipeline's corpus half.
 	// The generated i18n module folds every component's inline sources and
 	// the committed per-locale overrides into `i18nRecord(tag, lang?)`; the
 	// report artifact is gitignored; the census count rides the summary.
@@ -617,7 +617,7 @@ export const compileCorpusFiles = async (
  * compile the corpus, write every artifact to `config.outDir`, and return
  * the diagnostics and the summary. A corpus the configured globs cannot
  * see is a thrown configuration error — "it compiled, but nothing is where
- * I asked" is the worst first-install failure (LT-273's rule) and zero
+ * I asked" is the worst first-install failure (the ticket's rule) and zero
  * sources is its exact shape.
  */
 export const compileCorpus = async (

@@ -1,5 +1,5 @@
 /**
- * Test helpers over a diagnostic's range (ADR 0044 s1, LT-371): the line
+ * Test helpers over a diagnostic's range (ADR 0022 s1): the line
  * it starts on and the authored text it covers. They read the published
  * record (`location`) and the stages' local one (`range`) alike.
  */

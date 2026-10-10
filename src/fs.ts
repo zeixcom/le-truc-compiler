@@ -1,17 +1,17 @@
 /**
- * The compiler package's own file-system seam (D-32, LT-480).
+ * The compiler package's own file-system seam (D-32).
  *
  * The corpus entry point (`corpus.ts`) writes artifacts, discovers sources
  * and reads catalogs — it cannot do that as pure computation over strings.
  * This module is the ONE place under `server/compiler/` that touches the
  * file system: everything it uses is a `node:` API implemented by Bun,
  * Node and Deno alike, so the package needs *a* JS runtime, never a
- * particular one (ADR 0038 s2, as amended by D-32 — the seam replaces
+ * particular one (ADR 0016 s2, as amended by D-32 — the seam replaces
  * "no built-in but `node:path`" for this module alone; the
  * runtime-neutrality gate allows exactly these imports here).
  *
  * The glob machinery is the shared translator the runtime seam
- * (`server/runtimes/`) has served since LT-267, moved to its owning
+ * (`server/runtimes/`) has served since , moved to its owning
  * package: if Bun.Glob and a Node walk disagreed on what
  * `examples/**\/*.tsx` means, a consumer's corpus would silently differ per
  * runtime. `server/runtimes/glob.ts` re-exports from here so both layers
@@ -32,7 +32,7 @@
  * trailing `**`: its remainder is dot-guarded segment by segment (`a/**`
  * does not match `a/.tmp`, `**` does not match `.hidden`).
  *
- * Explicit-dot segments scan the way `Bun.Glob` scans them (LT-277): a
+ * Explicit-dot segments scan the way `Bun.Glob` scans them (): a
  * pattern segment starting with `.` (`.env`, `.hidden/*.ts`, `**\/.rc`,
  * `.*`) addresses the dot entries it matches, under Bun and under the Node
  * walk alike.
@@ -163,7 +163,7 @@ export const readTextFileSync = (path: string): string =>
 
 /**
  * Whether a regular file exists at `path` — a directory answers false
- * (LT-277).
+ * ().
  */
 export const fileExists = async (path: string): Promise<boolean> => {
 	try {
@@ -198,7 +198,7 @@ export const removeFile = async (path: string): Promise<void> => {
  * Every entry name directly under `path`, sorted — readdir order is the
  * runtime's, and whatever flows from a directory listing (the catalog
  * locale list, the i18n module, the census) must not differ between
- * runtimes (LT-267). A missing directory is an error, as it is for
+ * runtimes (). A missing directory is an error, as it is for
  * `readdir` itself; callers that treat "no directory" as "no entries"
  * catch it.
  */

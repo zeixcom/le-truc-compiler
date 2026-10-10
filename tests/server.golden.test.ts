@@ -1,5 +1,5 @@
 /**
- * Golden tests — server half (LT-001).
+ * Golden tests — server half ().
  *
  * The hand-written example PAGES demonstrate variants (different seeds,
  * initial selections, tab counts); what the compiler must prove is that
@@ -56,8 +56,8 @@ const moduleList = compileComponent(
 	'examples/module/list/module-list.tsrx',
 	new Set<string>([...registry, 'form-textbox', 'module-list', 'basic-button']),
 	undefined,
-	// module-list composes FormTextbox (ADR 0024 sub-design 10, LT-020) and
-	// BasicButton (LT-463) — keyed by each child's own repo-relative source
+	// module-list composes FormTextbox (ADR 0005 sub-design 10) and
+	// BasicButton () — keyed by each child's own repo-relative source
 	// path, mirroring server/effects/compile.ts's corpus-wide compose registry.
 	new Map(
 		(
@@ -75,7 +75,7 @@ const formCheckbox = compileComponent(
 	'examples/form/checkbox/form-checkbox.tsrx',
 	new Set<string>([...registry, 'form-textbox', 'form-checkbox']),
 )
-// Arg-seeded reactive list (LT-003): initial items render in place with
+// Arg-seeded reactive list (): initial items render in place with
 // data-key, the item shape is extracted as a <template>, and the client's
 // List declaration harvests the adopted children (see client.golden.test.ts).
 const seededSource = `import { createList } from '@zeix/le-truc'
@@ -110,7 +110,7 @@ if (
 
 // Generated server modules must exist for in-process execution; the effect
 // normally writes them, tests must not depend on a prior build — nor write
-// into the build's own output directory (LT-140).
+// into the build's own output directory ().
 const generated = createGeneratedDir('server-golden')
 afterAll(() => generated.cleanup())
 const ensureEmitted = (tag: string, code: string): void => {
@@ -127,7 +127,7 @@ ensureEmitted('c-el', seeded.component.serverCode)
 // (`i18n: i18nRecord("form-textbox", …)`), which imports './i18n' — the
 // generated i18n module must exist beside the emitted server modules. The
 // real pipeline derives it from the corpus collection; the fixture derives
-// it from the same six compiled entries (ADR 0030 sub-design 2).
+// it from the same six compiled entries (ADR 0009 sub-design 2).
 await writeI18nModule(
 	generated.path,
 	await collectI18n(
@@ -288,7 +288,7 @@ describe('server golden — form-textbox variants (extensions, Parser-expose, @i
 	// `clearable` and `validatable` (required || maxlength != null) each gate
 	// an entire optional element — the clear button and the error paragraph
 	// only render when true, not merely hidden/empty (a single-branch @if,
-	// no @else, LT-008's DOM-existence-guarded addressing).
+	// no @else, the ticket's DOM-existence-guarded addressing).
 	const formTextboxHtml = ({
 		name,
 		children,
@@ -392,7 +392,7 @@ describe('server golden — form-textbox variants (extensions, Parser-expose, @i
 	test('special characters escape in the root attribute and the mirror; children render trusted', async () => {
 		// The `value` arg escapes through the attribute channel; the passed
 		// children do NOT escape — they are the parent's trusted markup,
-		// spliced raw (String(children), ADR 0048 s1, the card-callout
+		// spliced raw (String(children), ADR 0026 s1, the card-callout
 		// semantics), which is why the helper call passes the raw string.
 		const html = await render('FormTextbox', 'form-textbox', {
 			name: 'x',
@@ -473,7 +473,7 @@ describe('server golden — module-list (reactive @for → template extraction)'
 		const html = await render('ModuleList', 'module-list', {})
 		expect(html).toBe(
 			'<module-list><form action="#">' +
-				// FormTextbox is composed (ADR 0024 sub-design 10, LT-020): this
+				// FormTextbox is composed (ADR 0005 sub-design 10): this
 				// is form-textbox.tsrx's OWN render output for
 				// { name: 'new-item', children: 'New item', clearable: true } —
 				// value="" (unauthored default, now real, not hand-copied), the
@@ -487,8 +487,8 @@ describe('server golden — module-list (reactive @for → template extraction)'
 				'<button type="button" aria-label="Clear input" hidden class="clear">✕</button>' +
 				'</div>' +
 				'</form-textbox>' +
-				// BasicButton is composed (LT-463): basic-button.tsrx's own
-				// render output — the `constructive` kind token (LT-489's
+				// BasicButton is composed (): basic-button.tsrx's own
+				// render output — the `constructive` kind token (the's
 				// orthogonal args; defaults emit no token), the label span and
 				// the empty badge span.
 				'<basic-button class="submit"><button type="submit" class="constructive">' +
@@ -567,13 +567,13 @@ const sheetOfSource = (source: string): string => {
 /** The never-present attribute that pads a lowered `:scope` root to (0,1,0). */
 const PAD = ':not([data-truc-scope-pad])'
 
-describe('CSS — the authored sheet and the scoped emission (ADR 0033, LT-501)', () => {
-	// A compiled component's authored sheet is an `@scope` block (LT-501):
+describe('CSS — the authored sheet and the scoped emission (ADR 0011, LT-501)', () => {
+	// A compiled component's authored sheet is an `@scope` block ():
 	// the IR's `authoredCss` is its dedent, and the emitted artifact (`css`)
 	// is the scoped emission — at the default targets the LOWERED form, the
 	// root as `:where(tag)` (the corpus writes the `:where(:scope)` idiom, so
 	// no `:scope` pad) and a zero-specificity guard per authored limit. The
-	// hand-written `.css` files are the `.ts` twins' 2.x artifacts (ADR 0033
+	// hand-written `.css` files are the `.ts` twins' 2.x artifacts (ADR 0011
 	// s10), no longer the compiled contract.
 	test('basic-counter: authored sheet carried verbatim, emission scoped', () => {
 		expect(counter.component?.authoredCss).toBe(
@@ -597,7 +597,7 @@ describe('CSS — the authored sheet and the scoped emission (ADR 0033, LT-501)'
 		expect(css).toContain(':where(module-tabgroup) {')
 		expect(css).not.toContain('module-tabgroup {')
 	})
-	// The form fixture's sheet is the fuller migration (LT-020 follow-up):
+	// The form fixture's sheet is the fuller migration ( follow-up):
 	// dimmed/focus-within opacity, textarea alongside input, `:state(clearable)`,
 	// `.description` alongside `.error`. The authored form reaches the IR
 	// verbatim; the emission lowers it flat — a leaf, so no guard applies.
@@ -613,7 +613,7 @@ describe('CSS — the authored sheet and the scoped emission (ADR 0033, LT-501)'
 		expect(css).toContain(':where(form-textbox):state(clearable) .input {')
 		expect(css).not.toContain(':where(:not(')
 	})
-	// module-list composes form-textbox (ADR 0024 sub-design 10): its
+	// module-list composes form-textbox (ADR 0005 sub-design 10): its
 	// sheet's authored limit stops the scope at the composed child — the
 	// guard names form-textbox, and the child's internals stay unreachable.
 	test('module-list: authored sheet carried verbatim, no limit the sheet does not author (LT-502)', () => {

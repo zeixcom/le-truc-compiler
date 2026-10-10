@@ -1,6 +1,6 @@
 /**
- * The census channel (ADR 0029 sub-design 6, LT-165 step 6; moved out of
- * `sim/report.ts` by LT-263, ADR 0035 sub-design 3 limb 1).
+ * The census channel (ADR 0008 sub-design 6 step 6; moved out of
+ * `sim/report.ts` by , ADR 0013 sub-design 3 limb 1).
  *
  * A census record is a second kind of record — never a diagnostic and never
  * a warning. A named {@link Census} records, per subject, what the build
@@ -16,7 +16,7 @@
  * `server/compiler/corpus.ts` and `scripts/check-corpus.ts` — simulate nothing.
  * Sharing a module with the realm's diagnostic classification was history,
  * and it was also what made the census unavailable to a build with no
- * substrate installed (ADR 0034 sub-design 5). The census must print with
+ * substrate installed (ADR 0012 sub-design 5). The census must print with
  * every component classified whether or not jsdom exists; it lives
  * compiler-side so that is true by construction.
  */
@@ -34,7 +34,7 @@ export type CensusKind = 'tier' | 'translation'
 
 /**
  * One record in a census: what a subject was routed or assigned, and why.
- * Factual by design (ADR 0028) — a census record is a build-cost and
+ * Factual by design (ADR 0007) — a census record is a build-cost and
  * provenance fact, never an author-facing problem, so its wording names the
  * subject, the value, and the reasons and stops there.
  */
@@ -59,7 +59,7 @@ export type Census = {
 	/**
 	 * The full domain of values the census counts over, so the summary line
 	 * reports zero-count values too ("0 static" is the current corpus's
-	 * correct classification, not a gap — ADR 0029 Consequences).
+	 * correct classification, not a gap — ADR 0008 Consequences).
 	 */
 	values: readonly string[]
 	entries: readonly CensusEntry[]
@@ -78,13 +78,13 @@ export type TierCensusSubject = {
 
 /**
  * One gap between a component's inline catalog and a locale's override
- * file (ADR 0030 sub-design 5, LT-173 step 4).
+ * file (ADR 0009 sub-design 5 step 4).
  */
 export type TranslationGap = {
 	/**
 	 * The component-namespaced catalog key (`module-todo.remaining`) —
 	 * or, for a `malformed` catalog FILE that does not parse as a JSON
-	 * object, the file name (`de.json`, LT-356).
+	 * object, the file name (`de.json`).
 	 */
 	key: string
 	/** The locale the key is missing, stale, or orphaned in. */
@@ -94,15 +94,15 @@ export type TranslationGap = {
 	 * string renders); `stale` — an entry exists but the source string
 	 * moved after the translation was recorded, so it may no longer match;
 	 * `orphaned` — an entry exists in the locale's catalog but nothing in
-	 * the corpus declares it (LT-196), so it can never render.
+	 * the corpus declares it (), so it can never render.
 	 *
-	 * The pattern-integrity walks (ADR 0030 s5, LT-219) read the entry
-	 * itself: `malformed` — it is not a string (LT-249) or does not parse
+	 * The pattern-integrity walks (ADR 0009 s5) read the entry
+	 * itself: `malformed` — it is not a string () or does not parse
 	 * as an ICU pattern, so the source renders; `argument-mismatch` — its arguments differ from the
 	 * source pattern's; `missing-arms` — a `plural` in it does not cover the
 	 * locale's plural categories, so those counts render `other`;
 	 * `client-fallback` — a client-referenced key uses a construct its
-	 * source does not, so the browser renders the source (LT-350).
+	 * source does not, so the browser renders the source ().
 	 */
 	status: TranslationGapStatus
 	/** What the pattern-integrity walks found (the arguments, the categories). */
@@ -159,14 +159,14 @@ const signalLine = (
 /* === Exported Functions === */
 
 /**
- * Build the tier census (ADR 0029 sub-design 6) from the corpus registry's
+ * Build the tier census (ADR 0008 sub-design 6) from the corpus registry's
  * POST-contamination entries — the `tier`/`routingSignals` the compose-read
  * fixpoint in `compileCorpus` leaves on each entry (so `form-combobox`
  * records Simulated with its `compose-read` reason, not the pre-contamination
  * Folded tier its emit used). Sorted by tag so the output is stable whatever
  * order the corpus glob scanned in.
  *
- * A signal's location prints as the line it starts on (ADR 0044 s4: the
+ * A signal's location prints as the line it starts on (ADR 0022 s4: the
  * census is a terminal view). `sourceOf` reads the authored file a location
  * names; without it, or for a whole-file location, the reason carries no
  * line.
@@ -193,11 +193,11 @@ export const tierCensus = (
 })
 
 /**
- * Build the translation census (ADR 0030 sub-design 5, LT-173 step 4) from
+ * Build the translation census (ADR 0009 sub-design 5 step 4) from
  * the corpus's catalog gaps. Deliberately NOT a compile warning: a missing
  * translation is the translator's work, not the component author's, so it
  * rides the census channel rather than re-starting the non-zero warning
- * baseline ADR 0029 sub-design 6 removed. `locales` is the full domain of
+ * baseline ADR 0008 sub-design 6 removed. `locales` is the full domain of
  * translated locales the catalogs cover, so the summary reports zero-gap
  * locales too; entries are one per gap, sorted by key then locale so the
  * output is stable whatever order the corpus compiled in.

@@ -1,11 +1,11 @@
-# Compiler Vocabulary Ledger (LT-271)
+# Compiler Vocabulary Ledger 
 
 The disposition of every TSRX-only name the compiler carried, with the reason.
-Settled 2026-09-19 under [ADR 0034](../../adr/0034-distribution-compiler-package-and-template-emission.md)
-s1–s2, discharging the packaging-time deferrals [LT-206](../../DONE.md) parked.
+Settled 2026-09-19 under [ADR 0012](adr/0012-distribution-compiler-package-and-template-emission.md)
+s1–s2.
 
 **The rule this ledger applies.** `.tsrx` remains a first-class *repo-internal*
-authoring surface under [ADR 0032](../../adr/0032-adopt-tsx-as-the-authored-component-surface.md)
+authoring surface under [ADR 0010](adr/0010-adopt-tsx-as-the-authored-component-surface.md)
 s6's parity contract, so a name that refers to the `.tsrx` surface refers to it
 *correctly* and is kept. A name that refers to the surface-neutral machinery —
 or to a thing that already handles both surfaces — is renamed. A blanket rename
@@ -17,21 +17,21 @@ would have been as wrong as none.
 
 | Name | Disposition | Reason |
 |---|---|---|
-| `check:tsrx` → **`check:corpus`** | renamed | `scripts/check-tsrx.ts` already globbed `examples/**/*.tsrx` **and** `examples/**/*.tsx` (LT-202). It type-checks the whole corpus through emit-then-check, whichever front end produced each module. The name was wrong before the publish question arose. File renamed to `scripts/check-corpus.ts`. |
+| `check:tsrx` → **`check:corpus`** | renamed | `scripts/check-tsrx.ts` already globbed `examples/**/*.tsrx` **and** `examples/**/*.tsx` . It type-checks the whole corpus through emit-then-check, whichever front end produced each module. The name was wrong before the publish question arose. File renamed to `scripts/check-corpus.ts`. |
 | `scripts/build-tsrx.ts` → **`scripts/build-corpus.ts`** | renamed | The standalone corpus emit that `typecheck`, `build:cem`, `build:examples:js` and `check:nosubstrate` all run. It emits for whatever the corpus contains; nothing about it is `.tsrx`-specific except today's corpus. |
-| **`build:corpus`** | added | `build:tsrx` was named in the LT-206 deferral list but never existed as a `package.json` script — only as a file four other scripts invoked inline. Added so the renamed script is addressable, and so the deferral list is discharged honestly rather than by a technicality. |
-| `build:tsrx:browser` / `scripts/build-tsrx-browser.ts` | **retired** (LT-366) | Browser purity is not a compiler requirement ([ADR 0038](../../adr/0038-runtime-neutral-build-path.md) s2); `server/tests/compiler/runtime-neutrality.test.ts` replaces the bundle smoke with a source-level check. A playground bundle is [ADR 0025](../../adr/0025-client-side-component-playground.md) s6's own work. |
+| **`build:corpus`** | added | `build:tsrx` was named in the deferral list but never existed as a `package.json` script — only as a file four other scripts invoked inline. Added so the renamed script is addressable, and so the deferral list is discharged honestly rather than by a technicality. |
+| `build:tsrx:browser` / `scripts/build-tsrx-browser.ts` | **retired** | Browser purity is not a compiler requirement ([ADR 0016](adr/0016-runtime-neutral-build-path.md) s2); `tests/runtime-neutrality.test.ts` replaces the bundle smoke with a source-level check. A playground bundle is [Le Truc ADR 0025](https://github.com/zeixcom/le-truc/blob/main/adr/0025-client-side-component-playground.md) s6's own work. |
 
 **Known gap, not fixed here (deliberate).** `scripts/build-corpus.ts` globs
 `examples/**/*.tsrx` only, while `scripts/check-corpus.ts` and the build effect
 glob both extensions. A `.tsx` component added under `examples/` would compile
 under `bun run check:corpus` and the docs build but be missed by
 `build:corpus` — so `build:cem` and `typecheck` would not see it. This is a
-behavioural defect, not a naming one, and LT-271 is a rename sweep whose
+behavioural defect, not a naming one, and is a rename sweep whose
 acceptance criterion is byte-identical corpus output; widening the glob is a
-separate change. **Ruled at the LT-271 review: LT-255 owns it** — that task replaces this
+separate change. **Ruled at the review: owns it** — that task replaces this
 glob with a configured one, and the requirement to cover both extensions is written
-into its entry. **Closed by LT-255 (2026-09-19):** both extensions are now one
+into its entry. **Closed by (2026-09-19):** both extensions are now one
 configured glob list (`DEFAULT_SOURCES` in `server/compiler/corpus-config.ts`), read
 by `build:corpus`, `check:corpus` and the build effect alike — there is a single
 place to widen, so the three cannot drift apart again.
@@ -40,29 +40,29 @@ place to widen, so the three cannot drift apart again.
 
 | Name | Disposition | Reason |
 |---|---|---|
-| `server/effects/tsrx.ts` → **`server/effects/compile.ts`** | renamed | Watches `.tsrx` **and** `.tsx` (ADR 0032 s6) and dispatches per extension. It is the component-compile effect, not the TSRX effect. Symbols moved with it: `compileTsrxCorpus` → `compileCorpus`, `tsrxEffect` → `compileEffect`. |
+| `server/effects/tsrx.ts` → **`server/effects/compile.ts`** | renamed | Watches `.tsrx` **and** `.tsx` (ADR 0010 s6) and dispatches per extension. It is the component-compile effect, not the TSRX effect. Symbols moved with it: `compileTsrxCorpus` → `compileCorpus`, `tsrxEffect` → `compileEffect`. |
 | `componentTsrx` / `componentTsrxSources` (`server/file-signals.ts`) → **`componentFiles` / `componentSources`** | renamed | The signal already watched both extensions. |
 | `loadTsrxCorpus` (`server/tests/compiler/corpus-fixture.ts`) → **`loadCorpus`** | renamed | Loads the corpus, both surfaces. |
-| `simulateTsrxCorpus` (`server/effects/simulate.ts`) → **`simulateCorpus`** | renamed | Simulation is machinery, surface-independent ([ADR 0027](../../adr/0027-server-simulation.md)). |
+| `simulateTsrxCorpus` (`server/effects/simulate.ts`) → **`simulateCorpus`** | renamed | Simulation is machinery, surface-independent ([ADR 0006](adr/0006-server-simulation.md)). |
 | `server/generated/tsrx/` → **`server/generated/components/`** | renamed | Holds both surfaces' output — `<tag>.server.ts`, `<tag>.client.ts`, `<tag>.css`, `registry.json`, `i18n.ts`. Gitignored; nothing downstream pins the path except in-repo callers, all updated. |
 | `server/tests/helpers/generated-tsrx.ts` → **`server/tests/helpers/generated-corpus.ts`** | renamed | Its scratch-directory prefix moved with it: `tsrx-test-<label>-` → `corpus-test-<label>-`. |
-| `server/generated/tsrx-browser/` | **retired** (LT-366) | Went with `build:tsrx:browser` above. |
+| `server/generated/tsrx-browser/` | **retired** | Went with `build:tsrx:browser` above. |
 
 ## 3. `@tsrx/core` in internal APIs
 
 | Name | Disposition | Reason |
 |---|---|---|
 | `import type { TsrxNode } from '@tsrx/core'` in **21 machinery modules** → **`import type { AstNode } from './ast-node'`** | renamed | This was the real finding. The shared machinery — `ast-utils`, `ir`, `evaluability`, `imports`, `setup-extraction`, `lower-shared`, `emit-server`, `analysis/*`, `tier` and the rest — typed its whole AST vocabulary on a name and a package specifier belonging to the minority surface's parser. It is a loose estree structural type (`{ type: string; start?; end?; … }`), and the `.tsx` front end was *redeclaring an identical copy* in `frontend/tsx/to-estree.ts` precisely because the shared one was misnamed. New machinery-owned `server/compiler/ast-node.ts` exports `AstNode`; `to-estree.ts` re-exports it instead of redeclaring. Type-only, erased at compile time — zero runtime effect. |
-| `server/compiler/core.ts` | **kept** | The ONE module importing the pin's *values*. Its doc comment updated: siblings now import no types from `@tsrx/core` either, so `core.ts` + `core-shim.d.ts` are the pin's entire footprint — tighter isolation than ADR 0024 s2 asked for. |
+| `server/compiler/core.ts` | **kept** | The ONE module importing the pin's *values*. Its doc comment updated: siblings now import no types from `@tsrx/core` either, so `core.ts` + `core-shim.d.ts` are the pin's entire footprint — tighter isolation than ADR 0005 s2 asked for. |
 | `server/compiler/core-shim.d.ts`, incl. its own `TsrxNode` | **kept** | This declaration really *is* the pinned parser's type, for the pinned parser's own function signatures. Naming it after the package is correct. |
-| `@tsrx/core` in `package.json` devDependencies | **kept** | ADR 0032 s6 retains the pin while `.tsrx` lives. |
+| `@tsrx/core` in `package.json` devDependencies | **kept** | ADR 0010 s6 retains the pin while `.tsrx` lives. |
 | `import type { TsrxNode } from '@tsrx/core'` in `scripts/codemod-react-jsx.ts` | **kept** | A `.tsrx`-only codemod (the React-idiom migration), parsing `.tsrx` with `@tsrx/core`. Correct reference. |
 
 ## 4. Diagnostic codes — the load-bearing decision
 
 **Owner ruling, 2026-09-19: split by ownership. 44 codes → `LTC###`; 6 keep `TSRX###`.**
 
-These become public API at first publish ([ADR 0034](../../adr/0034-distribution-compiler-package-and-template-emission.md)
+These become public API at first publish ([ADR 0012](adr/0012-distribution-compiler-package-and-template-emission.md)
 s1), and a package name is the one decision that cannot be revised afterwards —
 so the vocabulary is settled now, before P6, even though the publish is after it.
 
@@ -72,8 +72,8 @@ so the vocabulary is settled now, before P6, even though the publish is after it
 > These are emitted by the shared machinery and fire on both surfaces. They are
 > named for the package, not a surface: `.tsx` is the stable authored surface
 > and the corpus majority (the `.tsrx` input surface ships experimental,
-> ADR 0034 s2), so a `TSRX` prefix would name the minority format on codes
-> every author sees. Numbers are preserved so the ADR 0028 spent-number
+> ADR 0012 s2), so a `TSRX` prefix would name the minority format on codes
+> every author sees. Numbers are preserved so the ADR 0007 spent-number
 > ledger survives the rename intact — `TSRX004`/`013`/`031`/`043`'s retirements
 > and `TSRX020`'s carry over as `LTC004`/`013`/`031`/`043` and stay visible in
 > the union.
@@ -84,11 +84,11 @@ so the vocabulary is settled now, before P6, even though the publish is after it
 > These diagnose the `.tsrx` grammar specifically and have no `.tsx` counterpart
 > by construction. `TSRX018` is the retired `&{…}` lazy-child sigil; `TSRX020` is
 > retired at the 0.2 pin; `TSRX021`–`TSRX024` are the React near-miss family
-> (`{cond && …}`, ternary, `.map()`, `return (<>…</>)`) — idioms that TSRX would
+> (`{cond && …}`, ternary, `.map`, `return (<>…</>)`) — idioms that TSRX would
 > render *literally* but which are `.tsx`'s **correct** spellings, so the family
-> is in force for `.tsrx` sources only (ADR 0032 s6). Prefixing them `LTC` would
+> is in force for `.tsrx` sources only (ADR 0010 s6). Prefixing them `LTC` would
 > assert they are compiler-wide rules, which is exactly backwards. Each kept
-> code's reason still holds with the surface shipping (LT-254, ADR 0034 s2):
+> code's reason still holds with the surface shipping (, ADR 0012 s2):
 > all six publish beside the `LTC###` set — public API from first publish, like
 > every code — but they fire on `.tsrx` sources only, so a `.tsx`-only consumer
 > never meets one; the surface's experimental label covers their behavior, not
@@ -106,93 +106,93 @@ codes *are* one contiguous number space. But the `.tsx` author who gets
 because renaming after first publish is impossible.
 
 **`LTC` rather than `LT`:** `LT-###` is this repo's task-ID namespace
-(`LT-206`, `LT-271`). `LT034` beside `LT-034` in prose is a collision waiting to
+(``, ``). `LT034` beside `` in prose is a collision waiting to
 happen.
 
 **Post-rename codes continue the `LTC` space** with the next free number:
-`LTC051` (a variant set's compiled members disagree on CSS — ADR 0039, LT-283)
+`LTC051` (a variant set's compiled members disagree on CSS — ADR 0017)
 is the first, and LTC048's rule narrows in the same commit: a folder-local
 variant set (one source per surface, one base name, one directory) is the
 legal multi-source shape, and every other collision still fails the build
 naming all files.
-`LTC052` (a server-data `@for` carries a `key` clause — ADR 0040 s1, LT-286)
+`LTC052` (a server-data `@for` carries a `key` clause — ADR 0018 s1)
 follows, then `LTC053` (an element tag that is not a static name — `.tsrx`'s
-`<{expr}>`, `.tsx`'s unrecognized namespaced or member tag — LT-213), then
+`<{expr}>`, `.tsx`'s unrecognized namespaced or member tag —), then
 `LTC054` (a server-evaluated position reads page context outside the declared
 ambient set, or the reserved `i18n` record is destructured for an undeclared
-member — the partial-readiness invariant, ADR 0034 s4, LT-258), then
+member — the partial-readiness invariant, ADR 0012 s4), then
 `LTC055` (an `export const i18n` source pattern that is not a supported ICU
 MessageFormat 1 pattern, or a `t.<key>` site that disagrees with its
-pattern's arguments — ADR 0030 s4, LT-250). It is `LTC`, not `TSRX`: the
+pattern's arguments — ADR 0009 s4). It is `LTC`, not `TSRX`: the
 check runs in the shared post-lowering pass, on both surfaces.
 `LTC056` (an authored `<script>` element in a component template, whatever
-its `type` — the page owns script loading; LT-358 rider) follows. It is
+its `type` — the page owns script loading; rider) follows. It is
 `LTC`, not `TSRX`: the refusal is raised in `lowerElement` (shared), on
 both surfaces.
 `LTC059` (a signal seeded from server args renders only as formatted
-text and has no raw value source to harvest — D-20, LT-374) was reserved
-with `LTC057`/`LTC058` (LT-257) and lands after `LTC060`–`LTC071`. It is
+text and has no raw value source to harvest — the raw-source rule, §5.1) was reserved
+with `LTC057`/`LTC058` and lands after `LTC060`–`LTC071`. It is
 `LTC`, not `TSRX`: Pass 3 (`analysis/harvest.ts`) raises it, on both
 surfaces.
 `LTC060` (a fragment root — the template output is a `<>…</>` fragment,
-whatever it wraps; ADR 0032 s1, LT-375) was RESERVED at the
+whatever it wraps; ADR 0010 s1) was RESERVED at the
 same planning round as `LTC061`–`LTC065` but lands out of numeric order:
-`LTC061` was claimed first (LT-383 compiled before LT-375 ran), so
+`LTC061` was claimed first ( compiled before ran), so
 `LTC060` follows `LTC056` in the code space while arriving last. It is
 `LTC`, not `TSRX`: the refusal is raised in the shared driver
 (`front-end.ts`), on both surfaces.
 `LTC061` (an authored `<template>` element in a component template — the
 compiler owns template extraction, and the selector proof cannot see
-inside one; LT-383), then `LTC062`/`LTC063` (the ADR 0037 reactive-arm
+inside one;), then `LTC062`/`LTC063` (the ADR 0015 reactive-arm
 rules — a non-literal or duplicated switch `@case` value, and a reactive
-condition inside a reactive list's reconcile() container; LT-274), then
-`LTC064` (the component's stylesheet does not parse; ADR 0033 s9, LT-268)
+condition inside a reactive list's reconcile container;), then
+`LTC064` (the component's stylesheet does not parse; ADR 0011 s9)
 and `LTC065` (a warning: a declaration names an unknown property or a value
-outside the property's grammar; LT-394). All `LTC`, not `TSRX`: each
+outside the property's grammar;). All `LTC`, not `TSRX`: each
 is raised in shared machinery, on both surfaces.
 `LTC072` (a field of a list item seeded from server args has no harvest
-site in the item; ADR 0046 s7, LT-429) was reserved at the LT-429 design
+site in the item; ADR 0024 s7) was reserved at the design
 session and lands after `LTC075`. It is `LTC`, not `TSRX`: Pass 3
 (`analysis/list-harvest.ts`) raises it, on both surfaces.
 `LTC073` (a `<style>` block that is not the root's single direct `<style>`
-child; ADR 0032 s1, LT-417) skips `LTC072`, which LT-429 holds. It is
+child; ADR 0010 s1) skips `LTC072`, which holds. It is
 `LTC`, not `TSRX`: the refusal is raised in the shared hoist
 (`template-output.ts`), on both surfaces.
-`LTC074` (an element beside a reactive-list loop in its reconcile()
+`LTC074` (an element beside a reactive-list loop in its reconcile
 container, directly or as any arm root of a server-mode conditional or a non-async
 `try`, that
 carries no `data-unreconciled` — the list removes it on its first run, and
-an authored `data-key` is no exemption; ADR 0017, LT-186, LT-431) lands out of numeric
-order: `LTC072` is LT-429's and `LTC073` LT-417's, both reserved before
+an authored `data-key` is no exemption; ADR 0004) lands out of numeric
+order: `LTC072` is ticket 429's and `LTC073` ticket 417's, both reserved before
 this rule picked. It is `LTC`, not `TSRX`: the refusal is raised in the
 shared loop analysis (`analysis/loops.ts`), on both surfaces.
 `LTC075` (a composed element in a reactive-list item whose args or content
-read the item or key binding; ADR 0030 s9, LT-355) replaces an `LTC005`
+read the item or key binding; ADR 0009 s9) replaces an `LTC005`
 face of the same condition. It is `LTC`, not `TSRX`: the refusal is raised
 in the shared list-body validation (`lower-shared.ts`), on both surfaces.
 `LTC076` (a field of a list item seeded from server args has a harvest
 site but no parser — no type the compiler infers one from and no
-`harvest()` entry — or the item type is unreadable and no `harvest()` map
-lists its fields; ADR 0046 s7, LT-429) lands with `LTC072`, after `LTC078`.
+`harvest` entry — or the item type is unreadable and no `harvest` map
+lists its fields; ADR 0024 s7) lands with `LTC072`, after `LTC078`.
 It is `LTC`, not `TSRX`: Pass 3 (`analysis/list-harvest.ts`) raises it, on
 both surfaces.
 `LTC077` (a signal with a direct harvest site whose seed type the compiler
 cannot read — any annotation that is not the bare `string`/`number`/
-`boolean` keyword — and no `harvest()` marker declaring its parser; ADR
-0046 s7, LT-443) was reserved at the LT-429 design session, between
+`boolean` keyword — and no `harvest` marker declaring its parser; ADR
+0046 s7) was reserved at the design session, between
 `LTC076` and `LTC078`. It is `LTC`, not `TSRX`: Pass 3
 (`analysis/harvest.ts`) raises it, on both surfaces.
 `LTC078` (a `<style>` block whose content is not a stylesheet spelling; ADR
-0034 s1, LT-444) skips `LTC076` and `LTC077`, which LT-429 and LT-443 hold.
+0034 s1) skips `LTC076` and `LTC077`, which and hold.
 It is `LTC`, not `TSRX`: each surface's `stylesheetOf` reads the block and
 the shared hoist (`template-output.ts`) reports it. Its `.tsx`-only reasons
 (another tag, a `css` that is not the marker, a `${}` substitution) are
 template-literal shapes, not `.tsrx` grammar; the shared reason — an
 expression in place of the sheet — fires on both surfaces.
-`LTC080` (a key alias that does not meet ADR 0047 s1: the aliasing list
+`LTC080` (a key alias that does not meet ADR 0025 s1: the aliasing list
 does not key each item by itself, a `byKey` read is not the alias statement
 over the loop key, a second alias scope, or a field with no site in the
-alias scope; LT-453) skips `LTC079`, which LT-447 released unused — its
+alias scope;) skips `LTC079`, which released unused — its
 shape is supported, not refused (2026-10-06 review). It is `LTC`, not
 `TSRX`: Pass 3 (`analysis/list-harvest.ts`) raises it, on both surfaces. Its
 dynamic half is the server runtime's `HarvestWitnessError`, which has no
@@ -200,27 +200,27 @@ code.
 `LTC081` (a handler arg the composing parent cannot address: no function
 type in the parameter annotation, a read outside an event attribute or a
 forward, or a placement inside a reactive arm, a reactive-list item or a
-server-data loop body; LT-461) takes the next number. It is `LTC`, not
+server-data loop body;) takes the next number. It is `LTC`, not
 `TSRX`: the shared front end (`params.ts`, `validate-lowered.ts`) raises it
 on both surfaces, and it has no runtime half.
-`LTC083` (a `first()`/`all()` selector that can only resolve inside the
+`LTC083` (a `first`/`all` selector that can only resolve inside the
 content a parent passes as `children` — it matches nothing in the child's
 own template, the child's template inserts `{children}`, and its subject
 compound names no role class declared on the `children` prop's
-`Children<…>` type; ADR 0048 s2, LT-474) skips `LTC082`, which LT-136
+`Children<…>` type; ADR 0026 s2) skips `LTC082`, which
 released unused — the shadowed client read is refused as `LTC005` before
 `tsc` (2026-10-07 review). It is `LTC`, not `TSRX`: both selector-verification sites
 (`template-output.ts`, `analysis/compose-refs.ts`) are shared. The
 diagnostic has no runtime half of its own: a role-addressed ref that
 matched nothing — in a template that inserts `{children}`, the only place
 a no-match is expected of it — compiles as an `unmatched` ref, required
-included (LT-474 review), and its runtime behavior is the existing
+included ( review), and its runtime behavior is the existing
 required-ref channel — the throwing query's `MissingElementError` with the
-authored reason, tier 3 Escalated — with the region re-include (ADR 0048
+authored reason, tier 3 Escalated — with the region re-include (ADR 0026
 s1) resolving a role-addressed query inside the content, the sanctioned
 path. Without an insertion the content can never arrive, so the bypass
 does not apply and the plain handling stands (required → LTC026, optional
-→ LT-123's silence; review 2). A roles
+→ ticket 123's silence; review 2). A roles
 declaration present but unreadable (an imported name) keeps the code and
 changes the fix copy, which names the readable shapes (LTC076's posture).
 `LTC085` (a compose site of a child whose `children` prop declares
@@ -228,30 +228,29 @@ changes the fix copy, which names the readable shapes (LTC076's posture).
 `a[href]`, `button`, `input` except `type="hidden"`, `select`,
 `textarea`, `label`, `details`, `iframe`, any `[tabindex]`, media with
 `controls` — among the site's literal children, or a composed child whose
-own template renders any, transitively; ADR 0048 s4, LT-477) follows
+own template renders any, transitively; ADR 0026 s4) follows
 `LTC083`. It is `LTC`, not `TSRX`: the check runs in the shared pipeline
 on both surfaces (`analysis/content-model.ts`). No runtime half of its
 own: page-authored HTML is unchecked by design, and TypeScript cannot
 carry the check (JSX element types are opaque).
-`LTC084` (a parent `watch` binding on a `first()` reference into a compose
+`LTC084` (a parent `watch` binding on a `first` reference into a compose
 site's content writing the same property, attribute, class token, style
 property or text on an element carrying a role class the child's client
-also writes through its role-targeted `watch` bindings; ADR 0048 s3,
-LT-476) follows `LTC085`. It is `LTC`, not `TSRX`: the check runs in the
+also writes through its role-targeted `watch` bindings; ADR 0026 s3) follows `LTC085`. It is `LTC`, not `TSRX`: the check runs in the
 shared pipeline on both surfaces (`analysis/role-writes.ts`). No runtime
 half: the registry (`RegistryEntry.roleWrites`) carries the child's half,
 the parent's authored `watch` statements the other, and a hand-authored
-pairing has no registry to read — the DOM's last-write-wins is [M15]'s
+pairing has no registry to read — the DOM's last-write-wins is the library's
 posture for foreign markup.
 `LTC086` (`:host` anywhere in a component stylesheet, fix-it `:where(:scope)`;
-ADR 0033 s6, LT-501) and `LTC089` (a `@scope` form the flat-selector lowering
-cannot express on a lowered CSS target; ADR 0033 s4, LT-501) follow
-`LTC081`; `LTC082` is released unused (LT-136). `LTC087` (a scoped rule
+ADR 0011 s6) and `LTC089` (a `@scope` form the flat-selector lowering
+cannot express on a lowered CSS target; ADR 0011 s4) follow
+`LTC081`; `LTC082` is released unused . `LTC087` (a scoped rule
 that reaches into a composed child's own markup) and `LTC088` (a top-level
-rule neither in `@scope` nor led by the own tag) are LT-502's warnings (ADR
+rule neither in `@scope` nor led by the own tag) are ticket 502's warnings (ADR
 0033 s5). All four are `LTC`, not `TSRX`: the stylesheet is a string on both
 surfaces, so the same check reports identically (`tsx/diagnostic-parity`).
-`LTC070` (a qualifier on bare `:host`) is **retired** by LT-501: under the
+`LTC070` (a qualifier on bare `:host`) is **retired** by: under the
 platform-CSS contract a qualifier after `:scope` is valid CSS, and `:host`
 itself is `LTC086`. The number is spent and stays reserved; `LTC066`,
 `LTC069` and `LTC071` keep their numbers with new conditions (a rule inside
@@ -260,20 +259,20 @@ itself is `LTC086`. The number is spent and stays reserved; `LTC066`,
 
 ## 5. Kept, with the surface named correctly
 
-Not part of the LT-206 list, but checked in the same sweep and left alone: the
+Not part of the list, but checked in the same sweep and left alone: the
 `.tsrx` corpus sources under `examples/`, `server/compiler/frontend/tsrx/`,
 `server/tests/compiler/tsx/parity.test.ts`, and every prose reference that
 describes the `.tsrx` grammar, its pin, or its front end. The surface set is
-closed at two (ADR 0032 s6) and both are named explicitly wherever the
+closed at two (ADR 0010 s6) and both are named explicitly wherever the
 distinction matters.
 
-## 6. Console and error-message strings (LT-273)
+## 6. Console and error-message strings 
 
-The corpus compile runs over BOTH authored surfaces (ADR 0032 s6) under a
-consumer's configuration ([ADR 0036](../../adr/0036-corpus-configuration-surface.md)),
-so its user-facing strings name the run, not one surface. LT-267 had moved
+The corpus compile runs over BOTH authored surfaces (ADR 0010 s6) under a
+consumer's configuration ([ADR 0014](adr/0014-the-corpus-configuration-surface.md)),
+so its user-facing strings name the run, not one surface. had moved
 two of these from `server/effects/compile.ts` to `server/corpus-compile.ts`
-without renaming them — correctly, inside a byte-identity task; LT-273
+without renaming them — correctly, inside a byte-identity task;
 discharges the deferral.
 
 | Name | Disposition | Reason |
@@ -281,7 +280,7 @@ discharges the deferral.
 | `📝 TSRX compilation completed (N …)` (`server/corpus-compile.ts`) → **`📝 Corpus compilation completed (N …)`** | renamed | The build summary of a both-surface, consumer-configured compile — `build:corpus`/`check:corpus` vocabulary, not the `.tsrx` surface's. |
 | `TSRX compilation failed — …` (`server/corpus-compile.ts`) → **`Corpus compilation failed — …`** | renamed | The thrown summary over error-severity diagnostics from either front end; a `.tsx`-only failure reporting "TSRX compilation failed" would be wrong. |
 | `'TSRX compiler'` label and `🔄 Compiling TSRX components...` (`server/effects/compile.ts`) → **`'Corpus compiler'` / `🔄 Compiling corpus components...`** | renamed | The docs build's watch wrapper feeds the same both-surface compile; § 2 already renamed this module and its symbols (`compileEffect`) on exactly this reasoning — the strings rode along late. |
-| `Generated by the Le Truc TSRX compiler` provenance header (`emit-server.ts`, `emit-client.ts`) | **kept, deferred** | Surface-neutral machinery misnamed — but the header is baked into every generated artifact and its pinned snapshots (`.snap`, goldens), and LT-273's acceptance is byte-identical corpus output. Rename it with the next deliberate emission change, not a vocabulary sweep. |
+| `Generated by the Le Truc TSRX compiler` provenance header (`emit-server.ts`, `emit-client.ts`) | **kept, deferred** | Surface-neutral machinery misnamed — but the header is baked into every generated artifact and its pinned snapshots (`.snap`, goldens), and ticket 273's acceptance is byte-identical corpus output. Rename it with the next deliberate emission change, not a vocabulary sweep. |
 
 ## 7. Server-written markers
 
@@ -291,56 +290,56 @@ They are compiler artifacts, not authored vocabulary, so they take plain
 
 | Name | Disposition | Reason |
 |---|---|---|
-| `data-key` | kept | The key on an arm root (`then`/`else`/`case:<value>`/`default`, `ok`/`nil`/`err`) and on a reactive-list item root ([ADR 0037](../../adr/0037-reactive-conditions-via-template-cloned-arms.md), [ADR 0017](../../adr/0017-keyed-template-clone-reconciliation-for-lists.md)). |
-| `data-arms` | kept | Stamps an arm set's inert `<template>`s with its document-order index (ADR 0037). |
-| `data-list` | kept | Stamps a reactive list's hoisted `<template>` with its document-order index ([ADR 0046](../../adr/0046-reactive-list-items-as-mount-scopes.md) s2). |
-| `data-children` | added (LT-472) | The Children Region marker ([ADR 0048](../../adr/0048-the-children-contract-parent-owned-content-child-declared-roles.md) s1): written on the child's element enclosing `{children}`, valued with the tag of the compiled component that owns the content. |
+| `data-key` | kept | The key on an arm root (`then`/`else`/`case:<value>`/`default`, `ok`/`nil`/`err`) and on a reactive-list item root ([ADR 0015](adr/0015-reactive-conditions-via-template-cloned-arms.md), [ADR 0004](adr/0004-list-emission-targets-the-keyed-reconcile-contract.md)). |
+| `data-arms` | kept | Stamps an arm set's inert `<template>`s with its document-order index (ADR 0015). |
+| `data-list` | kept | Stamps a reactive list's hoisted `<template>` with its document-order index ([ADR 0024](adr/0024-reactive-list-items-as-mount-scopes.md) s2). |
+| `data-children` | added | The Children Region marker ([ADR 0026](adr/0026-the-children-contract.md) s1): written on the child's element enclosing `{children}`, valued with the tag of the compiled component that owns the content. |
 
 ---
 
 ## Verification
 
-Run at LT-271, against the pre-sweep tree:
+Run at, against the pre-sweep tree:
 
 - **Corpus output byte-identical: 67 of 69 artifacts.** The two differences are
-  the renamed vocabulary itself, not different emission:
-  - `i18n.ts` — its generated provenance header names the script that writes it
-    (`scripts/build-tsrx.ts` → `scripts/build-corpus.ts`).
-  - `registry.json` — one routing-signal `origin` string (`"TSRX034"` →
-    `"LTC034"`).
-  All 22 components' `.server.ts`, `.client.ts` and `.css` are byte-identical.
+ the renamed vocabulary itself, not different emission:
+ - `i18n.ts` — its generated provenance header names the script that writes it
+ (`scripts/build-tsrx.ts` → `scripts/build-corpus.ts`).
+ - `registry.json` — one routing-signal `origin` string (`"TSRX034"` →
+ `"LTC034"`).
+ All 22 components' `.server.ts`, `.client.ts` and `.css` are byte-identical.
 - **Census unmoved:** 22 entries — 20 folded, 2 simulated, 0 static.
 - **Compile-warning baseline unmoved:** 0.
 - **Simulation build report unmoved:** 2 Simulated-tier components, 8
-  occurrences across 2 locales, 0 unclassified.
+ occurrences across 2 locales, 0 unclassified.
 - `bun test server/tests`: **1602 pass / 13 fail**, the 13 being pre-existing
-  environment failures (6 `serve.test.ts` port-bind cases and the `watchFiles`
-  debounce timing case), verified identical on the pre-sweep tree.
+ environment failures (6 `serve.test.ts` port-bind cases and the `watchFiles`
+ debounce timing case), verified identical on the pre-sweep tree.
 - `tsc -p tsconfig.json --noEmit` and `tsc -p tsconfig.nosubstrate.json
-  --noEmit`: clean apart from the pre-existing `form-combobox.spec.ts`
-  `Element`-property errors.
+ --noEmit`: clean apart from the pre-existing `form-combobox.spec.ts`
+ `Element`-property errors.
 - `bun run check:corpus`: same 5 pre-existing `form-spinbutton` TS2552
-  diagnostics, same census, same baseline.
+ diagnostics, same census, same baseline.
 - `bun run build:docs`: green. `bun run check:links`: 496/496 resolve.
 - `biome check ./server ./scripts ./src ./examples`: clean apart from a
-  pre-existing unused-variable in `server/tests/effects/page-render.test.ts`.
+ pre-existing unused-variable in `server/tests/effects/page-render.test.ts`.
 
 ## Outstanding
 
 - **The skill files were not updated** — the sandbox denied writes there.
-  `skills/le-truc/references/errors.md`,
-  `.agents/skills/contributor/references/runtime-internals.md` and
-  `.agents/skills/writer/references/error-messages.md` still spelled
-  the renamed codes `TSRX###`. **Now tracked as LT-272**, which also picks up the
-  review finding that `server/compiler/diagnostics.ts` — the file owning the
-  namespace — states the two-prefix rule nowhere, and the missing catalog rows
-  for `LTC047`–`LTC050`.
-- **Historical records left as written:** `adr/` bodies (ADR 0028 carries an
-  amendment instead), `DONE.md`, `CHANGELOG.md`, `COMPILER_REFLECTION.md`,
-  `COMPILER_REVIEW.md`. They record what was decided when, and rewriting a code
-  name inside them would falsify the record. This ledger is the forward pointer.
-- **`TODO.md` and `BACKLOG.md` were swept after all** (Architect, at the LT-271
-  review). The sweep had grouped them with the records above; that was wrong —
-  they are the open work queue, not a log, and 30 stale code names in open
-  copy tasks (LT-189, LT-220, LT-251) would have pointed at codes that no
-  longer exist. Both re-prefixed; the six kept codes untouched.
+ `skills/le-truc/references/errors.md`,
+ `.agents/skills/contributor/references/runtime-internals.md` and
+ `.agents/skills/writer/references/error-messages.md` still spelled
+ the renamed codes `TSRX###`. **Now tracked as **, which also picks up the
+ review finding that `server/compiler/diagnostics.ts` — the file owning the
+ namespace — states the two-prefix rule nowhere, and the missing catalog rows
+ for `LTC047`–`LTC050`.
+- **Historical records left as written:** `adr/` bodies (ADR 0007 carries an
+ amendment instead), `DONE.md`, `CHANGELOG.md`, `COMPILER_REFLECTION.md`,
+ `COMPILER_REVIEW.md`. They record what was decided when, and rewriting a code
+ name inside them would falsify the record. This ledger is the forward pointer.
+- **`TODO.md` and `BACKLOG.md` were swept after all** (Architect, at the
+ review). The sweep had grouped them with the records above; that was wrong —
+ they are the open work queue, not a log, and 30 stale code names in open
+ copy tasks would have pointed at codes that no
+ longer exist. Both re-prefixed; the six kept codes untouched.

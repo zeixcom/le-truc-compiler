@@ -1,6 +1,6 @@
 /**
  * A context member read only from a setup declaration still reaches the
- * generated client's factory destructure (LT-104). module-lazyload reads
+ * generated client's factory destructure (). module-lazyload reads
  * `host` inside its `createTask` callback and in a plain const's
  * initializer, and nowhere else. Neither position is an effect position
  * `collectAmbient` walks, so the client factory destructured no `host` and

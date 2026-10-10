@@ -1,8 +1,8 @@
 /**
  * Tests for `class={() => ({ … })}` object-literal-bodied class thunks
- * (LT-031/LT-032): server-side initial render and client-side lowering to
+ * : server-side initial render and client-side lowering to
  * one `watch(thunk, bindClass(el, keys))` call against `bindClass()`'s
- * map-form overload (LT-029) — including the component-root case (targeting
+ * map-form overload () — including the component-root case (targeting
  * `host`), which the custom-element reactive-attribute gate otherwise
  * rejects. Mirrors `style-map.test.ts`.
  */
@@ -123,7 +123,7 @@ import { createCell } from '@zeix/le-truc'`
 	})
 })
 
-describe('signal used only inside the class-map thunk (LT-036)', () => {
+describe('signal used only inside the class-map thunk', () => {
 	const descendant = `export function C({}: {})
 @{
 	const on = createCell(true)

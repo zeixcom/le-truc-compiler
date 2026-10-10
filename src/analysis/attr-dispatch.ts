@@ -1,5 +1,5 @@
 /**
- * The watch-attribute dispatch rule (LT-116): how a reactive attribute's
+ * The watch-attribute dispatch rule (): how a reactive attribute's
  * client watch writes its value — a property write or a content-attribute
  * write. One decision for every lowering path that emits a `watch-attr`
  * effect plan: construct lowering (`construct-effects.ts`) and `each()`
@@ -24,7 +24,7 @@ import { isDirtyFlagControlAttr } from '../vocabulary'
  * mirror or not — once the control is dirty, rewriting the content
  * attribute no longer moves the live property, so `bindAttribute` would
  * silently stop tracking (the form-radiogroup mutual-exclusion break,
- * NOTES LT-092; the hand-written corpus precedent is the property write in
+ * NOTES ; the hand-written corpus precedent is the property write in
  * the `each()` callback, `radio.checked = isChecked`). Everything else
  * dispatches as an ATTRIBUTE — the site is whatever the author rendered.
  *

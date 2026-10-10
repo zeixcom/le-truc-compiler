@@ -1,5 +1,5 @@
 /**
- * Typed `.tsrx` compose imports for authored `.tsx`, generated (LT-312).
+ * Typed `.tsrx` compose imports for authored `.tsx`, generated ().
  *
  * The compiler resolves a `.tsx` parent's compose import of a `.tsrx` child
  * (`imports.ts` accepts both specifiers), but tsc cannot read a `.tsrx`
@@ -8,7 +8,7 @@
  * typing its component function through the GENERATED server module's args
  * — the compiled contract itself, so a compose site is checked against the
  * child's real args with no second copy to drift. `examples/tsconfig.json`
- * includes the file. Until LT-312 it was hand-listed (LT-096), one entry
+ * includes the file. Until  it was hand-listed (), one entry
  * added per migration.
  *
  * An ambient pattern matches the import SPECIFIER as written, not the
@@ -19,22 +19,22 @@
  * matching is a loud "cannot find module", not a silent mistype.
  *
  * A child with Slot-backed exposed props also gets a `'truc:pass'` key over
- * exactly those props (LT-100) — the `.tsx` host profile's rule that only a
+ * exactly those props () — the `.tsx` host profile's rule that only a
  * pass target declares one, derived from the registry's `exposedProps`
  * instead of hand-declared on the `.tsrx` args. A key the child cannot take
  * (a computed or method prop, a typo) is an excess-property tsc error at
  * the parent's compose site.
  *
  * A tag whose SERVED source is `.tsrx` also gets its `HTMLElementTagNameMap`
- * entry (LT-325): a `.tsx` parent's `first`/`all('<tag>…')` types through
+ * entry (): a `.tsx` parent's `first`/`all('<tag>…')` types through
  * the map, and tsc cannot read the `.tsrx` source's own `declare global`.
  * The entry references the generated client's exported props type and the
  * same host type the source declares, so it is IDENTICAL to the client's
  * copy and merges when both are in one program (the root `tsconfig.json`
  * includes every generated client). A tag served from `.tsx` gets none — its
  * authored source carries the entry, under a different props-type symbol,
- * so a second copy would be a TS 2717 mismatch. Until LT-325 the clients
- * themselves were hand-listed in `examples/tsconfig.json` (LT-098/LT-100).
+ * so a second copy would be a TS 2717 mismatch. Until  the clients
+ * themselves were hand-listed in `examples/tsconfig.json` .
  */
 
 /* === Types === */

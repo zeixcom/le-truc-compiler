@@ -1,6 +1,6 @@
 /**
  * What the realm cannot answer — the classifier-facing half of the former
- * `sim/patch-table.ts` (ADR 0035 sub-design 3 limb 2, LT-263).
+ * `sim/patch-table.ts` (ADR 0013 sub-design 3 limb 2).
  *
  * The patch table had two audiences reading one module. The APPLIER needs
  * per-runtime shapes: which stub a missing `ResizeObserver` gets, whether a
@@ -10,11 +10,11 @@
  * NAMES of the globals no realm answers, the member reads a realm answers
  * wrong, and the census copy for each. Those are here, compiler-side, so
  * `tier.ts` classifies and the census prints with no substrate installed
- * (ADR 0034 sub-design 5).
+ * (ADR 0012 sub-design 5).
  *
  * ## The delete-a-row property still holds
  *
- * ADR 0029 kept the capability rows in the patch table so that deleting a
+ * ADR 0008 kept the capability rows in the patch table so that deleting a
  * row re-routes the affected components from the Static tier to the
  * Simulated tier automatically, with no second list to keep in sync. That
  * property is about there being ONE list, not about which file it is in —
@@ -32,10 +32,10 @@
 /**
  * A global no realm answers — absent and stubbed inert (`ResizeObserver`,
  * `matchMedia`) or present and deliberately closed (`fetch` and the other
- * network globals, ADR 0027 sub-design 2d).
+ * network globals, ADR 0006 sub-design 2d).
  *
  * Reading one is what makes an expression unresolvable under limb (a) of
- * ADR 0029 sub-design 1. Only the NAME is classifier business; what the
+ * ADR 0008 sub-design 1. Only the NAME is classifier business; what the
  * driver puts in its place is not.
  */
 export type UnanswerableGlobal = {
@@ -51,7 +51,7 @@ export type UnanswerableGlobal = {
 
 /**
  * A MEMBER read the realm cannot answer, even though the global carrying it
- * is present (ADR 0029 sub-design 1 limb (a); the capability-row shape ADR
+ * is present (ADR 0008 sub-design 1 limb (a); the capability-row shape ADR
  * 0026 §2's amendment requires).
  *
  * {@link UnanswerableGlobal} describes globals that are absent or closed, so
@@ -60,7 +60,7 @@ export type UnanswerableGlobal = {
  * just returns a silent zero, because jsdom has no layout engine. A
  * name-based check cannot see that, so the classifier would call a
  * layout-reading component realm-answerable and route it to the Simulated
- * tier, which is exactly the `module-scrollarea` misrouting ADR 0029 exists
+ * tier, which is exactly the `module-scrollarea` misrouting ADR 0008 exists
  * to prevent (~2.3 s of build time to compute nothing).
  */
 export type CapabilityPatch = {
@@ -109,7 +109,7 @@ export const UNANSWERABLE_GLOBALS: readonly UnanswerableGlobal[] = [
 		note: 'the build has no session history; navigation calls are inert',
 	},
 
-	// --- Present but closed (ADR 0027 sub-design 2d) -----------------------
+	// --- Present but closed (ADR 0006 sub-design 2d) -----------------------
 	{
 		name: 'fetch',
 		kind: 'network',
@@ -124,30 +124,30 @@ export const UNANSWERABLE_GLOBALS: readonly UnanswerableGlobal[] = [
 
 /**
  * Member reads the realm executes without throwing and answers WRONG — the
- * second half of ADR 0029 sub-design 1 limb (a).
+ * second half of ADR 0008 sub-design 1 limb (a).
  *
  * Two families, and they are unanswerable for different reasons:
  *
  * 1. **Layout geometry.** jsdom has no layout engine, so every one of these
- *    returns 0. Not fixable at this substrate (ADR 0029's "layout is out of
+ *    returns 0. Not fixable at this substrate (ADR 0008's "layout is out of
  *    scope for jsdom by construction"), which is why `module-scrollarea` —
  *    the corpus's single largest cost driver at 2,091 occurrences — is a
  *    Static-tier component rather than a Simulated-tier one.
  * 2. **`ElementInternals` members with no jsdom implementation.** Scoped
  *    per ADR 0026 §2's amendment: `internals` is NOT one unanswerable row
- *    any more. ARIA expressions ARE realm-answerable since LT-177, through
+ *    any more. ARIA expressions ARE realm-answerable since , through
  *    `bindAria()`'s attribute fallback — the served HTML carries the value —
  *    so `ariaExpanded` and friends are deliberately absent from this list.
  *    Custom states and the form members remain unanswerable: jsdom's
  *    skeletal object flows through non-null (which populates
  *    `internalsHosts` and lets `bindAria()` bind the host content
- *    attribute), and the library's own LT-150 shape check treats it as no
+ *    attribute), and the library's own  shape check treats it as no
  *    internals at all — the honest posture for a form-associated component,
  *    since an incomplete stub is worse than none, and polyfilling a working
  *    reflection surface would fire the stale-attribute removal at simulated
  *    connect and strip `role`/`aria-*` from the served markup. The former
  *    `PROTOTYPE_PATCHES` column (prototype-method rewrites) was deleted
- *    with LT-222 — it had been empty since LT-177.
+ *    with  — it had been empty since .
  */
 export const CAPABILITY_PATCHES: readonly CapabilityPatch[] = [
 	// --- Layout geometry: jsdom returns silent zeros -----------------------
@@ -210,7 +210,7 @@ export const CAPABILITY_PATCHES: readonly CapabilityPatch[] = [
  * A dotted entry contributes its ROOT, because a free-identifier scan sees
  * `navigator`, not `navigator.sendBeacon`. So `navigator` reads as
  * unanswerable as a whole — over-broad, and deliberately so: the
- * classifier is sound rather than complete (ADR 0029 sub-design 2), and
+ * classifier is sound rather than complete (ADR 0008 sub-design 2), and
  * over-broad here routes a component DOWNWARD, which costs build time and
  * never ships wrong HTML.
  */

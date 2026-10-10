@@ -1,5 +1,5 @@
 /**
- * The Bun implementation of the runtime seam (LT-267).
+ * The Bun implementation of the runtime seam ().
  *
  * Uses Bun's native file, write, spawn and glob machinery. Loadable under
  * any runtime — everything here touches the `Bun` global only inside method

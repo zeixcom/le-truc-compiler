@@ -1,9 +1,9 @@
 /**
- * The designated export surface pin (LT-265, ADR 0032 amended 2026-09-19;
- * reshaped to the D-32 ruling at LT-480).
+ * The designated export surface pin (ADR 0010 amended 2026-09-19;
+ * reshaped to the D-32 ruling at ).
  *
  * `src/contract.ts` names the exact symbol set the published
- * `@zeix/le-truc-compiler` package will carry (`exports` entry rides LT-254).
+ * `@zeix/le-truc-compiler` package will carry (`exports` entry rides ).
  * These tests make widening or shrinking that set a DELIBERATE act: the value
  * set is pinned at runtime, and the type set — erased at runtime — is pinned
  * textually against the module's own `export type` re-export statements.
@@ -25,7 +25,7 @@ const DESIGNATED_VALUES = ['compileCorpus'].sort()
  * diagnostic record shapes, and `EvaluationTier` (the registry entry's
  * `tier`). The per-file front end (`compileComponentTsx`,
  * `CompileFileResult`, `CompiledComponent`, `SourceSpan`, `EmitPaths`,
- * `DEFAULT_EMIT_PATHS`) left with LT-480, as did `HandlerPlacement`
+ * `DEFAULT_EMIT_PATHS`) left with , as did `HandlerPlacement`
  * (handler args are internal, ruling 4) and the `RoutingSignal` family —
  * no public type names them once `routingSignals` left `RegistryEntry`.
  */

@@ -1,5 +1,5 @@
 /**
- * The `.tsx` host profile (ADR 0032 sub-design 3; hardened by LT-203).
+ * The `.tsx` host profile (ADR 0010 sub-design 3; hardened by ).
  * Ambient declarations for `.tsx`-authored components: the FactoryContext
  * vocabulary (re-homed from `server/compiler/frontend/tsrx/globals.d.ts`, which serves the
  * raw `.tsrx` view) plus the JSX `IntrinsicElements` surface the `.tsrx`
@@ -10,7 +10,7 @@
  * THIS file and a raw-.tsrx view includes `globals.d.ts` — never both (the
  * repo root's typecheck excludes this file for the same reason).
  *
- * Profile decisions (LT-203):
+ * Profile decisions :
  * - `host` is widened to `FormAssociatedElement & Record<string, any>` —
  *   managed-form member calls (`host.setCustomValidity(…)`) that authored
  *   form components legitimately make must type-check against the ambient
@@ -55,7 +55,7 @@ declare const internals: ElementInternals | null
  */
 type FormAssociatedElement = import('@zeix/le-truc').FormAssociatedElement
 
-/** Web Components Community Protocol helpers (ADR 0024 sub-design 15). */
+/** Web Components Community Protocol helpers (ADR 0005 sub-design 15). */
 declare const requestContext: LeTrucFactoryContext['requestContext']
 declare const provideContexts: LeTrucFactoryContext['provideContexts']
 
@@ -67,14 +67,14 @@ declare const provideContexts: LeTrucFactoryContext['provideContexts']
 declare const host: FormAssociatedElement & Record<string, any>
 
 /**
- * A message's argument record (LT-308): an ICU argument is formatted as a
+ * A message's argument record : an ICU argument is formatted as a
  * number, a date, or a plain string.
  */
 type MessageArgs = Record<string, string | number | Date>
 
 /**
- * One `t.<key>` read, typed from its source pattern's literal type (LT-308,
- * ADR 0030 s4): a pattern without `{` is a string, one with `{` takes
+ * One `t.<key>` read, typed from its source pattern's literal type (
+ * ADR 0009 s4): a pattern without `{` is a string, one with `{` takes
  * arguments and is a function of its argument record. A widened `string`
  * (the `as const` was forgotten) is the union, so its first attribute read
  * fails tsc instead of passing silently. An ICU-escaped literal brace
@@ -88,9 +88,9 @@ type MessageOf<V> = string extends V
 		: string
 
 /**
- * The reserved `i18n` parameter's record (ADR 0030 sub-design 2), typed per
+ * The reserved `i18n` parameter's record (ADR 0009 sub-design 2), typed per
  * key from the component's `export const i18n = { … } as const`: annotate
- * `i18n: I18n<typeof i18n>` (LT-308).
+ * `i18n: I18n<typeof i18n>` .
  */
 interface I18n<M extends Record<string, string> = Record<string, string>> {
 	lang: string
@@ -104,11 +104,11 @@ interface I18n<M extends Record<string, string> = Record<string, string>> {
 // namespace is declared at top level — the classic global-JSX pattern.
 // (`declare global { … }` wrappers are only valid inside modules, which is
 // why the probe .tsx files use that spelling and this file does not —
-// LT-183 spike findings fact 2, adr/archive/0032-spike-findings.md.)
+//  spike findings fact 2, adr/archive/0032-spike-findings.md.)
 // biome-ignore lint/style/noNamespace: global-script .d.ts has no module-free alternative for JSX.IntrinsicElements
 declare namespace JSX {
 	/**
-	 * The type of every JSX element expression (LT-208): branded so a
+	 * The type of every JSX element expression : branded so a
 	 * `<truc:try>` arm position (`pending`, and `catch`'s return) rejects
 	 * anything that is not an element — a string, number, or function arm
 	 * is a tsc error, which the generic-`T` and empty-`{}` attempts could
@@ -131,20 +131,20 @@ declare namespace JSX {
 	/**
 	 * The props a JSX parent passes to a composed (PascalCase) child: the
 	 * child's args minus the reserved `i18n` parameter, which the compiler
-	 * supplies at every render boundary — callers never pass it (ADR 0030
-	 * sub-design 2, LT-237). `children` stays: JSX children supply it.
+	 * supplies at every render boundary — callers never pass it (ADR 0009
+	 * sub-design 2). `children` stays: JSX children supply it.
 	 * Every compose site also admits the static discriminators the
 	 * compiler splices onto the child's rendered root — `class`, `id`,
 	 * `data-*` — the only way to address one of two same-source sites
-	 * (HOST_PROFILE § element references; LT-096). The omission distributes
+	 * (HOST_PROFILE § element references; ). The omission distributes
 	 * over a union of arg shapes, so a discriminated args type keeps its
 	 * discrimination at the compose site (module-codeblock: collapsed ⇒ `id`,
-	 * LT-343) — a plain `Omit` would flatten it to the members' common keys.
+	 * ) — a plain `Omit` would flatten it to the members' common keys.
 	 *
-	 * A string-assignable `children` arg (`children?: string`, or ADR 0048's
+	 * A string-assignable `children` arg (`children?: string`, or ADR 0026's
 	 * branded `Children<…>`) is the server-side truth — the compiler lowers
 	 * compose-site children to a markup string — so the compose site accepts
-	 * what that lowering accepts instead: `ComposeChildren` (LT-495). The
+	 * what that lowering accepts instead: `ComposeChildren` . The
 	 * arg's optionality carries over; a function child still fails.
 	 */
 	type LibraryManagedAttributes<_C, P> = (P extends unknown
@@ -173,7 +173,7 @@ declare namespace JSX {
 
 	/**
 	 * One `truc:pass` entry: a read-only thunk, or a mediated descriptor —
-	 * the same shapes `pass()` accepts (ADR 0012's post-short-form input
+	 * the same shapes `pass()` accepts (ADR 0003's post-short-form input
 	 * set). Which PROPS a child exposes is declared per element below,
 	 * mirroring the child's own `'truc:pass'` args key.
 	 */
@@ -194,7 +194,7 @@ declare namespace JSX {
 		id?: Reactive<string>
 		role?: string
 		/**
-		 * Static style text, or the reactive style map (LT-028): a thunk to a
+		 * Static style text, or the reactive style map : a thunk to a
 		 * per-property record whose `null` values remove the property
 		 * (`bindStyle`'s map form).
 		 */
@@ -217,7 +217,7 @@ declare namespace JSX {
 		/*
 		 * Event attributes take `undefined` too: a component's optional
 		 * handler arg placed on its own element (`<button onClick={onClick}>`,
-		 * LT-461) is `undefined` when the parent passes none.
+		 * ) is `undefined` when the parent passes none.
 		 */
 		onClick?: ((event: MouseEvent) => unknown) | undefined
 		onInput?: ((event: Event) => unknown) | undefined
@@ -225,7 +225,7 @@ declare namespace JSX {
 		onKeydown?: ((event: KeyboardEvent) => unknown) | undefined
 		onKeyup?: ((event: KeyboardEvent) => unknown) | undefined
 		[key: `data-${string}`]: Reactive<string>
-		/** Sanitized raw markup, rendered before any authored children (LT-137). */
+		/** Sanitized raw markup, rendered before any authored children . */
 		'truc:html'?: Reactive<string>
 		children?: unknown
 	}
@@ -380,7 +380,7 @@ declare namespace JSX {
 	type BasicButtonAttrs = CommonLightDom & {
 		'truc:pass'?: { disabled?: PassEntry; badge?: PassEntry; label?: PassEntry }
 	}
-	/** Migrated to `.tsx` (LT-464); also a pass target (module-todo's and
+	/** Migrated to `.tsx` ; also a pass target (module-todo's and
 	 * test-listitem's per-item checkbox) for its `checked` prop. */
 	type FormCheckboxAttrs = CommonLightDom & {
 		name?: Reactive<string>
@@ -398,7 +398,7 @@ declare namespace JSX {
 		 * contract). Ancestor-walking is the client's `getLocale` job, which
 		 * the composed children carry. */
 		lang?: string
-		/** JSON-encoded `Intl.NumberFormatOptions` (LT-142). */
+		/** JSON-encoded `Intl.NumberFormatOptions` . */
 		options?: string
 	}
 	type ModuleCarouselAttrs = CommonLightDom
@@ -461,16 +461,16 @@ declare namespace JSX {
 		items?: unknown
 	}
 	type AsyncElAttrs = CommonLightDom
-	/** A test-fixture tag (LT-304, `examples/test/scoping/css-probe.tsx`),
+	/** A test-fixture tag (`examples/test/scoping/css-probe.tsx`),
 	 * not a migrated example: the probe takes no args, so only the common
 	 * set applies. */
 	type CssProbeAttrs = CommonLightDom
 	/** The Children Region probe's child and the raw custom element the
-	 * probe passes it (LT-501, `examples/test/scoping/`): test-fixture
+	 * probe passes it (`examples/test/scoping/`): test-fixture
 	 * tags, no args. */
 	type CssProbeChildAttrs = CommonLightDom
 	type XKidWidgetAttrs = CommonLightDom
-	/** A test-fixture tag (LT-423, `examples/test/listitem/`): the Mount
+	/** A test-fixture tag (`examples/test/listitem/`): the Mount
 	 * Scope fixture pair's `.tsx` twin takes no args, so only the common
 	 * set applies. */
 	type TestListitemTsxAttrs = CommonLightDom
@@ -480,19 +480,19 @@ declare namespace JSX {
 	type QueueBoardAttrs = CommonLightDom
 
 	/**
-	 * `<truc:try>` (ADR 0041), the `.tsx` spelling of
+	 * `<truc:try>` (ADR 0019), the `.tsx` spelling of
 	 * `@try`/`@pending`/`@catch`. The children are the success content.
 	 * With `catch` only it is the error boundary; adding `pending` makes it
 	 * the async boundary — the winning arm renders live, the others ship as
-	 * inert templates the client clones in as the task settles (ADR 0037
+	 * inert templates the client clones in as the task settles (ADR 0015
 	 * s4), and `pending` is the no-value-yet arm. There is no
-	 * `stale` arm (LT-211): a re-fetching task keeps its content, and the
+	 * `stale` arm : a re-fetching task keeps its content, and the
 	 * in-flight state is the reactive `isPending` idiom beside the boundary
 	 * (`isPending` is a real package export — import it; the compiler folds
 	 * the read server-side and the generated `watch` re-fires when the task
 	 * settles).
 	 *
-	 * Typed precisely per the owner precision ruling (LT-208): every arm IS
+	 * Typed precisely per the owner precision ruling : every arm IS
 	 * a JSX element expression — the compiler's `singleRootOf` checks are
 	 * the semantics — so the arm positions are the branded `JSX.Element`,
 	 * and `catch`'s parameter is `Error` because cause-effect's `match()`

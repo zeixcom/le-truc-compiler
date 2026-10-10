@@ -6,7 +6,7 @@
  * quote character in author data must produce escaped source, never a
  * syntax error on generated code (surfacing as an unmapped tsc failure) or
  * an injection channel into the build output. The shared `jsString()`/
- * `CodeBuilder` consolidation is LT-234; these pins hold the point-fix to
+ * `CodeBuilder` consolidation is ; these pins hold the point-fix to
  * the same bar.
  */
 import { describe, expect, test } from 'bun:test'

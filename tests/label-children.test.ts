@@ -4,7 +4,7 @@
  * `label` prop for runtime writes (module-ticker `pass()`es it).
  *
  * Server half: children render TRUSTED into `span.label` (String(children),
- * ADR 0048 s1 — the card-callout semantics), the `label` arg escaped through
+ * ADR 0026 s1 — the card-callout semantics), the `label` arg escaped through
  * the text sink. A page render carries no `data-children` marker; the
  * composed form is pinned by server.golden.test.ts's module-list case.
  *

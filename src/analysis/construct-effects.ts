@@ -1,5 +1,5 @@
 /**
- * Pass 4's construct lowering (LT-022; 2026-10-10 split): one element's
+ * Pass 4's construct lowering: one element's
  * client constructs — reactive attributes, class/style maps, pass entries,
  * events, a reactive `truc:html`, lazy text children — into
  * `TopEffectPlan`s (`emitConstructEffects`), the pass-entry twin
@@ -42,7 +42,7 @@ import { returnsNumber } from './thunk-types'
 /**
  * The context slice construct lowering reads — exactly the `EffectsContext`
  * fields its functions use. The full pass context satisfies it structurally
- * (ADR 0040 s5), as do the wider sibling slices that forward `fx` here.
+ * (ADR 0018 s5), as do the wider sibling slices that forward `fx` here.
  */
 type ConstructEffectsContext = Pick<
 	EffectsContext,
@@ -66,7 +66,7 @@ type ConstructEffectsContext = Pick<
 >
 
 /**
- * ADR 0029 sub-design 1 (LT-165 step 7): is this reactive expression
+ * ADR 0008 sub-design 1 (LT-165 step 7): is this reactive expression
  * unresolvable — no server phase can answer it, because its value is a
  * function of the viewing moment or the build machine's own state (limb
  * b)? Such a site is omitted server-side in every tier and SILENT (step
@@ -79,7 +79,7 @@ export const suppresses = (
 	fx: ConstructEffectsContext,
 	node: AstNode,
 ): boolean => {
-	// An item-scoped site (ADR 0046 s1) is per-item state the mount
+	// An item-scoped site (ADR 0024 s1) is per-item state the mount
 	// re-establishes on every clone — never a build-machine answer to
 	// revert.
 	if ([...dependenciesOf(node)].some(name => fx.itemNames.has(name)))
@@ -98,8 +98,8 @@ export const selectorOf = (
 	query
 
 /**
- * The lazy-text emission gate (LT-114's root branch, mirrored onto the
- * nested path by LT-115, deduplicated by LT-226): `bindText()` replaces the
+ * The lazy-text emission gate (the ticket's root branch, mirrored onto the
+ * nested path by , deduplicated by ): `bindText()` replaces the
  * element's ENTIRE textContent, so the one sanctioned shape is a lazy child
  * that is the element's sole content — multiple lazy children race
  * last-write-wins on the shared textContent, and static text is wiped
@@ -108,12 +108,12 @@ export const selectorOf = (
  * wrong binding. Per-child checks run regardless of the gate — independent
  * findings, not precedents: a managed form prop as a reactive child
  * requires the widened FormFactoryContext (formAssociated() must lead the
- * extensions; since LT-052 the spelling is a `host.<prop>` read, with the
+ * extensions; since  the spelling is a `host.<prop>` read, with the
  * retired string-literal form still matched so a stale source gets the
  * managed-prop message rather than a confusing downstream type error), and
  * an impure-ambient lazy child (CHECKLIST §4) is omitted server-side,
  * corrected by the client's first binding pass, and silent (LT-165 step 5,
- * ADR 0029 s1 limb b).
+ * ADR 0008 s1 limb b).
  *
  * `targetLabel` names the element in the diagnostics (`<el.tag>` on the
  * nested path, `the component root` at the root). `suppressedSelector` is
@@ -150,7 +150,7 @@ export const emitLazyTextChildren = (
 				diagnostic.managedPropWithoutForm(fx.source, child.node, managed),
 			)
 		fx.collectAmbient(child.expr)
-		// The LT-122 form's source is synthesized (`() => host.<prop>`);
+		// The  form's source is synthesized (`() => host.<prop>`);
 		// its `exprText` is the server arg by design.
 		if (!child.bindsProp)
 			reportServerOnlyNames(
@@ -197,7 +197,7 @@ export const emitLazyTextChildren = (
 		exprText: child.exprText,
 		sourceStart: startOf(child.expr),
 	})
-	// Same record for either form (LT-165 step 7): the emission gate makes
+	// Same record for either form ( step 7): the emission gate makes
 	// the site the element's whole textContent, so the element's pre-connect
 	// text is the entire revert.
 	if (suppresses(fx, child.expr))
@@ -223,7 +223,7 @@ export const hasDeepConstruct = (el: ElementNode, depth = 0): boolean =>
 	)
 
 /**
- * One branch root's client-construct signature (LT-118): its construct
+ * One branch root's client-construct signature : its construct
  * attributes' `key=text` pairs, sorted. Two roots with equal signatures
  * are interchangeable for union addressing (one query, one effect set,
  * whichever branch rendered); differing signatures — a construct key
@@ -317,7 +317,7 @@ export const isInsideCompose = (
 	return false
 }
 
-/** An AST node's source offset, for the span table (LT-011). */
+/** An AST node's source offset, for the span table. */
 export const startOf = (node: AstNode | undefined): number | undefined =>
 	typeof node?.start === 'number' ? node.start : undefined
 
@@ -354,14 +354,14 @@ export const directLazyCatchRef = (
 
 /**
  * Decide each `pass={{ prop }}` against the TARGET component's own
- * `expose()` (LT-158, ADR 0028 sub-design 6) — the residual TypeScript
+ * `expose()` (ADR 0007 sub-design 6) — the residual TypeScript
  * cannot carry, because a read-only prop is structurally identical to a
  * writable one.
  *
  * Silent when the target's entry is unknown: a hand-written (non-.tsrx)
  * child is in `registry` via `childImports` but never in
  * `composeRegistry`, and the discovery pass has no `composeRegistry` at
- * all. Both keep the Tier 2 runtime check, which is what ADR 0028 says
+ * all. Both keep the Tier 2 runtime check, which is what ADR 0007 says
  * it is for — [M15] no-build components and foreign markup.
  */
 export const checkPassEntries = (
@@ -396,7 +396,7 @@ export const checkPassEntries = (
 /**
  * Validate and lower one target's `pass={{ }}` entries into `pass` effect
  * plans — shared by raw dashed-tag elements and composed elements, the
- * two `pass={{ }}` addressing paths (ADR 0024 sub-design 10).
+ * two `pass={{ }}` addressing paths (ADR 0005 sub-design 10).
  */
 export const emitPassEntries = (
 	fx: ConstructEffectsContext,
@@ -464,7 +464,7 @@ export const emitConstructEffects = (
 	const isCustom = el.tag.includes('-')
 	for (const attr of el.attrs) {
 		if (attr.kind === 'server' && attr.bindsProp) {
-			// LT-122: a server-rendered attribute whose expression is
+			//: a server-rendered attribute whose expression is
 			// an arg that is also an exposed prop. `emit-server.ts`
 			// renders it from the arg exactly as before — this adds
 			// the client half, so a later prop write reaches the
@@ -501,7 +501,7 @@ export const emitConstructEffects = (
 				// is how this was found). Property dispatch is
 				// reserved for the one case where the attribute
 				// genuinely stops tracking: a dirty-flag IDL
-				// attribute on a native form control (LT-116).
+				// attribute on a native form control .
 				dispatch: isDirtyFlagControlAttr(el.tag, attr.name)
 					? 'property'
 					: 'attribute',
@@ -526,19 +526,19 @@ export const emitConstructEffects = (
 			// attribute names — `hidden` omitted means visible, `disabled`
 			// omitted means enabled AND submittable, same for `checked`/
 			// `selected`/`aria-expanded`. A host-prop mirror, a derived
-			// `host.<prop>` fold (LT-085, `hostDerivedFold` below), and a
+			// `host.<prop>` fold (`hostDerivedFold` below), and a
 			// server-evaluable thunk all render an initial value — all
 			// three safe. Anything else (a sensor, or any other
 			// non-portable dependency) is OMITTED (`emit-server.ts`'s
 			// `case 'reactive'` pushes nothing at all when none of the
 			// three paths applies).
 			//
-			// ADR 0029 sub-design 5 (LT-165 step 5): every such site is a
+			// ADR 0008 sub-design 5 ( step 5): every such site is a
 			// ROUTING SIGNAL, not a diagnostic — "phase 1 cannot fold
 			// this" was a statement about the harness, not the author's
 			// code. The one exception is the severe form (`disabled`/
 			// `checked` on a real submittable control), and it is scoped
-			// per-EXPRESSION, not per-component (LT-184): the error fires
+			// per-EXPRESSION, not per-component : the error fires
 			// iff THIS site's own resolution is `none`, so no server phase
 			// resolves it in any tier and the wrong default is permanent.
 			// A component routed Simulated by some other realm-answerable
@@ -562,7 +562,7 @@ export const emitConstructEffects = (
 				)
 			) {
 				const resolution = resolutionOf(attr.thunk, component.serverKnown)
-				// ADR 0029 sub-design 5 (LT-165 step 5), item exception (ADR
+				// ADR 0008 sub-design 5 ( step 5), item exception (ADR
 				// 0046 s1): an item-scoped site is per-item state no server
 				// phase answers BY DESIGN — the template bakes it empty and the
 				// mount writes it on every clone — so it routes no tier. The
@@ -590,7 +590,7 @@ export const emitConstructEffects = (
 					)
 			}
 			if (isCustom) {
-				// ADR 0024 sub-design 4 (amended by sub-design 10): a
+				// ADR 0005 sub-design 4 (amended by sub-design 10): a
 				// function-valued attribute is only ever a reactive binding
 				// on NATIVE elements. Custom-element interop is solely
 				// through the explicit `pass={{ }}` attribute below — one
@@ -605,7 +605,7 @@ export const emitConstructEffects = (
 				)
 				continue
 			}
-			// LT-116's dispatch rule lives in analysis/attr-dispatch.ts (`dispatchOf`).
+			// the ticket's dispatch rule lives in analysis/attr-dispatch.ts (`dispatchOf`).
 			const dispatch = dispatchOf(attr, el.tag)
 			sink.push({
 				kind: 'watch-attr',
@@ -621,7 +621,7 @@ export const emitConstructEffects = (
 				sourceStart: attr.thunk.start,
 				sourceEnd: attr.thunk.end,
 			})
-			// ADR 0029 sub-design 1 (LT-165 step 7): the binding installs in
+			// ADR 0008 sub-design 1 ( step 7): the binding installs in
 			// the shipped client even though phase 1 omits the site — record
 			// where its connect-time write would land so the driver can
 			// revert it after the connect window stabilizes.
@@ -630,7 +630,7 @@ export const emitConstructEffects = (
 					kind: 'attr',
 					selector: selectorOf(fx, query),
 					attr: attr.name,
-					// Property dispatch (LT-116) writes the IDL property, which
+					// Property dispatch  writes the IDL property, which
 					// a content-attribute revert alone does not undo.
 					...(dispatch === 'property' ? { prop: attr.name } : {}),
 				})
@@ -692,9 +692,9 @@ export const emitConstructEffects = (
 				sourceEnd: attr.handler.end,
 			})
 		} else if (attr.kind === 'html' && attr.reactive) {
-			// reactive truc:html={() => …} (LT-025): lowers to a
+			// reactive truc:html={() => …} : lowers to a
 			// dangerouslyBindInnerHTML watch, the sanctioned XSS-aware sink
-			// (ADR 0010) — never a raw innerHTML property binding.
+			// (ADR 0002) — never a raw innerHTML property binding.
 			collectAmbient(attr.thunk)
 			reportServerOnlyNames(
 				fx,
@@ -711,9 +711,9 @@ export const emitConstructEffects = (
 			})
 		}
 	}
-	// LT-115 (folded in by the LT-114 review): the EMISSION gate the root
-	// branch has had since LT-114, mirrored onto the nested path — one
-	// shared implementation since LT-226 (see `emitLazyTextChildren`).
+	//  (folded in by the  review): the EMISSION gate the root
+	// branch has had since , mirrored onto the nested path — one
+	// shared implementation since  (see `emitLazyTextChildren`).
 	emitLazyTextChildren(
 		fx,
 		el,

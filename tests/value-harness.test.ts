@@ -1,5 +1,5 @@
 /**
- * The Value Harness follows the signal meaning (LT-422, ADR 0046 s3, s5):
+ * The Value Harness follows the signal meaning (ADR 0024 s3, s5):
  * a list iterates the cells it hands out, keyed exactly as Cause & Effect
  * keys the same seed; a store's fields are signals; `createSensor` is a
  * signal constructor whose `{ value }` seed is its server value.
@@ -85,7 +85,7 @@ describe('ServerList iterates cells, keyed like Cause & Effect', () => {
 	})
 })
 
-describe('deriveList: a list source keyed like Cause & Effect (ADR 0046 s4)', () => {
+describe('deriveList: a list source keyed like Cause & Effect (ADR 0024 s4)', () => {
 	test('the compute form keys by its own keyConfig', () => {
 		const real = realDeriveList(() => items, { keyConfig: 'd' })
 		const list = deriveList(() => items, { keyConfig: 'd' })

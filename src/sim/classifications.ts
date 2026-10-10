@@ -1,6 +1,6 @@
 /**
- * Standing realm diagnostics for the jsdom substrate (ADR 0035 sub-design 3
- * limb 1, LT-263 — the remainder of what was `sim/report.ts`).
+ * Standing realm diagnostics for the jsdom substrate (ADR 0013 sub-design 3
+ * limb 1 — the remainder of what was `sim/report.ts`).
  *
  * The report CHANNEL is compiler-side (`../build-report.ts`): partitioning,
  * matching and the warning copy are substrate-independent and a build with
@@ -66,7 +66,7 @@ export const CLASSIFIED_DIAGNOSTICS: readonly ClassifiedDiagnostic[] = [
 			"lazyload's factory runs at upgrade, before the parser has " +
 			'appended the arm templates, and reconcile() refuses with ' +
 			'InvalidTemplateError. The refusal is Contained per Mount Scope ' +
-			'(ADR 0028 s3): the element keeps its served markup, the ' +
+			'(ADR 0007 s3): the element keeps its served markup, the ' +
 			'serialization is the fixed point either way, and a real page ' +
 			'registers definitions from a deferred module so children upgrade ' +
 			'first (the LT-423 precedent, verified against plain jsdom). The ' +

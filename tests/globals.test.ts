@@ -1,12 +1,12 @@
 /**
- * Coverage tests for the .tsrx ambient globals (LT-004, ADR 0024 sub-design 6):
+ * Coverage tests for the .tsrx ambient globals (ADR 0005 sub-design 6):
  *
  * 1. Parity — every identifier the compiler recognizes as an ambient (signal
  *    constructors, context names, parser factories, `expose`, `defineMethod`,
  *    `FormAssociatedElement`) is declared in src/frontend/tsrx/globals.d.ts, and
  *    the file declares nothing outside that vocabulary.
  * 2. Barrel parity — every recognized-name set that names `@zeix/le-truc`
- *    value exports is pinned against the package barrel (LT-232): subsets
+ *    value exports is pinned against the package barrel (): subsets
  *    type-level and at runtime, `REAL_EXPORT_NAMES` exactly.
  * 3. Typecheck — a probe using the full ambient vocabulary (including
  *    `FormAssociatedElement` referenced without import in a `declare global`)
@@ -39,7 +39,7 @@ const GLOBALS = fs.readFileSync(
 )
 
 // The probe is emitted into a per-run directory, not the build pipeline's
-// own output (LT-140).
+// own output ().
 const generated = createGeneratedDir('globals')
 afterAll(() => generated.cleanup())
 
@@ -70,7 +70,7 @@ describe('globals.d.ts — ambient vocabulary parity with the compiler', () => {
 		expect(stray).toEqual([])
 	})
 
-	test('FACTORY_CONTEXT_MEMBERS are real FactoryContext members and never module imports (LT-041)', () => {
+	test('FACTORY_CONTEXT_MEMBERS are real FactoryContext members and never module imports', () => {
 		// Type-level subset assertion: compiles only while every listed
 		// member is a key of the REAL FactoryContext — a rename/removal in
 		// @zeix/le-truc fails the standing tsc gate instead of silently

@@ -121,7 +121,7 @@ import { createCell } from '@zeix/le-truc'`,
 		expect([...free].sort()).toEqual(['String', 'selected'])
 	})
 
-	test('a for-loop variable is bound in its own test/update/body, not free (LT-088)', () => {
+	test('a for-loop variable is bound in its own test/update/body, not free', () => {
 		const { component } = compileSource(
 			`export function C({}: {})
 			@{
@@ -146,7 +146,7 @@ import { createCell } from '@zeix/le-truc'`,
 		expect([...free].sort()).toEqual(['console', 'n'])
 	})
 
-	test('a const arrow function may reference its own name inside its own body (LT-088)', () => {
+	test('a const arrow function may reference its own name inside its own body', () => {
 		const { component } = compileSource(
 			`export function C({}: {})
 			@{
@@ -173,7 +173,7 @@ import { createCell } from '@zeix/le-truc'`,
 	})
 })
 
-describe('reactive attribute thunks may reference a plain setup const (LT-088)', () => {
+describe('reactive attribute thunks may reference a plain setup const', () => {
 	test('an ordinary reactive attribute referencing a plain helper const compiles clean', () => {
 		const { component, diagnostics } = compileComponent(
 			`export function C({}: {})
@@ -195,10 +195,10 @@ describe('reactive attribute thunks may reference a plain setup const (LT-088)',
 		expect(component?.clientCode).toContain('fmt(1)')
 	})
 
-	// LT-348: LTC005 names server bindings only. An undeclared name is no
+	//: LTC005 names server bindings only. An undeclared name is no
 	// binding at all — a typo or a missing import that tsc reports on the
 	// authored `.tsx` and on the generated module, with the right message.
-	// Before LT-348 the allowlist called it "server-only".
+	// Before  the allowlist called it "server-only".
 	test('a reactive attribute referencing a genuinely undeclared name is left to tsc', () => {
 		const { diagnostics } = compileComponent(
 			`export function C({}: {})
@@ -254,7 +254,7 @@ import { createCell } from '@zeix/le-truc'`,
 		])
 	})
 
-	test('bare ref={} on a raw element is retired (LTC006, LT-055)', () => {
+	test('bare ref={} on a raw element is retired', () => {
 		const { component, diagnostics } = compileComponent(
 			`export function C({}: {})
 			@{
@@ -278,7 +278,7 @@ import { createCell } from '@zeix/le-truc'`,
 		).toBe(true)
 	})
 
-	test('first(selector, required) resolves to a ref attribute (LT-055)', () => {
+	test('first(selector, required) resolves to a ref attribute', () => {
 		const { component, diagnostics } = compileSource(
 			`export function C({}: {})
 			@{
@@ -439,7 +439,7 @@ export function C({ value = '' }: { value?: string })
 import { asString, asInteger, defineMethod } from '@zeix/le-truc'`,
 			'c.tsrx',
 		)
-		// `fallbackNode` (LT-129) carries the fallback's AST beside its text, so
+		// `fallbackNode` () carries the fallback's AST beside its text, so
 		// match on the recorded fields rather than the whole entry.
 		expect(component?.exposeProps.get('value')?.parser).toMatchObject({
 			parser: 'asString',
@@ -482,7 +482,7 @@ import { asString, defineMethod } from '@zeix/le-truc'`,
 		expect(component?.contextRefs).toEqual(['host', 'internals'])
 	})
 
-	test('client-only setup statement may reference a first()-bound element local (LT-069)', () => {
+	test('client-only setup statement may reference a first()-bound element local', () => {
 		const { component, diagnostics } = compileSource(
 			`export function C({}: {})
 			@{
@@ -506,7 +506,7 @@ import { asString, defineMethod } from '@zeix/le-truc'`,
 		expect(component?.contextRefs).toContain('on')
 	})
 
-	test('client-only setup statement may reference watch/on ambients directly (LT-069)', () => {
+	test('client-only setup statement may reference watch/on ambients directly', () => {
 		const { component, diagnostics } = compileSource(
 			`export function C({}: {})
 			@{
@@ -534,7 +534,7 @@ import { createCell } from '@zeix/le-truc'`,
 		expect(component?.contextRefs).toEqual(expect.arrayContaining(['watch']))
 	})
 
-	test('client-only setup statement may reference a `first()` name addressing a composed element (LT-087/LT-127)', () => {
+	test('client-only setup statement may reference a `first()` name addressing a composed element', () => {
 		const { component, diagnostics } = compileSource(
 			`export function C({}: {})
 			@{

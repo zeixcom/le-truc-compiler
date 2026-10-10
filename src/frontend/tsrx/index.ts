@@ -1,15 +1,15 @@
 /**
- * Inlined TSRX compiler — public API (ADR 0024).
+ * Inlined TSRX compiler — public API (ADR 0005).
  *
  * compileComponent runs the full pipeline for one `.tsrx` source: parse +
- * extract (compiler.ts), then the SHARED pipeline (`pipeline.ts`, LT-202 —
+ * extract (compiler.ts), then the SHARED pipeline (`pipeline.ts` —
  * analyze for the client, emit the server render module, the generated
  * client module, and the verbatim tag-scoped CSS). Warnings skip the file
  * (milestone gates); errors fail it.
  *
  * The `.tsx` surface's `compileComponentTsx`
  * (`src/frontend/tsx/index.ts`) is the same shell over the same pipeline
- * with the front end swapped — the anti-drift contract of ADR 0032
+ * with the front end swapped — the anti-drift contract of ADR 0010
  * sub-design 6.
  *
  * Until TSRX reaches 1.0 this compiler lives in-repo (`src/`,
@@ -30,7 +30,7 @@ export const compileComponent = (
 	childImports?: ReadonlyMap<string, string>,
 	/**
 	 * Composed (PascalCase) elements' targets, keyed by resolved source
-	 * path (ADR 0024 sub-design 10) — built corpus-wide from every
+	 * path (ADR 0005 sub-design 10) — built corpus-wide from every
 	 * component's own registry entry (`server/effects/compile.ts`). Undefined
 	 * during registry-discovery passes (composition isn't validated yet, the
 	 * same tolerance an empty `registry` gets for raw-tag `pass()` dispatch).
@@ -38,7 +38,7 @@ export const compileComponent = (
 	composeRegistry?: ReadonlyMap<string, InternalRegistryEntry>,
 	/**
 	 * What the CONFIGURED output root implies for the emitted specifiers
-	 * (LT-255, `emit-paths.ts`): the `../` prefix back to the project root for
+	 * (`emit-paths.ts`): the `../` prefix back to the project root for
 	 * rewritten relative plain imports, and the specifier the generated server
 	 * module imports the render harness from. Defaults to this repo's layout,
 	 * so an unconfigured call emits exactly what it emitted before.

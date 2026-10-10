@@ -1,5 +1,5 @@
 /**
- * Golden tests — CEM equivalence (LT-006, ADR 0024): the Custom Element
+ * Golden tests — CEM equivalence (ADR 0005): the Custom Element
  * Manifest entries extracted by `@zeix/cem-plugin-le-truc` from GENERATED
  * clients must equal the entries the same plugin extracted from the
  * hand-written components. This pins the staged CEM decision — plugin over
@@ -8,7 +8,7 @@
  *
  * Mechanism: compile the corpus in-process, run `cem analyze` with a shadow
  * config (globs at this run's own gitignored output directory only, never
- * the build pipeline's server/generated/components/ — LT-140), then compare
+ * the build pipeline's server/generated/components/ — ), then compare
  * declarations against the pinned
  * hand-written-derived expectations below — captured from the committed
  * manifest before the globs switched (2026-08-22).
@@ -39,7 +39,7 @@ const registry = new Set<string>([
 	'form-textbox',
 	'form-checkbox',
 ])
-// Every tag asserted below must be listed here. Until LT-140 gave this file
+// Every tag asserted below must be listed here. Until  gave this file
 // its own output directory, form-checkbox was asserted but never compiled —
 // its declaration came from a client another writer had left in the shared
 // server/generated/components/.

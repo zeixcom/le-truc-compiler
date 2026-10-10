@@ -1,7 +1,7 @@
 /**
- * Signal harvest planning (LT-022, regrouping move M5): Pass 2 (render
+ * Signal harvest planning (regrouping move M5): Pass 2 (render
  * sites in document order) and Pass 3 (how each signal seeds itself from
- * the server-rendered DOM — ADR 0003: DOM is the truth at load time).
+ * the server-rendered DOM — ADR 0001: DOM is the truth at load time).
  * Harvest canonical-site rule: direct sites (text child, direct attribute)
  * win, first by document order; the membership form
  * (`String(sig.get() === const)` marking one item among many) is the
@@ -68,7 +68,7 @@ export const isSignalGetCall = (node: unknown, signal: string): boolean =>
 	signalGetCallName(node) === signal
 
 /**
- * `sig.get()` read anywhere inside a node (LT-036): a style-map/class-map
+ * `sig.get()` read anywhere inside a node : a style-map/class-map
  * object or a computed reactive thunk still renders the signal's value into
  * the DOM, even though no part of it can serve as a splice-harvest site.
  */
@@ -151,7 +151,7 @@ export const defaultForType = (type: string): string => {
 
 export const lazyWatchSource = (child: ExprNode): string => {
 	const expr = child.expr
-	// LT-122: the site renders a server ARG that is also an exposed
+	//: the site renders a server ARG that is also an exposed
 	// prop. `exprText` is the arg — what the server splices — so the
 	// client source has to be spelled from the prop instead, exactly
 	// as an authored `{host.<prop>}` would have lowered.
@@ -162,7 +162,7 @@ export const lazyWatchSource = (child: ExprNode): string => {
 	// bare expression like `formatHex(host.value)`, which matches none of
 	// `watch()`'s overloads except accidentally the array-source one,
 	// producing a confusing TS2769 instead of running reactively. Thunk-wrap
-	// it so it lowers to the arrow thunk-source overload instead (LT-038,
+	// it so it lowers to the arrow thunk-source overload instead (
 	// found migrating `card-colorscale.tsrx`: `{formatHex(host.value)}`
 	// broke until manually rewritten to `{() => formatHex(host.value)}` —
 	// an already-authored arrow thunk is left as-is, everything else gets
@@ -185,7 +185,7 @@ const FORMATTED_ARG_KINDS: ReadonlySet<string> = new Set(['number', 'date'])
 
 /**
  * How `node` formats a value for display, or null when it does not (D-20,
- * LT-374). Recognition is syntactic, over the expression and — through
+ * ). Recognition is syntactic, over the expression and — through
  * their names — the setup consts it reads, transitively (`const fmt = new
  * Intl.NumberFormat(…).format`, read as `fmt(n.get())`):
  *
@@ -298,10 +298,10 @@ type Site =
 	  }
 
 /**
- * Pass 2's production, Pass 3's input (LT-227). `thunkRendered`: signals
+ * Pass 2's production, Pass 3's input . `thunkRendered`: signals
  * whose values reach the DOM only through thunks no site can splice into —
  * style-map/class-map objects, computed (non-`sig.get()`) reactive thunks
- * (LT-036) — or through a client-only read (LT-119/LT-323): rendered, so not
+ *  — or through a client-only read (LT-119/LT-323): rendered, so not
  * LTC004-dead, but never a harvest site; Pass 3 seeds them by initializer
  * reuse. `renderCredited`/`clientCredited` split that credit by position
  * (LT-323/LT-327).
@@ -314,7 +314,7 @@ type RenderSites = {
 	/**
 	 * Per signal, its first reactive text site that formats the value for
 	 * display (`formattingOf`), with the formatting named — LTC059's input
-	 * when the signal also has no raw value source (D-20, LT-374).
+	 * when the signal also has no raw value source (D-20).
 	 */
 	formattedText: Map<string, { node: AstNode; formatting: string }>
 }
@@ -346,8 +346,8 @@ const collectRenderSites = (component: ComponentIR): RenderSites => {
 				continue
 			}
 			if (attr.kind === 'html' && attr.reactive) {
-				// truc:html={() => …} (LT-025): markup is opaque, unreadable back out
-				// of innerHTML — never a harvest SITE, but rendered (LT-036),
+				// truc:html={() => …} : markup is opaque, unreadable back out
+				// of innerHTML — never a harvest SITE, but rendered ,
 				// same treatment as style-map/class-map.
 				for (const signal of component.signals.map(s => s.name)) {
 					if (containsSignalGet(attr.thunk, signal)) thunkRendered.add(signal)
@@ -420,7 +420,7 @@ const collectRenderSites = (component: ComponentIR): RenderSites => {
 	}
 	recordSites(component.root, false)
 
-	// A reactive conditional (ADR 0037) renders its test's signals and its
+	// A reactive conditional (ADR 0015) renders its test's signals and its
 	// arms' reactive sites without a harvest site: the arms may not exist at
 	// connect, and the winner's own sites are not the signal's only render.
 	// Same credit as a computed thunk — rendered, seeded by initializer
@@ -457,10 +457,10 @@ const collectRenderSites = (component: ComponentIR): RenderSites => {
 				})
 	})
 
-	// A signal consumed only by a CLIENT-ONLY setup statement (LT-119:
+	// A signal consumed only by a CLIENT-ONLY setup statement (:
 	// `watch(() => showPopup.get() && listbox.visibleOptions.length > 0,
 	// bindAttribute(popup, 'hidden'))`) reaches the DOM without a template
-	// render site. It gets the same credit as LT-036's map/computed thunks —
+	// render site. It gets the same credit as the ticket's map/computed thunks —
 	// not dead, never a harvest SITE, seeds by initializer reuse — and the
 	// soundness argument is if anything stronger: `clientSetup` statements
 	// exist ONLY in the generated client, so the server rendered nothing
@@ -470,7 +470,7 @@ const collectRenderSites = (component: ComponentIR): RenderSites => {
 	// no server fold can resolve (LTC034) — see the popup gate in
 	// form-combobox.tsrx.
 	//
-	// LT-323 (ADR 0029 conformance) widens what counts as a read: a bare
+	//  (ADR 0008 conformance) widens what counts as a read: a bare
 	// signal reference (`watch(overflowStart, bindState(…))`), a read through
 	// setup consts or derived signals (`const hasOverflow = () =>
 	// overflowStart.get() || …`, consumed by `watch(hasOverflow, …)`), and
@@ -500,11 +500,11 @@ const collectRenderSites = (component: ComponentIR): RenderSites => {
 	// Credited by a client-only read, as against a template render thunk:
 	// only these may seed from an initializer over FactoryContext members
 	// (`all()` in catalog's `total`), which the server cannot evaluate.
-	// Render credit runs through the same `carriedBy` closure (LT-327): a
+	// Render credit runs through the same `carriedBy` closure : a
 	// signal reaching a render position via a setup const (`<p>{() =>
 	// label()}</p>`) is as render-bound as a direct `sig.get()`, and folding
 	// its context-member initializer would leave the server module reading
-	// an undeclared `all` (ADR 0029: any doubt routes downward).
+	// an undeclared `all` (ADR 0008: any doubt routes downward).
 	const renderCredited = new Set(thunkRendered)
 	const creditRender = (node: AstNode | null | undefined): void => {
 		if (node) for (const signal of carriedBy(node)) renderCredited.add(signal)
@@ -526,7 +526,7 @@ const collectRenderSites = (component: ComponentIR): RenderSites => {
 		} else if (node.kind === 'expr') creditRender(node.expr)
 		else if (node.kind === 'conditional') {
 			creditRender(node.test)
-			// `@case` tests are render positions too (LT-330).
+			// `@case` tests are render positions too .
 			for (const arm of node.arms) if (arm.test) creditRender(arm.test)
 		} else if (node.kind === 'compose') {
 			for (const attr of node.attrs)
@@ -602,7 +602,7 @@ const reportUnharvestable = (
 	signal: InitSignalIR,
 	/**
 	 * The initializer's free names the client cannot bind, for a signal
-	 * that IS rendered (LT-093): the reason is then the initializer, not
+	 * that IS rendered : the reason is then the initializer, not
 	 * a missing site, and the detail names the free names.
 	 */
 	unportable: readonly string[] = [],
@@ -704,7 +704,7 @@ const findAttrSite = (
 
 /**
  * DOM read expression for a server arg, traced to its rendered site.
- * Precedence (LT-115):
+ * Precedence :
  * 1. the exposed prop's Slot — when `allowTrackedRead` (a LAZY
  *    constructor: `deriveCell`/`deriveStore`/`createMemo`, whose callback
  *    first runs only after `expose()` has installed the Slot-backed
@@ -712,9 +712,9 @@ const findAttrSite = (
  *    read `host.<prop>`: a TRACKED reactive source, so the derived signal
  *    re-runs on later property writes and `observedAttributes` re-parses
  *    instead of freezing on the untracked `getAttribute` read (NOTES
- *    LT-092, the frozen basic-gauge/basic-pluralize `deriveCell`s; pinned
+ *    , the frozen basic-gauge/basic-pluralize `deriveCell`s; pinned
  *    by root-harvest.test.ts and basic-gauge since basic-pluralize's
- *    retirement, LT-467).
+ *    retirement).
  * 2. a host-prop mirror (`value={() => host.value}` where the root renders
  *    the parser-exposed prop from this arg) — read the target element's
  *    property;
@@ -723,7 +723,7 @@ const findAttrSite = (
  * Root sites NEVER become queries: `first()` searches descendants only
  * (`src/helpers/dom.ts`), so a query for the root's own tag throws
  * `MissingElementError` for the component's own root at activation (the
- * LT-024 `site.el !== component.root` guard, restored by LT-115 after a
+ *  `site.el !== component.root` guard, restored by  after a
  * regrouping-era edit dropped it). Null when the arg renders nowhere (the
  * signal stays unharvestable).
  */
@@ -769,7 +769,7 @@ const paramDomRead = (
 		return `${query}.${mirror.attr.name}`
 	}
 	const site = findAttrSite(param, component.root)
-	// LT-024's root guard, restored by LT-115: the root's own attributes
+	// the ticket's root guard, restored by: the root's own attributes
 	// are NOT a query site — `first('<own-tag>')` would throw for the
 	// component's own root (descendants-only search). A root match falls
 	// through to the `host.getAttribute` branch below instead.
@@ -790,7 +790,7 @@ const paramDomRead = (
 		// exist at all — address it the same way its own branch-root query
 		// would (non-throwing 'maybe'), and null-guard the read, instead of
 		// a throwing `first()` the substituted expression could crash on
-		// (ADR 0024 sub-design 12).
+		// (ADR 0005 sub-design 12).
 		const enclosing = enclosingIfOf(site.el)
 		const optional = !!enclosing && elseOf(enclosing).length === 0
 		const query = addQuery(
@@ -824,7 +824,7 @@ const paramDomRead = (
  * The name scope `unportableNames` checks an initializer's free names
  * against: the plain setup consts a name may descend through, the
  * component's signal names, and whether FactoryContext members are
- * admitted (LT-323).
+ * admitted .
  */
 type UnportableNamesScope = {
 	plainConsts: ReadonlyMap<string, AstNode>
@@ -868,7 +868,7 @@ const visitUnportableName = (
 
 /**
  * The free names of a signal initializer the client module cannot bind
- * (LT-093). A plain setup const or an authored import is portable: the
+ * . A plain setup const or an authored import is portable: the
  * signal's declaration is a client-emitted position, so the placement
  * fixpoint (`computeClientNeededNames`) already emits the const — and,
  * through it, the imports and consts it reads — into the client module.
@@ -939,7 +939,7 @@ const collectArgReadRanges = (
  * source range so surrounding text is untouched. Free names that are
  * already client-known by another route (another signal declared earlier
  * in the factory, a ref, a context member) pass through unrewritten — only
- * server args need a DOM substitution (ADR 0024 sub-design 12: a `deriveCell`
+ * server args need a DOM substitution (ADR 0005 sub-design 12: a `deriveCell`
  * callback may read both a param, needing substitution, and a sibling
  * signal, needing none).
  */
@@ -948,10 +948,10 @@ const substituteArgExpr = (
 	init: AstNode,
 	/**
 	 * Allow a no-params-to-substitute initializer to pass through
-	 * verbatim (ADR 0024 sub-design 13): sound for `deriveCell`/
+	 * verbatim (ADR 0005 sub-design 13): sound for `deriveCell`/
 	 * `deriveStore` signals, which are FORCED through this path
 	 * unconditionally (no direct-site harvest is even attempted for
-	 * them), and since LT-036 also for any signal credited in
+	 * them), and since  also for any signal credited in
 	 * `thunkRendered` — its value flows into the DOM through a
 	 * style-map/class-map object or a computed reactive thunk, so it is
 	 * provably not dead, and the server rendered that output from this
@@ -960,7 +960,7 @@ const substituteArgExpr = (
 	 * `createState` signal with a literal initializer and NO rendered
 	 * site at all must still fail (LTC004): those DO have a direct-site
 	 * harvest route, and a silently-never-rendered signal is exactly
-	 * the drift ADR 0003 exists to catch.
+	 * the drift ADR 0001 exists to catch.
 	 */
 	allowVerbatim: boolean,
 	/**
@@ -975,7 +975,7 @@ const substituteArgExpr = (
 	allowTrackedRead: boolean,
 	/**
 	 * Admit FactoryContext members (`all`, `first`, …) as client-known
-	 * (LT-323). Only for a signal read exclusively in client-only
+	 * . Only for a signal read exclusively in client-only
 	 * positions: the client destructures them, and no served HTML
 	 * depends on the value the server could not compute.
 	 */
@@ -990,7 +990,7 @@ const substituteArgExpr = (
 	// Nothing to substitute: the initializer has no server-arg dependency
 	// at all (e.g. a niladic async compute), so it is already portable,
 	// identical JS on both sides — reuse it verbatim, exactly like a pure
-	// literal list seed (ADR 0024 sub-design 13). Only sound for signals
+	// literal list seed (ADR 0005 sub-design 13). Only sound for signals
 	// with no direct-site harvest route at all (see `allowVerbatim`'s doc).
 	if (params.length === 0)
 		return allowVerbatim ? source.slice(init.start, init.end) : null
@@ -1031,7 +1031,7 @@ const authoredParserOf = (
 }
 
 /**
- * The parser a scalar harvest reads through (LT-443): the marker's parser
+ * The parser a scalar harvest reads through : the marker's parser
  * when declared (spliced as authored, its free names client-checked), else
  * the one the inferred type maps to — and LTC077 at the seed when the type
  * is one the compiler cannot read and no marker declares a parser, because
@@ -1124,7 +1124,7 @@ const planHarvests = (
 	const { loopFor, resolveSelector } = selectorAdaptersOf(component)
 
 	for (const signal of component.signals) {
-		// requestContext-backed signals (LT-035) never need a harvest site —
+		// requestContext-backed signals  never need a harvest site —
 		// the client re-dispatches the context-request itself and owns its
 		// own initial value (a Slot seeded with the fallback), rather than
 		// reading it back from server-rendered DOM. LTC004 ("signal never
@@ -1133,16 +1133,16 @@ const planHarvests = (
 		if (signal.family === 'context') continue
 		// A sensor seeds itself on the client: its `{ value }` seed and its
 		// start callback are client code, declared verbatim (`emit-client.ts`
-		// no-harvest path; LT-348 still refuses a server name in either), and
-		// a harvest would replace the start callback (ADR 0046 s5).
+		// no-harvest path;  still refuses a server name in either), and
+		// a harvest would replace the start callback (ADR 0024 s5).
 		if (signal.constructor === 'createSensor') continue
-		// A declaration reading `host` with no server truth (LT-451) seeds
+		// A declaration reading `host` with no server truth  seeds
 		// itself on the client the same way: it is not server-known, so no
 		// site renders it, and the client declares it verbatim after
 		// `expose()` has installed the props it reads.
 		if (signal.family === 'declared' && signal.unresolvable) continue
 		/**
-		 * A seed reading `host` that the server folds (LT-451): every read is
+		 * A seed reading `host` that the server folds : every read is
 		 * a prop whose server seed `hostSeedExpr` splices (`assemble-ir.ts`
 		 * marks the rest `unresolvable`), so the client's own evaluation after
 		 * `expose()` — the parser applied to the same root attribute — agrees
@@ -1153,11 +1153,11 @@ const planHarvests = (
 			!!signal.init &&
 			dependenciesOf(signal.init).has('host')
 		/**
-		 * A scalar `harvest(seed, parser)` marker (ADR 0046 s7, LT-443): the
+		 * A scalar `harvest(seed, parser)` marker (ADR 0024 s7): the
 		 * parser the scalar harvest reads go through — the direct text/attr
 		 * site read, an identity seed's substituted DOM read, a membership
 		 * value read — spliced as authored. Its free names must resolve on
-		 * the client (LTC005's client-position face, as LT-429's map
+		 * the client (LTC005's client-position face, as the ticket's map
 		 * entries); checked once, where the marker is consumed.
 		 */
 		const scalarMarker =
@@ -1174,7 +1174,7 @@ const planHarvests = (
 			signal.family === 'declared' &&
 			SCALAR_HARVEST_CONSTRUCTORS.has(signal.constructor)
 		// A reconciled List seeds from the adopted DOM, not a text/attr site.
-		// A derived List (ADR 0046 s4) has no seed to harvest: like every
+		// A derived List (ADR 0024 s4) has no seed to harvest: like every
 		// derive callback it re-derives on the client from its sources.
 		const listPlan = [...reconcilePlans.values()].find(
 			p => p.signal === signal.name,
@@ -1189,7 +1189,7 @@ const planHarvests = (
 				)
 			) {
 				// The client reuses a literal seed as written, so a `harvest()`
-				// map there declares parsers nothing reads (ADR 0046 s7).
+				// map there declares parsers nothing reads (ADR 0024 s7).
 				if (signal.harvest) {
 					diagnostics.push(
 						diagnostic.unsupported(
@@ -1207,7 +1207,7 @@ const planHarvests = (
 				!listPlan.scoped &&
 				harvestsPerField(signal)
 			) {
-				// Per-field harvest (ADR 0046 s7, LT-429): each field from its
+				// Per-field harvest (ADR 0024 s7): each field from its
 				// canonical site in the adopted item, through its parser.
 				const loop = [...reconcilePlans.entries()].find(
 					([, plan]) => plan === listPlan,
@@ -1219,9 +1219,9 @@ const planHarvests = (
 			} else if ([...free].every(name => component.paramNames.includes(name))) {
 				// The arg-seeded List harvests the container's adopted children
 				// through the item value's DOM site (the bare `{item}` hole's
-				// parent, ADR 0003). A body that renders the item nowhere has
+				// parent, ADR 0001). A body that renders the item nowhere has
 				// no site — no phase can deliver a value the markup does not
-				// carry. A list nested in a Mount Scope (LT-424) has no
+				// carry. A list nested in a Mount Scope  has no
 				// connect-time container: its items render inside an arm or
 				// an item, which may not exist at connect.
 				if (listPlan.scoped) {
@@ -1265,7 +1265,7 @@ const planHarvests = (
 			continue
 		}
 		// A host-level list never rendered by its own `map`, read by key in
-		// an item setup (ADR 0047, LT-453): harvested through the alias.
+		// an item setup (ADR 0025): harvested through the alias.
 		if (!listPlan && signal.family === 'declared') {
 			const aliased = planKeyAliasHarvest(shared, signal, reconcilePlans)
 			if (aliased !== undefined) {
@@ -1275,7 +1275,7 @@ const planHarvests = (
 		}
 		// `deriveCell`/`deriveStore` initializers are callbacks, not raw values
 		// — a 'text'/'attr' direct-site harvest would splice the DOM read in
-		// place of the whole function (ADR 0024 sub-design 12). A rendered
+		// place of the whole function (ADR 0005 sub-design 12). A rendered
 		// lazy child of the signal's own name still exists for the WATCH
 		// target/initial value (Pass 4 wires it independently of harvest
 		// selection here), but harvesting always goes through the arg-
@@ -1314,8 +1314,8 @@ const planHarvests = (
 				continue
 			}
 			// No rendered site: an initializer over server args can still seed
-			// from the args' DOM sites (LT-008 substitution rule). A signal
-			// rendered only through a map/computed thunk (LT-036) may also
+			// from the args' DOM sites ( substitution rule). A signal
+			// rendered only through a map/computed thunk  may also
 			// reuse its initializer verbatim — same soundness as a derived
 			// callback, per `allowVerbatim`'s contract above.
 			const reported = diagnostics.length
@@ -1332,8 +1332,8 @@ const planHarvests = (
 				: null
 			if (substituted) {
 				// The substituted read of an identity seed is a DOM string
-				// (LT-008); the marker's parser parses it back, and an unmarked
-				// seed whose type the compiler cannot read is LTC077 (LT-443) —
+				// ; the marker's parser parses it back, and an unmarked
+				// seed whose type the compiler cannot read is LTC077  —
 				// the bare splice would connect the string as-is. Derived
 				// callbacks and list seeds leave this limb untouched.
 				if (scalarSeeded && scalarMarker) {
@@ -1377,7 +1377,7 @@ const planHarvests = (
 				}
 				continue
 			}
-			// D-20 (LT-374): a signal seeded from server args that renders only
+			// D-20 : a signal seeded from server args that renders only
 			// as formatted text has nothing the client can read back — the text
 			// does not parse, and no arg it reads renders as a raw attribute
 			// (else the substitution above would have found it). LTC059 names
@@ -1418,12 +1418,12 @@ const planHarvests = (
 			| { kind: 'text'; element: ElementNode }
 			| { kind: 'attr'; element: ElementNode; attr: string }
 			| undefined
-		// LT-114 interplay / LT-115: a direct site ON THE ROOT (a
+		// interplay /: a direct site ON THE ROOT (a
 		// signal-identifier lazy root child, `<my-el>{sig}</my-el>`) must never
 		// become a query — `first('<own-tag>')` searches descendants only and
 		// throws `MissingElementError` for the component's own root at
 		// activation. Route it through the ambient `host` instead (the text
-		// site reads `host.textContent`), the same target LT-114's root branch
+		// site reads `host.textContent`), the same target the ticket's root branch
 		// plans the watch against — harvest and watch agree. `'host'` is
 		// deliberately NOT a query-table entry: `harvestInitializer` passes
 		// unknown query names through verbatim, and `usedNames` already
@@ -1510,7 +1510,7 @@ const planHarvests = (
 			continue
 		}
 		// A scalar seed's membership read takes the marker's parser when
-		// declared (LT-443) — the parser owns the no-match miss, so no typed
+		// declared  — the parser owns the no-match miss, so no typed
 		// default — and LTC077 when the type is unreadable and no marker
 		// declares one. A typed, unmarked seed keeps today's parser-less
 		// read: the compared const is a string the attribute round-trips
@@ -1544,7 +1544,7 @@ const planHarvests = (
 
 /**
  * Passes 2+3: render sites, then one harvest plan per signal. Requires the
- * loop plans (ADR 0040 s5): a membership harvest addresses its `each()`
+ * loop plans (ADR 0018 s5): a membership harvest addresses its `each()`
  * collection, a reconciled List seeds from its container.
  */
 export const runHarvest = (

@@ -9,10 +9,10 @@
  * (`ast-utils.ts`'s `text()`).
  *
  * The TypeScript → ESTree conversion itself is
- * `@typescript-eslint/typescript-estree`'s public `parse()` (LT-243,
- * LT-367) — the API it versions under semver — maintained against
+ * `@typescript-eslint/typescript-estree`'s public `parse()` (
+ * ) — the API it versions under semver — maintained against
  * every `typescript` major — the hand-written converter this module used to
- * be had to track that drift itself (ADR 0032's stated cost). What remains
+ * be had to track that drift itself (ADR 0010's stated cost). What remains
  * here is a thin normalization pass onto the shape the shared stages were
  * written against, which is also the shape `@tsrx/core` gives `.tsrx`:
  *
@@ -33,14 +33,14 @@
  * (`ast-utils.ts`'s `TYPE_POSITION_KEYS`), so a type name is never a value
  * read. A function parameter's annotation rides its pattern as
  * `typeAnnotation`, with the pattern's span extended over it — the shape the
- * shared stages read for arg types (LT-298).
+ * shared stages read for arg types ().
  *
  * **Supported `typescript` range:** the pinned typescript-estree (8.71.0)
  * declares `typescript >=4.8.4 <6.1.0` as its peer; the repo pins
  * `typescript ^6.0.3`. A `typescript` bump past 6.0.x needs a
  * typescript-estree release that covers it — check its peer range first.
  * The package requires `node:path`/`node:fs` at load; that is a dependency
- * fact, outside the compiler's own neutrality rule (ADR 0038 s2).
+ * fact, outside the compiler's own neutrality rule (ADR 0016 s2).
  */
 
 import { parse } from '@typescript-eslint/typescript-estree'

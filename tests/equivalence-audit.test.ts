@@ -1,23 +1,23 @@
 /**
- * The CI equivalence audit (ADR 0029 sub-design 7, amended 2026-09-06 —
- * LT-165 step 8).
+ * The CI equivalence audit (ADR 0008 sub-design 7, amended 2026-09-06 —
+ *  step 8).
  *
- * Tiering reinstates the hazard ADR 0027 eliminated: TWO mechanisms produce
+ * Tiering reinstates the hazard ADR 0006 eliminated: TWO mechanisms produce
  * a Folded-tier component's server answer — the value harness
  * (`render<Name>(args)`, phase 1) and the simulation realm (phase 2, the
- * same connect the browser runs). ADR 0029 s7's original rule required the
+ * same connect the browser runs). ADR 0008 s7's original rule required the
  * two outputs to be byte-identical. **The audit found that rule structurally
- * void, and it was amended (see ADR 0029 s7, amendment 2026-09-06):** in a
+ * void, and it was amended (see ADR 0008 s7, amendment 2026-09-06):** in a
  * Folded-tier component EVERY signal seeds from a DOM harvest (a signal with
  * no harvestable site is a LTC004 routing signal and routes Simulated), so
  * the realm's entire state derives from the phase-1 bytes themselves — the
  * two mechanisms cannot independently disagree on a server value. What the
  * byte comparison actually measures is the hydration boundary: serializer
  * normalization (bare boolean attributes, attribute case), the client's
- * designed connect-time writes (ADR 0003's enhancement posture), and — the
+ * designed connect-time writes (ADR 0001's enhancement posture), and — the
  * dangerous class — any write that OVERWRITES or removes server-rendered
  * state (the form-tokenbox input removal surfaced exactly this on first
- * run; see LT-185).
+ * run; see ).
  *
  * The amended rule, implemented here: **phase 2 runs over every
  * Folded-tier component's phase-1 render, and the connect diff between the
@@ -36,7 +36,7 @@
  * 1, the exact markup phase 1 produced is what phase 2 parses, and no
  * locale is set on either side.
  *
- * CI cost is bounded by corpus size, not by the tier split (ADR 0029 s7):
+ * CI cost is bounded by corpus size, not by the tier split (ADR 0008 s7):
  * one corpus compile, one shared realm, one render per Folded component.
  * The audit is CI-only machinery — nothing here rides the docs build or
  * `check:corpus`.
@@ -85,7 +85,7 @@ const foldedEntries = Object.values(registry).filter(
  * stretch of at least `RESYNC` characters and repeat. This is a REVIEW
  * RECORD, not a semantic diff — its shape is what the snapshot pins, and a
  * change in its shape means something about the component's hydration
- * changed (ADR 0029 s7, amended).
+ * changed (ADR 0008 s7, amended).
  */
 const WINDOW = 60
 const RESYNC = 32
@@ -125,7 +125,7 @@ const connectDiff = (phase1: string, phase2: string): string => {
 	return regions.join('\n')
 }
 
-describe('CI equivalence audit (ADR 0029 s7, amended 2026-09-06 — LT-165 step 8)', () => {
+describe('CI equivalence audit (ADR 0008 s7, amended 2026-09-06 — LT-165 step 8)', () => {
 	test('the audit covers every Folded-tier entry the registry carries — none silently skipped', () => {
 		// The vacuous-coverage trap: a Folded registry entry with no matching
 		// compiled info (or vice versa) must fail loudly here, or the audit
@@ -166,7 +166,7 @@ describe('CI equivalence audit (ADR 0029 s7, amended 2026-09-06 — LT-165 step 
 	// class — a client write that REMOVES server-rendered state — and the
 	// snapshot above records it only as a shape. This pins the fact itself,
 	// so a regression fails on an assertion that names the symptom rather
-	// than on a diff a reviewer has to interpret (LT-185).
+	// than on a diff a reviewer has to interpret ().
 	test('form-tokenbox: the authored text input survives hydration (LT-185 regression)', async () => {
 		const info = compiled.find(i => i.tag === 'form-tokenbox')!
 		const mod = (await import(
@@ -182,7 +182,7 @@ describe('CI equivalence audit (ADR 0029 s7, amended 2026-09-06 — LT-165 step 
 			component: 'form-tokenbox',
 		})
 		// The input is the only place a user can type. `reconcile()` owns
-		// `data-container`'s children and removes every unkeyed one (ADR 0017's
+		// `data-container`'s children and removes every unkeyed one (ADR 0004's
 		// self-cleaning container), so the authored input must carry the
 		// `data-unreconciled` opt-out to survive the first reconcile pass.
 		expect(phase2).toContain('id="tags-input"')
@@ -198,7 +198,7 @@ describe('CI equivalence audit (ADR 0029 s7, amended 2026-09-06 — LT-165 step 
 	})
 })
 
-/* === Arm adoption (ADR 0037, LT-390) === */
+/* === Arm adoption (ADR 0015, LT-390) === */
 
 /** A component's phase-1 render, from the shared fixture args. */
 const renderPhase1 = async (info: CompiledInfo): Promise<string> => {
@@ -253,7 +253,7 @@ const SETTLED_IN_REALM: Record<string, string[]> = {
 	'module-listnav': ['err'],
 }
 
-// The adoption contract (ADR 0037 s3): the client adopts the server's
+// The adoption contract (ADR 0015 s3): the client adopts the server's
 // winning arm by key — it never clones a replacement for it at connect,
 // and it never touches an arm template. The Folded snapshot above records
 // the connect diff only as a shape and covers no Simulated component; this
@@ -269,7 +269,7 @@ const armEntries: CompiledInfo[] = []
 	}
 }
 
-describe('arm adoption across the hydration boundary (ADR 0037, LT-390)', () => {
+describe('arm adoption across the hydration boundary (ADR 0015, LT-390)', () => {
 	test('the corpus consumers of both arm forms are covered — the class is not vacuous', () => {
 		const tags = armEntries.map(info => info.tag)
 		// A reactive `@if` and the async boundary. A new consumer joins the

@@ -1,6 +1,6 @@
 /**
  * Module-level type declarations reach both generated modules, exported or
- * not (LT-439). A module-local `type`/`interface` naming a setup
+ * not (). A module-local `type`/`interface` naming a setup
  * declaration's type — an item shape for `createList<Task, …>`, a plain
  * annotation — was dropped from the client and server module alike (only
  * `export`ed ones were carried), so the generated code named a type it never

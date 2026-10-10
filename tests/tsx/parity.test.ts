@@ -1,6 +1,6 @@
 /**
- * Cross-surface parity for every corpus variant set (LT-183, LT-237,
- * ADR 0039 s1).
+ * Cross-surface parity for every corpus variant set (
+ * ADR 0017 s1).
  *
  * The suite DISCOVERS its pairs: every folder in the corpus holding a
  * `.tsrx` and a `.tsx` spelling of one tag is a variant set, and each is
@@ -60,7 +60,7 @@ const pascal = (tag: string): string => renderName(tag).slice('render'.length)
 
 /**
  * Every folder-local variant set in the configured corpus scan — a `.tsrx`
- * and a `.tsx` in ONE directory, named for one tag (ADR 0039). A new set
+ * and a `.tsx` in ONE directory, named for one tag (ADR 0017). A new set
  * joins the suite by existing; none can escape it.
  */
 const CORPUS = await loadCorpus()
@@ -153,7 +153,7 @@ const compilePair = (fx: Fixture, entries: InternalRegistryEntry[]) => {
 }
 
 /**
- * What a client module derives from the authored types (LT-298): the
+ * What a client module derives from the authored types (): the
  * `defineComponent<Props>` type argument and every Parser call, in order.
  * Author comments are copied verbatim and may legitimately differ.
  */
@@ -190,7 +190,7 @@ const renderSignatureOf = (code: string | undefined): string =>
  * Pairs whose `.tsx` member authors different args than its `.tsrx` twin:
  * listbox's `'truc:pass'` compose surface sits on the `.tsx` ARGS type (a
  * JSX parent type-checks against the child's first parameter) but on the
- * `.tsrx` Props type. The `i18n` drift was reconciled in the LT-237 move.
+ * `.tsrx` Props type. The `i18n` drift was reconciled in the  move.
  */
 const AUTHORED_ARGS_DRIFT = new Set(['form-listbox'])
 
@@ -227,7 +227,7 @@ const discoveryEntries = [
 // A composing set's server module supplies its composed children's reserved
 // records (`i18n: i18nRecord("form-listbox", …)`), which import './i18n' —
 // write the generated i18n module from the compiled .tsrx entries, the same
-// derivation the real corpus pipeline performs (ADR 0030 sub-design 2).
+// derivation the real corpus pipeline performs (ADR 0009 sub-design 2).
 await writeI18nModule(
 	generated.path,
 	await collectI18n(
@@ -253,7 +253,7 @@ for (const filename of OTHERS) {
 		generated.emit(`${tagOf(filename)}.server.ts`, component.serverCode)
 }
 
-describe('variant sets — front-end parity (§4.3, ADR 0039 s1)', () => {
+describe('variant sets — front-end parity (§4.3, ADR 0017 s1)', () => {
 	test('discovers every corpus variant set (non-vacuous)', () => {
 		expect(FIXTURES.map(fx => fx.tag)).toEqual(
 			expect.arrayContaining([
@@ -294,7 +294,7 @@ describe('variant sets — front-end parity (§4.3, ADR 0039 s1)', () => {
 				expect(tsxx.component?.css).toBe(tsrx.component?.css)
 			})
 
-			// LT-298: the `.tsx` converter once dropped the args annotation, so
+			//: the `.tsx` converter once dropped the args annotation, so
 			// every arg read as untyped — `asString` harvests, all args
 			// optional, no `string` channels — and the snapshot above pinned
 			// it. Pin the two surfaces' derived facts against each other.
@@ -370,7 +370,7 @@ describe('variant sets — front-end parity (§4.3, ADR 0039 s1)', () => {
 						})
 						expect(phase2B).toBe(phase2A)
 					} finally {
-						// Awaited: the restores follow the final settle (LT-411), and
+						// Awaited: the restores follow the final settle (), and
 						// the next fixture's realm must not be created under this
 						// one's still-applied patches.
 						await realm.dispose()
@@ -395,7 +395,7 @@ describe('§4.4 synthetic shapes through the unmodified analysis', () => {
 		const html = await render(component.serverCode, {})
 		// Fresh task in the value harness: pending WITHOUT a retained value —
 		// the pending arm is the live winner; every arm is an inert template
-		// (ADR 0037 s4, LT-276).
+		// (ADR 0015 s4).
 		expect(html).toContain('<p data-key="nil" class="loading">Loading</p>')
 		expect(html).toContain(
 			'<template data-arms="0" data-key="ok"><div class="content"></div></template>',
@@ -404,10 +404,10 @@ describe('§4.4 synthetic shapes through the unmodified analysis', () => {
 			'<template data-arms="0" data-key="err"><p class="error"></p></template>',
 		)
 		expect(html).not.toContain('hidden')
-		// The stale arm is gone (LT-211): no fourth root anywhere.
+		// The stale arm is gone (): no fourth root anywhere.
 		expect(html).not.toContain('stale')
 		// The `isPending(data)` class binding folds server-side — the fresh
-		// task is pending at build time, so the class renders on (LT-211).
+		// task is pending at build time, so the class renders on ().
 		expect(html).toContain('<p role="status" class="pending">')
 		// reconcile() switches the arms by the task state; the client-side
 		// class binding reads isPending(data) so it re-fires when the task
@@ -515,11 +515,11 @@ export function Seeded({ initial, removeLabel }: { initial?: string[]; removeLab
 		expect(diagnostics).toEqual([])
 		if (!component) throw new Error('seeded fixture must compile')
 		// The reconcile path: an extracted <template> (stamped `data-list`,
-		// ADR 0046 s2) and a reconcile() call, keyed by the list's own
+		// ADR 0024 s2) and a reconcile() call, keyed by the list's own
 		// keyConfig (no authored key clause needed).
 		expect(component.serverCode).toContain('<template data-list="0">')
 		expect(component.clientCode).toContain('reconcile(')
-		// LT-215: a server-static attribute inside the reactive-list body is
+		//: a server-static attribute inside the reactive-list body is
 		// admitted — folded into the initial items AND baked into the served
 		// template, so cloned items carry the value with no client binding.
 		expect(component.serverCode).toContain(`attr('aria-label', removeLabel)`)
@@ -567,7 +567,7 @@ export function Seeded({ initial, removeLabel }: { initial?: string[]; removeLab
 		// A `&&` arm must be JSX: an IIFE returning null (the .tsrx client-stmt
 		// shape — a bare side effect beside conditional markup) has no JSX
 		// spelling and is REJECTED, retiring the construct with the grammar
-		// (ADR 0024 s11 already restricted it to @if roots).
+		// (ADR 0005 s11 already restricted it to @if roots).
 		const source = `export function NoStmt({ flag }: { flag: boolean })
 {
 	expose({})
@@ -639,14 +639,14 @@ export function BadHost(
 		const hit = diagnostics.find(d => d.code === 'LTC050')
 		expect(hit).toBeDefined()
 		expect(hit?.message).toContain('FormFactoryContext')
-		// LT-358b: the report covers the written type (line 10 — it sits on
+		//: the report covers the written type (line 10 — it sits on
 		// the context parameter's second line), not the whole parameter.
 		expect(lineAt(source, hit)).toBe(10)
 		expect(textAt(source, hit)).toBe('FactoryContext<BadHostProps>')
 		expect(hit?.location.file).toBe('bad-host.tsx')
-		// LT-371: no fix. Renaming the written type alone would leave
+		//: no fix. Renaming the written type alone would leave
 		// `FormFactoryContext` unimported (this fixture, like the corpus,
-		// imports only `FactoryContext`), and ADR 0044 s1 attaches a fix only
+		// imports only `FactoryContext`), and ADR 0022 s1 attaches a fix only
 		// where applying it needs no author judgement.
 		expect(hit?.fix).toBeUndefined()
 	})
@@ -665,7 +665,7 @@ export function BadHost(
 		expect(hit?.message).toContain('does not set `config.formAssociated`')
 		expect(textAt(source, hit)).toBe('FormFactoryContext<BadHostProps>')
 		// Two repairs (annotate FactoryContext, or set formAssociated): the
-		// message names both and there is no fix (ADR 0044 s1).
+		// message names both and there is no fix (ADR 0022 s1).
 		expect(hit?.fix).toBeUndefined()
 	})
 

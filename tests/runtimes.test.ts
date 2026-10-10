@@ -1,5 +1,5 @@
 /**
- * The runtime seam (LT-267): glob semantics, the Node implementation's file
+ * The runtime seam (): glob semantics, the Node implementation's file
  * and spawn behavior, and Bun↔Node parity on the patterns the build actually
  * uses.
  *

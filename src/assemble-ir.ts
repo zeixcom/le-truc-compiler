@@ -3,7 +3,7 @@
  * declarations beside the component function (`readModuleDecls`: exported
  * type declarations, `declare global`, `export const config`, `export const
  * i18n`) and the component's leading doc comment — shared by both front
- * ends (LT-202, ADR 0032 sub-design 6: the anti-drift half of the dual
+ * ends (ADR 0010 sub-design 6: the anti-drift half of the dual
  * front-end contract). Front-end-neutral like the other front-end stage
  * modules: no parser values, only the loose `AstNode` type.
  */
@@ -62,7 +62,7 @@ export type ModuleDecls = {
 /**
  * Module-level declarations beside the component function: type
  * declarations (exported or module-local) and `declare global`, verbatim;
- * `export const config`; `export const i18n` (ADR 0030 sub-design 4, LT-173).
+ * `export const config`; `export const i18n` (ADR 0009 sub-design 4).
  */
 export const readModuleDecls = (
 	ctx: ExtractContext,
@@ -104,7 +104,7 @@ export const readModuleDecls = (
 		}
 		// Exported or not: a module-local `type`/`interface` is as much a
 		// part of the setup's typing as an exported one, and a generated
-		// module that drops it names a type it never declares (LT-439).
+		// module that drops it names a type it never declares ().
 		if (
 			valueDecl.type === 'TSTypeAliasDeclaration' ||
 			valueDecl.type === 'TSInterfaceDeclaration'
@@ -134,7 +134,7 @@ export const readModuleDecls = (
  * module-level doc from being mistaken for the component's own when other
  * statements (type declarations, `declare global`) sit in between. Carried
  * above the generated `export default defineComponent(` so CEM extraction
- * (ADR 0024, LT-006) reads the authored description and tags.
+ * (ADR 0005) reads the authored description and tags.
  */
 const leadingDocComment = (source: string, before: number): string | null => {
 	const head = source.slice(0, before)
@@ -147,7 +147,7 @@ const leadingDocComment = (source: string, before: number): string | null => {
 }
 
 /**
- * Per-parameter pattern facts for the page-occurrence renderer (LT-194):
+ * Per-parameter pattern facts for the page-occurrence renderer ():
  * `emit-server.ts`'s `argsFromAttrs` emission decides, from these, whether
  * an authored occurrence's attribute can source each server arg — a raw
  * string only passes for a `string`-annotated non-Parser arg, and an absent
@@ -221,10 +221,10 @@ export const assembleComponentIR = (
 		leTrucImports: LeTrucImport[]
 	},
 ): ComponentIR | null => {
-	// The annotation-surface check (LTC050, LT-209) — `config` is what the
+	// The annotation-surface check (LTC050) — `config` is what the
 	// extract-time vocabulary check could not see. Runs before the gate so
 	// the diagnostic lands even on gated files (the LTC014 posture). The
-	// report covers the written type (LT-358b, LT-371).
+	// report covers the written type ().
 	if (contextParam?.annotationName) {
 		const formAssociated = !!decls.config?.form
 		if (formAssociated && contextParam.annotationName === 'FactoryContext')
@@ -250,13 +250,13 @@ export const assembleComponentIR = (
 	// The same set `seedExtractionContext` built into `ctx.serverKnown`
 	// (args + `isPending` + signals + setup consts) — reused, not recomputed:
 	// a second construction could drift from the first and make lowering and
-	// downstream analysis silently disagree (LT-222). `isPending` itself is
-	// server-known (LT-211): the harness always provides it, so a reactive
+	// downstream analysis silently disagree (). `isPending` itself is
+	// server-known (): the harness always provides it, so a reactive
 	// thunk reading `isPending(knownSignal)` folds server-side. This does
 	// NOT reopen @if over signals — `validateCondition` diagnoses signal
 	// reads first.
 	const serverKnown = ctx.serverKnown
-	// Every reactive-list item's setup (ADR 0046 s5): the usage walks below
+	// Every reactive-list item's setup (ADR 0024 s5): the usage walks below
 	// place the imports it reads, like component setup's.
 	const itemSetup = [...resolved.fors.values()].flatMap(loop =>
 		loop.kind === 'reconcile' ? loop.setup : [],
@@ -285,7 +285,7 @@ export const assembleComponentIR = (
 		{
 			// The setup statements are verbatim in both modules, and a
 			// per-field list harvest annotates each rebuilt item with the item
-			// type (ADR 0046 s7): a type import they name is a use.
+			// type (ADR 0024 s7): a type import they name is a use.
 			server: [
 				...decls.typeDecls,
 				paramsNode ? text(ctx.source, paramsNode) : '',
@@ -393,10 +393,10 @@ export const assembleComponentIR = (
 }
 
 /**
- * A signal declaration reading `host` (LT-451) — `createList(host.seed, …)`
+ * A signal declaration reading `host` () — `createList(host.seed, …)`
  * over a Parser-backed prop — is server-known only when every read folds
  * through `hostSeedExpr` (the emitter splices them, `emit-server.ts`). One
- * that reads a prop with no server truth routes per ADR 0029 s5, as an
+ * that reads a prop with no server truth routes per ADR 0008 s5, as an
  * unseeded sensor does: it leaves `serverKnown`, so each site reading it is
  * omitted, and the realm — which runs `expose()` — answers it. Decided here
  * because the fold needs the root's attributes and the placed imports.

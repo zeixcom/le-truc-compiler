@@ -1,5 +1,5 @@
 /**
- * The simulation realm (ADR 0027 sub-design 2, LT-151; amended by LT-154,
+ * The simulation realm (ADR 0006 sub-design 2; amended by ,
  * 2026-09-03 — see `boundary.ts`'s header for why).
  *
  * Applies `patch-table.ts` to `globalThis` for the duration of a simulated
@@ -37,17 +37,17 @@
  *
  * ## Disposal
  *
- * End-of-process, not per-realm (LT-152 review, LT-154). A disposed realm's
+ * End-of-process, not per-realm (LT-152 review). A disposed realm's
  * deleted globals turn a contained component's lingering dependency-wait
  * into a synchronous `customElements is not defined` flood that aborts the
  * process — so `dispose()` must be called at most once, after every render
  * the realm will ever do, never between them. One realm per build. Since
- * LT-207 the realm also owns the host timers scheduled while it is open, and
+ *  the realm also owns the host timers scheduled while it is open, and
  * `dispose()` cancels those still pending — so a wait that outlives the
  * realm (tests dispose per file or per test) never fires against its
  * restored globals and lands as an uncaught error in whatever runs next.
  *
- * The LAST render's tree is settled by `dispose()` itself (LT-411): it runs
+ * The LAST render's tree is settled by `dispose()` itself : it runs
  * the same teardown the next render's window performed for every earlier
  * render, before the restores and before `window.close()` — so the final
  * disconnect's output is captured and attributed like every other render's,
@@ -56,13 +56,13 @@
  *
  * ## Diagnostics
  *
- * jsdom's `virtualConsole` is the diagnostic channel (ADR 0027 Consequences).
+ * jsdom's `virtualConsole` is the diagnostic channel (ADR 0006 Consequences).
  * `jsdomError`s, realm console errors/warnings, attempted network calls,
  * contained per-component throws and non-quiescent drains all land in
  * `diagnostics`; the compiler-side channel (`../build-report.ts`) turns them
- * into the build report (LT-163) — per-kind copy and the zero-unclassified
+ * into the build report  — per-kind copy and the zero-unclassified
  * baseline — against the standing entries this driver publishes in
- * `classifications.ts` (LT-263).
+ * `classifications.ts` .
  *
  * ## Attribution
  *
@@ -79,7 +79,7 @@
  *
  * A render's live tree is torn down at the start of the NEXT `render()`,
  * before that render's window opens and with the marker still naming the
- * render that built it (`settlePreviousRender`, LT-335). Disconnect runs
+ * render that built it (`settlePreviousRender`). Disconnect runs
  * component code — a composing parent's `pass()` restore re-fires its
  * child's effects — so a teardown left to the next window's `innerHTML`
  * would blame an innocent component, depending only on page order.
@@ -91,7 +91,7 @@
  * an unhandled rejection during a build becomes a diagnostic here instead of
  * a dead build, and the build report is the only place it surfaces.
  *
- * ## Suppression (LT-165 step 7, ADR 0029 sub-design 1)
+ * ## Suppression (LT-165 step 7, ADR 0008 sub-design 1)
  *
  * A suppressed site is an expression NO server phase can answer (limb b:
  * wall clock, RNG, runtime-default locale). The generated client still
@@ -148,7 +148,7 @@ export type RenderOptions = SimRenderRequest
  * The jsdom driver's own handle — the seam's {@link SimulationRealm} plus
  * the substrate-shaped members its tests and the portability probe need.
  *
- * The split is the point (ADR 0035 sub-design 3 limb 3). `window`,
+ * The split is the point (ADR 0013 sub-design 3 limb 3). `window`,
  * `document` and the recorded constructors are jsdom's types, so they
  * cannot appear on the interface the compiler programs against — a
  * consumer who opted out of jsdom would not be able to typecheck it. They
@@ -237,7 +237,7 @@ const stubFor = (shape: StubShape): unknown => {
  * `composesTags`) come before it — a DFS post-order topological sort,
  * stable on the input order for unrelated entries.
  *
- * `define()` call order decides jsdom upgrade order (LT-154's correction to
+ * `define()` call order decides jsdom upgrade order (the ticket's correction to
  * sub-design 2's "native bottom-up" claim): a composed child that its
  * parent's client module never imports (pure server-splice composition, no
  * `pass()`/`first()` binding) has no import-graph relationship to its
@@ -270,7 +270,7 @@ export function childrenFirstOrder(
  *
  * The patches are process-global for the realm's lifetime, so a realm owns the
  * process while it lives — `dispose()` restores every touched global to the
- * descriptor it found. One realm per build (ADR 0027 sub-design 2), disposed
+ * descriptor it found. One realm per build (ADR 0006 sub-design 2), disposed
  * only at end-of-process (LT-154; see module header).
  *
  * @param options.html - the shell document; defaults to an empty body
@@ -302,12 +302,12 @@ export function createSimulationRealm(
 	}
 
 	/**
-	 * Capture the HOST console for one load/render window (LT-180).
+	 * Capture the HOST console for one load/render window .
 	 *
 	 * jsdom's `virtualConsole` only sees what code running INSIDE the jsdom
 	 * window logs. A generated client module is imported into this process
 	 * and executes against patched globals, so the library's own containment
-	 * (ADR 0028 tier 2: `reportConnectFailure` catches a connect throw,
+	 * (ADR 0007 tier 2: `reportConnectFailure` catches a connect throw,
 	 * degrades the component to its server-rendered markup, and reports it)
 	 * writes to the process console and never reaches the virtual one. The
 	 * component then serializes as the un-enhanced skeleton with the report
@@ -431,9 +431,9 @@ export function createSimulationRealm(
 	const denyNetwork = (patch: NetworkGlobalPatch) => {
 		const message =
 			`network access from a simulated connect (\`${patch.name}()\`) — the ` +
-			'build realm is closed (ADR 0027 sub-design 2d). Declare build-time ' +
+			'build realm is closed (ADR 0006 sub-design 2d). Declare build-time ' +
 			'data as a resolution-phase dependency instead.'
-		// Never settles (amended sub-design 2d, LT-154): a rejection would route
+		// Never settles (amended sub-design 2d): a rejection would route
 		// every fetching component to `@catch` under the quiescence drain, but
 		// the build cannot know the request failed — it never ran. A promise
 		// that never settles keeps the component's task at `nil`, which SSG
@@ -476,7 +476,7 @@ export function createSimulationRealm(
 		}
 	}
 
-	// Timers scheduled while the realm is open are the realm's (LT-207). A
+	// Timers scheduled while the realm is open are the realm's . A
 	// contained component's dependency wait (`DEPENDENCY_TIMEOUT`) and context
 	// retries run on the HOST timer queue, which `window.close()` does not
 	// own — so a timer outliving `dispose()` fires against restored globals
@@ -556,7 +556,7 @@ export function createSimulationRealm(
 	}
 
 	/**
-	 * The live arm of arm set `armSet` in `container` (ADR 0037, LT-391):
+	 * The live arm of arm set `armSet` in `container` (ADR 0015):
 	 * the element immediately before the set's first `<template data-arms>`,
 	 * when its `data-key` names one of the set's arms and it is neither a
 	 * `<template>` nor a `[data-arms]` carrier — the rule `reconcile()`'s arm
@@ -578,8 +578,8 @@ export function createSimulationRealm(
 	}
 
 	/**
-	 * Snapshot each suppressed site's server-rendered state (ADR 0029
-	 * sub-design 1, LT-165 step 7) and return the closure that restores it.
+	 * Snapshot each suppressed site's server-rendered state (ADR 0008
+	 * sub-design 1 step 7) and return the closure that restores it.
 	 *
 	 * The snapshot is taken from an INERT parse of the same markup — not
 	 * from the live document — because an already-defined tag upgrades
@@ -667,8 +667,8 @@ export function createSimulationRealm(
 			releaseConsole()
 			force('customElements', realRegistry)
 		}
-		// Load-once is a driver assertion, not a convention (LT-152 review,
-		// LT-154): one module cache per process means a bundle imported by an
+		// Load-once is a driver assertion, not a convention ( review,
+		// ): one module cache per process means a bundle imported by an
 		// EARLIER realm/load re-evaluates nothing here, and rendering would
 		// then silently degrade to un-upgraded SSR markup — invisible in the
 		// output, because it looks like ordinary un-upgraded markup.
@@ -676,7 +676,7 @@ export function createSimulationRealm(
 			throw new Error(
 				'load() recorded no element definitions — the imported module was ' +
 					'served from the process module cache (one cache per process, ' +
-					'ADR 0027 sub-design 10). Load each component exactly once and ' +
+					'ADR 0006 sub-design 10). Load each component exactly once and ' +
 					'render it many times.',
 			)
 	}
@@ -687,7 +687,7 @@ export function createSimulationRealm(
 		locale,
 		maxTurns,
 	}: RenderOptions): Promise<string> => {
-		// Suppression (LT-165 step 7): the skeleton snapshot is a pure
+		// Suppression ( step 7): the skeleton snapshot is a pure
 		// function of the markup — an inert parse upgrades nothing — so it is
 		// taken before the connect window opens at all. Restoring happens
 		// after the drain, below.
@@ -698,7 +698,7 @@ export function createSimulationRealm(
 			try {
 				// Seed the page locale onto `<html>` BEFORE the markup parses, so
 				// a component reading `getLocale(host)` at connect sees the page's
-				// answer rather than the `'en'` fallback (ADR 0030 sub-design 7).
+				// answer rather than the `'en'` fallback (ADR 0009 sub-design 7).
 				// This only narrows the gap — the realm parses one component's
 				// markup, so an ancestor `[lang]` BELOW `<html>` stays invisible;
 				// the reserved `i18n` parameter is the canonical route.
@@ -708,7 +708,7 @@ export function createSimulationRealm(
 				// Parsed while still undefined: the pre-parsed upgrade path, which
 				// is what gives `connectedCallback` its child-before-parent order.
 				document.body.innerHTML = markup
-				// Children-first (LT-154): define() call order decides jsdom
+				// Children-first : define() call order decides jsdom
 				// upgrade order, and the compose graph — not recording order —
 				// is the only source of truth for which tags contain which.
 				for (const entry of childrenFirstOrder(definitions, composesTags)) {
@@ -748,8 +748,8 @@ export function createSimulationRealm(
 			readRendered,
 			maxTurns,
 		)
-		// Suppression is a serialization-time step (ADR 0029 sub-design 1's
-		// implementation constraint, LT-165 step 7), and the ordering is
+		// Suppression is a serialization-time step (ADR 0008 sub-design 1's
+		// implementation constraint step 7), and the ordering is
 		// load-bearing: the revert runs strictly AFTER the drain has
 		// stabilized — the stability comparison must observe the unsuppressed
 		// tree, and a revert inside the drain loop would either oscillate
@@ -767,7 +767,7 @@ export function createSimulationRealm(
 				component,
 				message:
 					`did not settle within ${turns} microtask turns — a reactive ` +
-					'effect is re-triggering itself at connect (ADR 0027 sub-design ' +
+					'effect is re-triggering itself at connect (ADR 0006 sub-design ' +
 					'9). The build shipped the last observed state rather than hang. ' +
 					'Find the self-triggering effect before relying on this markup.',
 			})
@@ -776,9 +776,9 @@ export function createSimulationRealm(
 
 	/**
 	 * Tear down the previous render's tree under ITS attribution, before the
-	 * next window opens (LT-335) — and, from `dispose()`, the LAST render's
+	 * next window opens  — and, from `dispose()`, the LAST render's
 	 * tree before the realm retires, for which there is no next window
-	 * (LT-411).
+	 * .
 	 *
 	 * The live tree of a render stays in the document after `render()`
 	 * returns (callers and tests inspect it), so it used to be detached by
@@ -807,7 +807,7 @@ export function createSimulationRealm(
 
 	/**
 	 * The render window, with the host console captured for its duration
-	 * (LT-180) — the connect this drives is where the library's own
+	 *  — the connect this drives is where the library's own
 	 * containment reports, and that report is the build's only signal that
 	 * a component degraded instead of enhancing.
 	 *
@@ -837,20 +837,20 @@ export function createSimulationRealm(
 	let disposal: Promise<void> | null = null
 
 	/**
-	 * Tear down the last render's tree, then retire the realm (LT-411).
+	 * Tear down the last render's tree, then retire the realm .
 	 *
-	 * Until LT-411 `dispose()` went straight to `window.close()`, which tore
+	 * Until  `dispose()` went straight to `window.close()`, which tore
 	 * the last render's tree down AFTER the build report was computed and
 	 * with the patch table already gone: whatever its disconnect did was
 	 * uncaptured, unattributed, or — for a cleanup reading a free global
 	 * like `window` — an error against the deleted globals. That is the
-	 * shape LT-335 fixed between renders; this is the same teardown, given
+	 * shape  fixed between renders; this is the same teardown, given
 	 * the same treatment at end-of-process. `settlePreviousRender()` runs
 	 * FIRST, with `currentComponent` still naming the last render and the
 	 * globals still in place, under a host-console capture like any render
 	 * window; only then are the rejection handler retired, the realm's
 	 * timers cancelled (catching ones the disconnect itself scheduled —
-	 * LT-207's guarantee, extended to the final teardown), the globals
+	 * the ticket's guarantee, extended to the final teardown), the globals
 	 * restored, and the window closed.
 	 *
 	 * Idempotent: a second call returns the first disposal's promise. The

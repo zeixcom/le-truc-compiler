@@ -1,8 +1,8 @@
 /**
- * The single home of the reactive-lift rule (LT-051): the predicate deciding
+ * The single home of the reactive-lift rule (): the predicate deciding
  * WHETHER A TEMPLATE CHILD IS REACTIVE — and of the dependency closure
- * lowering records beside every template expression's class (ADR 0040 s7,
- * LT-373). Lowering asks here once; every later stage reads the recorded
+ * lowering records beside every template expression's class (ADR 0018 s7,
+ * ). Lowering asks here once; every later stage reads the recorded
  * `reactivity`/`deps` instead of asking again. Sibling of `evaluability.ts`, which
  * decides what the SERVER renders — the two questions are independent (a
  * reactive child may still have a server-known initial value, and a static
@@ -64,7 +64,7 @@ export type LiftVerdict =
 
 /**
  * Does this template expression name a server arg that is ALSO an
- * exposed prop (LT-122)? Returns the shared name, or `null`.
+ * exposed prop ()? Returns the shared name, or `null`.
  *
  * That coincidence is the children-are-data contract written out: the
  * component receives `label` as a server arg, renders it into its own
@@ -73,7 +73,7 @@ export type LiftVerdict =
  * The site is therefore three things at once, and each spelling on its
  * own only covers part of it — `{label}` renders but never rebinds,
  * `{host.label}` rebinds but renders empty, which is what pushed
- * LT-092 into duplicating the value onto a host attribute.
+ *  into duplicating the value onto a host attribute.
  *
  * A declared SIGNAL of the same name is excluded: a signal already
  * owns a render site and a harvest plan (`analysis/harvest.ts`), and
@@ -205,11 +205,11 @@ export const NO_DEPS: DependencyClosure = {
 const sorted = (names: Iterable<string>): string[] => [...new Set(names)].sort()
 
 /**
- * The dependency closure of one template expression (ADR 0040 s7): the
+ * The dependency closure of one template expression (ADR 0018 s7): the
  * declared signals and server args it references and the `host.<prop>`
  * members it reads, each free in `expr` — a name a nested thunk's parameter
  * or a local declaration shadows is not a dependency (`forEachFreeIdentifier`,
- * LT-231's one scope walk). `hostProp` adds an LT-122 site's bound prop.
+ * the ticket's one scope walk). `hostProp` adds an  site's bound prop.
  */
 export const dependencyClosure = (
 	expr: AstNode,
@@ -254,9 +254,9 @@ export const withBound = (
 ): DependencyClosure => ({ ...deps, bound: sorted([...deps.bound, ...names]) })
 
 /**
- * An attribute's reactivity class (ADR 0040 s7), projected from the
+ * An attribute's reactivity class (ADR 0018 s7), projected from the
  * variant lowering chose — the variant IS the class, so this reads the
- * record and never the expression. A `server` attribute with LT-122's
+ * record and never the expression. A `server` attribute with the's
  * `bindsProp` is `reactive`: the client binds `() => host.<bindsProp>`
  * against it — the same rule as an arg-and-prop text child. `null` for the
  * kinds that carry no template value: an event handler, a `truc:pass`
@@ -269,7 +269,7 @@ export const attributeReactivity = (
 		case 'static':
 		case 'reactive':
 			return attr.kind
-		// A handler-arg placement (LT-461) renders nothing and binds nothing
+		// A handler-arg placement () renders nothing and binds nothing
 		// in the component itself — the composing parent addresses it.
 		case 'handler-arg':
 			return 'static'

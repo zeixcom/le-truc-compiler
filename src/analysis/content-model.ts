@@ -1,5 +1,5 @@
 /**
- * The content model (ADR 0048 s4, LT-477): a child may declare its passed
+ * The content model (ADR 0026 s4): a child may declare its passed
  * `children` non-interactive — `Children<Roles, 'non-interactive'>` — and a
  * compose site of that child refuses interactive content: a literal element
  * among the site's literal children, or a composed child whose own template
@@ -54,7 +54,7 @@ const staticAttr = (
 /* === Exported Functions === */
 
 /**
- * How `element` is interactive content (ADR 0048 s4), spelled for the
+ * How `element` is interactive content (ADR 0026 s4), spelled for the
  * message — `<button>`, `<a href>`, `<div tabindex>` — or null when it is
  * not. An attribute that decides and is bound dynamically counts as
  * present; an `input` is interactive unless its `type` is the literal
@@ -87,7 +87,7 @@ export const interactiveDescribeOf = (element: ElementNode): string | null => {
 
 /**
  * Whether `source`'s component renders interactive content — its own
- * template, or one of its own composed children's, transitively (ADR 0048
+ * template, or one of its own composed children's, transitively (ADR 0026
  * s4). The registry-aware pass records the direct half on the entry
  * (`interactive`); this closure reads it off the entries and follows the
  * composed references in `renderedShapes`, so a compose-graph cycle stops
@@ -114,7 +114,7 @@ export const interactiveBySource = (
  * Whether the component's own template renders interactive content (ADR
  * 0048 s4) — the value of its registry entry's `interactive` flag. The walk
  * enters compose content: markup the component passes at its own compose
- * sites is its own markup (ADR 0048 s1), rendered in its output. At the
+ * sites is its own markup (ADR 0026 s1), rendered in its output. At the
  * compose node itself the child's entry is consulted first — the child's
  * own template, transitively — and the walk then continues into the passed
  * content. What a parent passes TO this component is never part of its
@@ -136,7 +136,7 @@ export const templateInteractiveOf = (
 
 /**
  * The first interactive finding among a compose site's literal children
- * (ADR 0048 s4): an element `interactiveDescribeOf` refuses, or a composed
+ * (ADR 0026 s4): an element `interactiveDescribeOf` refuses, or a composed
  * child whose own template renders interactive content. The walk descends
  * through elements and control-flow arms — content that can render inside
  * the site — but not through a nested compose site's content: what this

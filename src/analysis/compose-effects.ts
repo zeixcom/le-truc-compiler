@@ -1,7 +1,5 @@
 /**
- * Pass 4's compose planning (LT-022; 2026-10-10 split; ADR 0024 sub-design
- * 10, LT-461): `pass={{ }}` entries and handler args on composed elements —
- * the host-scope walk (`planHostComposeHandlers`), the arm-root and in-arm
+ * Pass 4's compose planning, the arm-root and in-arm
  * paths the branch handlers call, the unplanned-handler backstop, the
  * content constructs a site's children carry, and the compose-`id`
  * validation.
@@ -49,7 +47,7 @@ import { reportServerOnlyNames } from './server-only-names'
 /**
  * The context slice compose planning reads — its own fields plus the
  * construct slice the forwarded `emitConstructEffects` call needs. The full
- * pass context satisfies it structurally (ADR 0040 s5).
+ * pass context satisfies it structurally (ADR 0018 s5).
  */
 type ComposeEffectsContext = Pick<
 	EffectsContext,
@@ -78,7 +76,7 @@ type ComposeEffectsContext = Pick<
 >
 
 /**
- * A compose site's `truc:pass` object as comparable text (LT-319): the
+ * A compose site's `truc:pass` object as comparable text (): the
  * prop set in sorted order, each get/set thunk's source with whitespace
  * collapsed. Textual identity only — no semantic equivalence.
  */
@@ -101,7 +99,7 @@ export const ownHandlersOf = (node: ComposeNode) =>
 	)
 
 /**
- * A compose site's handler args (LT-461): one `on()` per placement the
+ * A compose site's handler args (): one `on()` per placement the
  * child's registry entry publishes for the arg, resolved across forwards,
  * against the site's selector joined with the placement's. `prefix` is the
  * site's selector in the scope that queries it (`''` when the scope root is
@@ -111,7 +109,7 @@ export const ownHandlersOf = (node: ComposeNode) =>
  * client names, and its `{ prop: value }` return updates the parent's host,
  * as for any handler the parent authors. A forward (`<Inner onClick=
  * {onClick} />`) binds nothing here — it is the child's half of the record.
- * Registry-discovery tolerance (LT-015): no `composeRegistry`, no plan.
+ * Registry-discovery tolerance (): no `composeRegistry`, no plan.
  */
 export const planComposeHandlers = (
 	fx: ComposeEffectsContext,
@@ -157,7 +155,7 @@ export const planComposeHandlers = (
 
 /**
  * A compose site's selector within `scope` — the child's tag plus the
- * clause `composeSiteAddress` proves (LT-498) — or the LTC007 refusal's
+ * clause `composeSiteAddress` proves () — or the LTC007 refusal's
  * message, worded for `need` and the scope word (`template`, `arm`, the
  * list's item word).
  */
@@ -186,7 +184,7 @@ export const composeSiteSelector = (
 }
 
 /**
- * The backstop for handler args (LT-461): a compose site whose handler no
+ * The backstop for handler args (): a compose site whose handler no
  * scope's walk planned — inside a server-rendered branch of an arm, or a
  * server-data loop in an item — is refused rather than dropped. Skipped once an error is on record: the
  * walk that would have planned the site may have stopped at it.
@@ -220,7 +218,7 @@ export const reportUnplannedHandlers = (fx: ComposeEffectsContext): void => {
 }
 
 /**
- * Host-scope handler args (LT-461): every compose site the host's own walk
+ * Host-scope handler args (): every compose site the host's own walk
  * reaches — through elements and server-rendered branches, whose sites the
  * render may leave out (a non-throwing query) — binds its handlers through
  * factory queries. Arms and reactive-list items bind theirs in their own
@@ -313,17 +311,17 @@ export const planHostComposeHandlers = (fx: ComposeEffectsContext): void => {
  * 0024 sub-design 10). The query's selector is always the compiler's own:
  * the child's tag from the registry, plus — when this template composes
  * the same child more than once — a static `class`/`id`/`data-*` that
- * uniquely tells the site apart (`composeDiscriminatorClause`, LT-089;
+ * uniquely tells the site apart (`composeDiscriminatorClause`;
  * three `<FormSpinbutton class="lightness"|"chroma"|"hue">` instances,
- * say). Those attributes reach the served DOM by invariant (LT-090,
- * LT-320), which is what makes the site addressable at all.
+ * say). Those attributes reach the served DOM by invariant (
+ * ), which is what makes the site addressable at all.
  *
  * An author `first()` matching the site (the synthetic `ref` attr
- * `analysis/compose-refs.ts` attaches, LT-127) names the query and
+ * `analysis/compose-refs.ts` attaches) names the query and
  * carries its required-reason text; a bare reference with no `pass` still
  * needs the query so the name resolves in the factory. A `pass` site with
  * no matching `first()` is named after the child tag, the same fallback
- * raw custom elements get (LT-338).
+ * raw custom elements get ().
  */
 export const emitComposeEffects = (
 	fx: ComposeEffectsContext,
@@ -331,7 +329,7 @@ export const emitComposeEffects = (
 ): void => {
 	const { source, diagnostics, addQuery, composeRefs } = fx
 	// Compose resolution is `skipped` during the corpus-wide registry-
-	// discovery pass (compileComponent's own tolerance, LT-015). Nothing
+	// discovery pass (compileComponent's own tolerance). Nothing
 	// below it can run then — the child's tag isn't resolvable. That pass
 	// needs only this component's OWN registry entry.
 	if (composeRefs.mode === 'skipped') return
@@ -359,7 +357,7 @@ export const emitComposeEffects = (
 		)
 		return
 	}
-	// LT-496/LT-498: a raw element of the child's tag — in a list item, an
+	// LT-496/: a raw element of the child's tag — in a list item, an
 	// arm or a compose site's content — matches the host-level query as
 	// well, and so does one another composed child renders: the first
 	// counts against the site's uniqueness, the second is excluded.
@@ -368,7 +366,7 @@ export const emitComposeEffects = (
 		lone: countComposeBySource(fx, node.source) === 1,
 		shared: !refAttr,
 	})
-	// LT-319: sites that share a clause and carry textually identical
+	//: sites that share a clause and carry textually identical
 	// `truc:pass` objects lower to ONE `pass(all(selector), …)`, emitted at
 	// the group's first site; the other members add nothing. An author
 	// `first()` is never part of this: a selector matching several sites is
@@ -418,7 +416,7 @@ export const emitComposeEffects = (
 }
 
 /**
- * An arm root compose site's rendered tag (LT-460): the child's registry
+ * An arm root compose site's rendered tag (): the child's registry
  * tag, or the authored component name while compose resolution is skipped
  * (the registry-discovery pass, which plans nothing against the site).
  */
@@ -431,7 +429,7 @@ export const composeArmRootTag = (
 		: node.component
 
 /**
- * A compose site as an arm root carrying client addressing (LT-481): its
+ * A compose site as an arm root carrying client addressing (): its
  * `truc:pass` entries plan as `pass()` effects in the arm's mount against
  * the arm element parameter — the arm root IS the child's rendered
  * element, so no query or local is minted. Same entry lowering as a
@@ -439,8 +437,8 @@ export const composeArmRootTag = (
  * `emitPassEntries`, no fork. A `first()` on the site stays refused — the
  * arm is adopted or cloned afresh on every flip, so a connect-time
  * reference goes stale, the same trap the reactive-list item walk refuses
- * (LT-423) — while an ambiguous `first()` keeps LTC027 as its one
- * diagnostic. Registry-discovery tolerance (LT-015): that pass has no
+ * () — while an ambiguous `first()` keeps LTC027 as its one
+ * diagnostic. Registry-discovery tolerance (): that pass has no
  * `composeRegistry` and needs only this component's own entry, so a site
  * it cannot resolve says nothing. `where` names the arm set in the
  * refusal's subject.
@@ -477,7 +475,7 @@ export const planArmRootComposePass = (
 				"The arm is adopted or cloned afresh on every flip, so a reference taken at connect goes stale — pass the child its props with `truc:pass` instead: its entries plan in the arm's mount.",
 			),
 		)
-	// Handler args (LT-461): the arm root IS the child's element, so each
+	// Handler args (): the arm root IS the child's element, so each
 	// placement's own selector queries from it through the arm's `first`.
 	planComposeHandlers(
 		fx,
@@ -512,7 +510,7 @@ export const planArmRootComposePass = (
 }
 
 /**
- * A compose site inside an arm, below its root (LT-461): its handler args
+ * A compose site inside an arm, below its root (): its handler args
  * bind in the arm's mount through arm locals, the site addressed within
  * the arm root. A `first()` or `truc:pass` on such a site is refused by the
  * arm-shape check (`unmountableInArm`); a handler is the per-arm channel.
@@ -563,11 +561,11 @@ export const planArmComposeHandlers = (
 }
 
 /**
- * The client constructs a compose site's content carries (ADR 0048 s1):
+ * The client constructs a compose site's content carries (ADR 0026 s1):
  * the content is this scope's markup, rendered into the child's Children
  * Region, so its `first()` references query from here, and a reactive
  * `truc:html` on one of its elements is the parent's own sanitized binding
- * (LT-492) — planned exactly like an element of the template proper: one
+ * () — planned exactly like an element of the template proper: one
  * query under the reference's name when the author addressed the element,
  * else the tag's, and the shared construct emission (the watch-html sink).
  * References without the attribute keep today's query-only shape; a
@@ -613,14 +611,14 @@ export const planContentConstructs = (
 }
 
 /**
- * LT-090: a static `id` on a compose site materializes on that
+ * A static `id` on a compose site materializes on that
  * instance's host element (`composeHostAttrs`) — duplicated across
  * sites it is two elements sharing an id in the same rendered
  * document, invalid HTML, and id-based addressing resolves to at most
  * one of them. Template-cloned arms keep the same property by
- * structure: only the winning arm is ever in the document (ADR 0037
+ * structure: only the winning arm is ever in the document (ADR 0015
  * s4), so only compose sites can collide. Shares nothing with effect
- * planning — a standalone validation (LT-226), like the front end's
+ * planning — a standalone validation (), like the front end's
  * post-lowering tail.
  */
 export const validateComposeIds = (fx: ComposeEffectsContext): void => {

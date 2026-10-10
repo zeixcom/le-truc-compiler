@@ -1,5 +1,5 @@
 /**
- * The authored-surface vocabulary (LT-233; ADR 0032 sub-design 6 — the two
+ * The authored-surface vocabulary (LT-233; ADR 0010 sub-design 6 — the two
  * surfaces render identically AND diagnose identically).
  *
  * Every diagnostic fragment that names an authored spelling lives here, one
@@ -18,7 +18,7 @@
  * never names a `.tsrx` directive.
  */
 
-/** The two authored surfaces (closed set, ADR 0032 s6). */
+/** The two authored surfaces (closed set, ADR 0010 s6). */
 export type Surface = 'tsrx' | 'tsx'
 
 export type SurfaceWording = {
@@ -76,7 +76,7 @@ export type SurfaceWording = {
 	/** One switch arm's test keyword, as in "a … value". */
 	caseLabel: string
 
-	/* --- reactive conditions (ADR 0037) --- */
+	/* --- reactive conditions (ADR 0015) --- */
 	/** A condition that reads a signal, as a sentence subject. */
 	reactiveConditional: string
 

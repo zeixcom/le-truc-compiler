@@ -2,7 +2,7 @@
  * Template lowering for `.tsrx` sources: `@if`/`@switch`/`@try`/`@for` →
  * `TemplateNode` IR. The surface-independent core — condition validation,
  * element/compose lowering, the expression-child lift rule, positional
- * reactivity — lives in `lower-shared.ts` (LT-202, ADR 0032 sub-design 6's
+ * reactivity — lives in `lower-shared.ts` (ADR 0010 sub-design 6's
  * anti-drift contract); this module owns the grammar's control-flow
  * DIRECTIVES and their dispatch. Mutually recursive by nature (an element's
  * children may themselves be control-flow directives or nested elements),
@@ -46,7 +46,7 @@ import type { IfNode, SwitchNode } from '../../walk'
 /**
  * Lower an `@if` directive: a server-known condition (args, setup names,
  * globals) picks its branch at render time; one that reads a signal or
- * `host` switches template-cloned branches on the client (ADR 0037).
+ * `host` switches template-cloned branches on the client (ADR 0015).
  * Branch bodies lower like any children; the analysis decides how the
  * client addresses them.
  */
@@ -217,16 +217,16 @@ const lowerBodyStatements = (
  * - No `@pending` arm: a render-time error boundary — the server renders the
  *   body inside a real try/catch, so a throwing server expression falls back
  *   to the catch arm; mutually exclusive, like `@switch`.
- * - A `@pending` arm present: an ASYNC BOUNDARY (ADR 0024 sub-design 13,
- *   LT-012) — `@try`/`@pending`/`@catch` route on `isPending(signal)` against
+ * - A `@pending` arm present: an ASYNC BOUNDARY (ADR 0005 sub-design 13,
+ *   ) — `@try`/`@pending`/`@catch` route on `isPending(signal)` against
  *   the ONE async-derived signal (`deriveCell(async …)`) the body renders.
  *   The arm that won at render time renders live and every arm ships as an
  *   inert template (each needs exactly one root element); the client
- *   switches arms as the task settles (ADR 0037 s4, LT-276).
+ *   switches arms as the task settles (ADR 0015 s4).
  *
  * `@finally` is gated outright in both modes. The grammar has no stale arm
  * and never will — the four-arm `.tsx` spelling that briefly added one was
- * withdrawn by the owner (LT-211): a re-fetching state has no arm, only the
+ * withdrawn by the owner (): a re-fetching state has no arm, only the
  * reactive `isPending` idiom beside the boundary. Both surfaces now lower
  * the same three-arm shape.
  */
@@ -269,7 +269,7 @@ export const lowerTry = (
 				ctx.source,
 				node,
 				'A `@pending` arm without a `@catch (e)` arm',
-				'An async boundary routes the pending, resolved and error states together (ADR 0024 sub-design 13) — add a `@catch (e)` arm.',
+				'An async boundary routes the pending, resolved and error states together (ADR 0005 sub-design 13) — add a `@catch (e)` arm.',
 			),
 		)
 		return null
@@ -291,7 +291,7 @@ export const lowerTry = (
  * Lower template children into IR. `&{expr}` arrives from the parser as a
  * `JSXText("&")` node immediately preceding a `JSXExpressionContainer` —
  * the sigil is detected by that adjacency. A plain `{expr}` child lifts to
- * reactive by analysis instead (LT-051, `reactivity.ts`).
+ * reactive by analysis instead (`reactivity.ts`).
  */
 export const lowerChildren = (
 	ctx: ExtractContext,
@@ -301,7 +301,7 @@ export const lowerChildren = (
 ): TemplateNode[] =>
 	lowerChildrenSkeleton(ctx, parent, signals, fors, TSRX_LOWERING, {
 		onText: (ctx, child, next) => {
-			// The retired `&{expr}` lazy child (LT-052). `&{`/`&[` are TSRX's
+			// The retired `&{expr}` lazy child (). `&{`/`&[` are TSRX's
 			// lazy DESTRUCTURING introducers and live in binding position;
 			// there is no `&{}` template-child form. The compiler never got a
 			// lazy node from the parser for this — it matched a `JSXText`
@@ -393,7 +393,7 @@ export const lowerComposeElement = (
 	lowerComposeElementShared(ctx, element, tag, signals, fors, TSRX_LOWERING)
 
 /**
- * Lower a `@for`'s `@empty { … }` arm (LT-212): `null` when the loop has
+ * Lower a `@for`'s `@empty { … }` arm (): `null` when the loop has
  * none, `false` when the arm was diagnosed (the loop is dropped).
  */
 const lowerEmptyArm = (
@@ -415,7 +415,7 @@ const lowerEmptyArm = (
  * into a `LoopSource`; `lowerLoop` (shared) routes and validates the rest.
  *
  * An `@try` statement in the body is the `.tsrx` twin of `.tsx`'s
- * `<truc:try>` map-body guard (LTC053, LT-358a): the loop body's root is
+ * `<truc:try>` map-body guard (LTC053): the loop body's root is
  * what the client addresses each item through, so a boundary there is
  * refused by name rather than left to the generic "statement other than
  * the output element" rule, whose fix is wrong for a boundary. An `@try`

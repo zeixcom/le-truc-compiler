@@ -1,6 +1,6 @@
 /**
- * Dual-corpus runner tests (LT-202, ADR 0032 sub-design 6; variant sets per
- * ADR 0039, LT-283): the corpus globs `.tsrx` AND `.tsx` into one registry,
+ * Dual-corpus runner tests (ADR 0010 sub-design 6; variant sets per
+ * ADR 0017): the corpus globs `.tsrx` AND `.tsx` into one registry,
  * the front end chosen per file by extension. A folder-local VARIANT SET —
  * one authored source per surface, one base name, one directory — is the
  * legal multi-source shape: every member compiles, the set's CSS must agree
@@ -62,7 +62,7 @@ const SYNC_EL = 'tests/fixtures/tsx/sync/sync-el.tsx'
 // below must compile clean for the variant-set serving to mean anything.
 // The CSS spelling mirrors the parity fixtures' proven pair: plain
 // `<style>` on `.tsrx`, the `css` tag inside `<style>` on `.tsx`, identical
-// inner text, so equal authored CSS compiles byte-identical (ADR 0039).
+// inner text, so equal authored CSS compiles byte-identical (ADR 0017).
 const DIR = 'examples/dual-corpus-tmp'
 const VAR_TSX = `${DIR}/var-el.tsx`
 const VAR_TSRX = `${DIR}/var-el.tsrx`
@@ -110,7 +110,7 @@ const configAt = (
 	overrides?: Partial<CorpusConfig>,
 ): CorpusConfig => ({ ...REPO_CONFIG, outDir, ...overrides })
 
-describe('dual corpus (ADR 0032 sub-design 6, narrowed by ADR 0039)', () => {
+describe('dual corpus (ADR 0010 sub-design 6, narrowed by ADR 0017)', () => {
 	test('a .tsx source compiles through the corpus runner end to end', async () => {
 		const outDir = path.join(scratch.path, 'single')
 		const spanInfos = await compileCorpus([fileInfo(SYNC_EL)], outDir)
@@ -173,14 +173,14 @@ describe('dual corpus (ADR 0032 sub-design 6, narrowed by ADR 0039)', () => {
 			expect(internal['sync-el']).toHaveProperty(field)
 	})
 
-	test('a folder-local .tsrx + .tsx variant set compiles clean and serves the selected surface (ADR 0039)', async () => {
+	test('a folder-local .tsrx + .tsx variant set compiles clean and serves the selected surface (ADR 0017)', async () => {
 		// Both members in memory under one directory — nothing is written
 		// into examples/ (a real file there would race every concurrent
 		// corpus glob, including the other tests').
 		const outDir = path.join(scratch.path, 'variant-set')
 		const spanInfos = await compileCorpus(variantSet(), outDir)
 		// One registry entry per tag, naming the SELECTED member — `.tsx` is
-		// the default served surface (ADR 0032's default, by rule).
+		// the default served surface (ADR 0010's default, by rule).
 		expect(spanInfos).toHaveLength(1)
 		expect(spanInfos[0]?.tag).toBe('var-el')
 		expect(spanInfos[0]?.source).toBe(VAR_TSX)
@@ -260,7 +260,7 @@ describe('dual corpus (ADR 0032 sub-design 6, narrowed by ADR 0039)', () => {
 	})
 
 	test('the non-selected member keeps its client under variants/ (LT-284)', async () => {
-		// ADR 0039 decision 2's runtime equivalence contract: the component
+		// ADR 0017 decision 2's runtime equivalence contract: the component
 		// test route serves EACH compiled surface, so the corpus compile
 		// keeps the non-selected member's client at
 		// `variants/<tag>.<surface>.client.ts` — never a canonical name, so
@@ -384,7 +384,7 @@ describe('dual corpus (ADR 0032 sub-design 6, narrowed by ADR 0039)', () => {
 			compileCorpus(
 				// Identical sheets, but only the .tsx member renders a custom
 				// element. LTC051 compared the derived boundary sets before
-				// LT-501; the emission now adds none, so nothing drifts.
+				// ; the emission now adds none, so nothing drifts.
 				[
 					memoryFile(VAR_TSRX, varTsrx('display: block')),
 					memoryFile(VAR_TSX, varTsx('display: block', '<x-extra></x-extra>')),
@@ -423,7 +423,7 @@ describe('dual corpus (ADR 0032 sub-design 6, narrowed by ADR 0039)', () => {
 		expect(message).toContain('`sync-el`')
 	})
 
-	test('a cross-folder .tsrx + .tsx pair is NOT a variant set — LTC048 names both (ADR 0039)', async () => {
+	test('a cross-folder .tsrx + .tsx pair is NOT a variant set — LTC048 names both (ADR 0017)', async () => {
 		const twinRel = `${DIR}/sync-el.tsrx`
 		const twin = memoryFile(
 			twinRel,
@@ -444,10 +444,10 @@ describe('dual corpus (ADR 0032 sub-design 6, narrowed by ADR 0039)', () => {
 	// "mixed corpus compiles clean" re-run here only adds process time —
 	// bun shares one module registry across test files, and the extra wall
 	// time shifted a pre-existing stray dependency-timeout window onto this
-	// file in the first full-suite run (see NOTES.md, LT-202).
+	// file in the first full-suite run (see NOTES.md).
 })
 
-// The three-spelling exemplar (LT-285, the LT-238 exit criterion): the REAL
+// The three-spelling exemplar (the  exit criterion): the REAL
 // basic-counter folder carries the hand-written `.ts` twin beside its
 // `.tsrx` and `.tsx` spellings — the pins above, proven against the live set.
 const COUNTER_DIR = 'examples/basic/counter'
@@ -455,8 +455,8 @@ const COUNTER_TS = `${COUNTER_DIR}/basic-counter.ts`
 const COUNTER_TSRX = `${COUNTER_DIR}/basic-counter.tsrx`
 const COUNTER_TSX = `${COUNTER_DIR}/basic-counter.tsx`
 
-describe('basic-counter three-spelling variant set (LT-285, ADR 0039)', () => {
-	test('the folder carries all three spellings; every member declares the tag map (ADR 0039 s4)', () => {
+describe('basic-counter three-spelling variant set (LT-285, ADR 0017)', () => {
+	test('the folder carries all three spellings; every member declares the tag map (ADR 0017 s4)', () => {
 		for (const rel of [COUNTER_TS, COUNTER_TSRX, COUNTER_TSX])
 			expect(fs.existsSync(path.resolve(ROOT, rel))).toBe(true)
 		const declaresMap = (rel: string) =>
@@ -464,7 +464,7 @@ describe('basic-counter three-spelling variant set (LT-285, ADR 0039)', () => {
 				fs.readFileSync(path.resolve(ROOT, rel), 'utf8'),
 			)
 		// Whichever member is served, its generated client carries the entry
-		// a composing parent types through (LT-237 amendment).
+		// a composing parent types through ( amendment).
 		expect(declaresMap(COUNTER_TS)).toBe(true)
 		expect(declaresMap(COUNTER_TSRX)).toBe(true)
 		expect(declaresMap(COUNTER_TSX)).toBe(true)
@@ -512,7 +512,7 @@ describe('basic-counter three-spelling variant set (LT-285, ADR 0039)', () => {
 	})
 
 	test('the retained twin still seeds the sibling-module map (review rider b)', () => {
-		// The twin keeps seeding tag knowledge; LT-291 only stops a COMPILED
+		// The twin keeps seeding tag knowledge;  only stops a COMPILED
 		// tag's child import from resolving to it (see the pins below).
 		expect(collectSiblingModules(REPO_CONFIG).get('basic-counter')).toEndWith(
 			'examples/basic/counter/basic-counter',
@@ -520,7 +520,7 @@ describe('basic-counter three-spelling variant set (LT-285, ADR 0039)', () => {
 	})
 })
 
-// LT-291 (ADR 0039): a compiled parent referencing a tag whose variant set
+//  (ADR 0017): a compiled parent referencing a tag whose variant set
 // retains its hand-written `.ts` twin registers the SERVED surface — the
 // generated client — never the twin, which `examples/main.ts` does not
 // import. In memory, like the pins above.

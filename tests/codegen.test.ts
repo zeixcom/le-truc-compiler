@@ -1,5 +1,5 @@
 /**
- * The shared code-generation kit (LT-234): `jsString`/`jsTemplate`,
+ * The shared code-generation kit (): `jsString`/`jsTemplate`,
  * `HtmlWriter`, `CodeBuilder`, `commonIndent`, and the server emitter's
  * reserved-name policy — a render-scope name equal to a local the emitter
  * mints (`__html`, …) renames the minted local instead of shadowing it.

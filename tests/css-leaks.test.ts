@@ -1,6 +1,6 @@
 /**
  * The compiler's knowledge of composed children as stylesheet warnings
- * (ADR 0033 s5, LT-502): LTC087 at a downward leak into a composed child's
+ * (ADR 0011 s5): LTC087 at a downward leak into a composed child's
  * own markup, LTC088 at a top-level rule the component's tag does not
  * contain. Both are tier 2 Contained warnings: the CSS ships as authored.
  */
@@ -106,7 +106,7 @@ const codes = (diagnostics: CompileDiagnostic[]) => diagnostics.map(d => d.code)
 
 /* === LTC087: downward leak === */
 
-describe('LTC087 — a scoped rule reaching into a composed child (ADR 0033 s5)', () => {
+describe('LTC087 — a scoped rule reaching into a composed child (ADR 0011 s5)', () => {
 	test("a rule on the child's internal class leaks, and the message names rule, child and fix", () => {
 		const warnings = parentWarnings(
 			'<ChildEl />',
@@ -150,7 +150,7 @@ describe('LTC087 — a scoped rule reaching into a composed child (ADR 0033 s5)'
 		).toEqual([])
 	})
 
-	test('no leak into content the component passes as children (ADR 0048 s5)', () => {
+	test('no leak into content the component passes as children (ADR 0026 s5)', () => {
 		expect(
 			parentWarnings(
 				'<ChildEl><em class="mine">{\'Mine\'}</em></ChildEl>',
@@ -287,7 +287,7 @@ export function ParentEl({}: {})
 
 /* === LTC088: unscoped rule === */
 
-describe('LTC088 — a top-level rule the tag does not contain (ADR 0033 s5)', () => {
+describe('LTC088 — a top-level rule the tag does not contain (ADR 0011 s5)', () => {
 	test('an unscoped `.x` warns; `parent-el .x` does not', () => {
 		const warnings = parentWarnings(
 			'<p class="x">{\'X\'}</p>',

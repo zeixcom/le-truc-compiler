@@ -1,8 +1,8 @@
 /**
- * LT-379 — the permanent differential pin for the materialized-probe
+ *  — the permanent differential pin for the materialized-probe
  * selector engine ([ADR
- * 0045](../../../adr/0045-structural-uniqueness-proof-runs-on-a-materialized-probe.md)).
- * Production answers (`analysis/selectors.ts`, probe-backed since LT-379)
+ * 0045](../adr/0023-the-structural-uniqueness-proof-runs-on-a-materialized-probe.md)).
+ * Production answers (`analysis/selectors.ts`, probe-backed since )
  * are compared against the hand cascades the probe replaced, embedded below
  * as the reference implementation: they are the gold standard the LT-245
  * spike proved the probe against, and any future engine change that shifts
@@ -16,8 +16,8 @@
  * LT-517: the synthetic registry handed to `composedShapesFor` is keyed by
  * the path compose nodes carry — the filename each component was compiled
  * with, the same repo-relative key `compileCorpus` registers entries under.
- * (It was keyed by the source TEXT until LT-517, so every lookup missed and
- * the composed leg agreed trivially since LT-379.) The corpus leg guards
+ * (It was keyed by the source TEXT until , so every lookup missed and
+ * the composed leg agreed trivially since .) The corpus leg guards
  * non-vacuity: at least one compose lookup must hit a registered entry with
  * a known tag.
  *
@@ -30,8 +30,8 @@
  *   (compose nodes compared by identity).
  *
  * The ONE designed divergence class — HTML5 tree correction — is pinned
- * separately at the bottom (the `<p><div>` reparse, and since LT-382 the
- * `<tbody>` a `<table>` of bare `<tr>` rows implies): the probe is browser-faithful (ADR 0045
+ * separately at the bottom (the `<p><div>` reparse, and since  the
+ * `<tbody>` a `<table>` of bare `<tr>` rows implies): the probe is browser-faithful (ADR 0023
  * Decision 2), so content-model-violating nesting counts what the browser
  * builds, not what the authored nesting says. The reference walks the IR
  * and believes the authored nesting. Valid authoring diverges only by an
@@ -104,7 +104,7 @@ const refCountForSelector = (node: TemplateNode, selector: string): number => {
 			),
 		)
 	if (node.kind === 'try')
-		// One arm in the document at a time (ADR 0037 s4, LT-276): an async
+		// One arm in the document at a time (ADR 0015 s4): an async
 		// boundary's other arms are template content.
 		return Math.max(
 			...[
@@ -123,10 +123,10 @@ const refCountForSelector = (node: TemplateNode, selector: string): number => {
 }
 
 /**
- * The region probe's hand cascade (LT-517, mirror of
+ * The region probe's hand cascade (mirror of
  * `probeCountWithRegions`): `refCountForSelector` with every compose site's
  * content entered — the content is the composing component's own markup
- * (ADR 0048 s1), materialized in place at the site. The count for an
+ * (ADR 0026 s1), materialized in place at the site. The count for an
  * element inside a Children Region, whose emitted query re-includes the
  * owner's regions.
  */
@@ -249,7 +249,7 @@ const refBuildSelector = (
 
 /**
  * Precision of a synthesized base among exclusion-decorated candidates
- * (LT-520, the mirror of `PRECISION`): a `role` clause keeps its first
+ * (the mirror of `PRECISION`): a `role` clause keeps its first
  * place as the element's semantic contract, an `id` names one element
  * outright, a `class`/`data-*` clause is the author's addressing hook, and
  * the bare tag — with `type` and `aria-*`, which keep their candidate-order
@@ -321,7 +321,7 @@ const refEnclosingComposeOf = (
 }
 
 /**
- * The region-form exclusion (LT-517, mirror of `excludeUnlessOwned`):
+ * The region-form exclusion (mirror of `excludeUnlessOwned`):
  * `base` narrowed by `:not(<tag> *)` per clashing composed child, except
  * inside a region `owner` owns — where only the terms rebased on the
  * region still exclude.
@@ -395,7 +395,7 @@ const refSelectorCandidates = (
 				child.shapes.some(
 					// The `children` shape is the passed content, not the child's
 					// markup: a clash only for a target in the template proper
-					// (LT-512, owner ruling 2026-10-09) — for a region-content
+					// (owner ruling 2026-10-09) — for a region-content
 					// target the count is the region probe and the region-form
 					// exclusion's re-include re-admits it.
 					shape =>
@@ -455,7 +455,7 @@ const refResolveSelectorIn = (
 ): { selector: string; unique: boolean } => {
 	const { list, excluded } = refSelectorCandidates(tree, element, composed)
 	// A region-content target's count is the region probe: compose-site
-	// content is materialized at the site (LT-517, mirror of
+	// content is materialized at the site (mirror of
 	// `selectorCandidates`' `probeCountWithRegions` branch).
 	const countOf = refEnclosingComposeOf(tree, element)
 		? refCountWithRegions
@@ -573,11 +573,11 @@ const compareResolved = (
 type Compiled = { path: string; component: ComponentIR }
 
 const runDifferential = (compiled: readonly Compiled[]): void => {
-	// LT-517: keyed by the path compose nodes carry — the filename each
+	//: keyed by the path compose nodes carry — the filename each
 	// component was compiled with, resolved exactly the way
 	// `scripts/build-corpus.ts` (via `compileCorpus`) resolves compose
 	// sources and registers entries. Keyed by the source TEXT until
-	// LT-517, so every `composedShapesFor` lookup missed on both sides and
+	// , so every `composedShapesFor` lookup missed on both sides and
 	// each child resolved as unknown markup.
 	const registry: ReadonlyMap<string, InternalRegistryEntry> = new Map(
 		compiled.map(({ path, component: c }) => {
@@ -841,7 +841,7 @@ test('differential pin: hand cascades vs the probe-backed engine over the corpus
 	}
 	expect(compiled.length).toBeGreaterThan(15)
 	runDifferential(compiled)
-	// Non-vacuity (LT-517): the composed comparison is only a pin when the
+	// Non-vacuity : the composed comparison is only a pin when the
 	// registry RESOLVES children — at least one compose lookup must hit a
 	// registered entry with a known tag, or the leg agrees trivially on
 	// unknown markup everywhere.
@@ -951,9 +951,9 @@ export function ProbePending({}: {})
 	}
 import { expose } from '@zeix/le-truc'`,
 	],
-	// LT-382: exclusive arms inside table and select context. HTML tree
+	//: exclusive arms inside table and select context. HTML tree
 	// correction foster-parents an unknown element out of a <table> and
-	// drops it inside a <select>, which defeated LT-379's wrapper elements
+	// drops it inside a <select>, which defeated the ticket's wrapper elements
 	// (the arms summed). The arm path rides each element as an attribute,
 	// so the max rule survives. `<li>` in a `<ul>` is the control.
 	[
@@ -1004,7 +1004,7 @@ export function ProbeTable({ a, mode, data }: { a: boolean; mode: string; data: 
 			</probe-table>
 	}`,
 	],
-	// LT-382: `<tr>` arms directly in a `<table>` — the parser implies a
+	//: `<tr>` arms directly in a `<table>` — the parser implies a
 	// `<tbody>`, so this is pinned SEPARATELY below (the implied element is
 	// browser reality the IR reference cannot see).
 	[
@@ -1089,7 +1089,7 @@ test('differential pin: synthetic switch/try/pending/nested/compose', () => {
 	expect(mismatches).toEqual([])
 
 	// probe-html is pinned SEPARATELY, as the record of the one divergence
-	// class the probe is DESIGNED to introduce (ADR 0045 Decision 2): HTML5
+	// class the probe is DESIGNED to introduce (ADR 0023 Decision 2): HTML5
 	// tree correction. The authored `<p><div>…</div></p>` parses in a
 	// browser (and in parse5) with the div auto-closing the paragraph, and
 	// the implied `</p>` end tag inserts an empty third `<p>` — so a real
@@ -1097,7 +1097,7 @@ test('differential pin: synthetic switch/try/pending/nested/compose', () => {
 	// the browser builds; the reference walks the IR. The corpus never
 	// authors content-model-violating nesting, so this is a
 	// latent-unsoundness note, not a corpus divergence.
-	// LT-382: the table/select arms count by the max rule, explicitly.
+	//: the table/select arms count by the max rule, explicitly.
 	const table = compiled
 		.map(entry => entry.component)
 		.find(c => someNode(c.root, n => isElement(n) && n.tag === 'probe-table'))

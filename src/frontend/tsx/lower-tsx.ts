@@ -1,10 +1,10 @@
 /**
  * The `.tsx` front end's template lowering (LT-183 spike, productionized by
- * LT-202). Everything downstream consumes the same `TemplateNode` IR, so the
- * surface difference lives entirely at the lowering layer (ADR 0032
+ * ). Everything downstream consumes the same `TemplateNode` IR, so the
+ * surface difference lives entirely at the lowering layer (ADR 0010
  * sub-design 2: "adapt at the lowering layer … do not fork IR variants").
  *
- * What is surface-specific here — the control-flow dispatch (ADR 0032
+ * What is surface-specific here — the control-flow dispatch (ADR 0010
  * sub-design 2):
  *
  * - The control-flow DIRECTIVES become JSX expression shapes in child
@@ -13,13 +13,13 @@
  *   reconcile path, decided by the EXISTING analysis, not by syntax); an
  *   IIFE whose body is a `switch` returning JSX per arm → `switch`.
  * - The `@try` family has no honest expression spelling, so it is a
- *   `truc:`-namespaced intrinsic element (ADR 0041): `<truc:try
+ *   `truc:`-namespaced intrinsic element (ADR 0019): `<truc:try
  *   catch={e => …}>` is the error boundary, and a `pending` arm makes it the
  *   async boundary (which arm ships stays a compiler decision; only the
  *   authored shape changed). Every other `truc:*` tag stays LTC053.
  * - Bare statements inside a branch are NOT expressible in JSX child
  *   position — an IIFE arm must return JSX — so `client-stmt` inside a
- *   branch retires with the grammar (ADR 0024 s11 already restricted it).
+ *   branch retires with the grammar (ADR 0005 s11 already restricted it).
  * - The `&{expr}` lazy sigil and the React near-miss diagnostics are gone
  *   with the grammar (TSRX018/020/021–024 retire; the React idioms are the
  *   correct spellings here).
@@ -27,7 +27,7 @@
  * The surface-independent core — condition validation, element/compose
  * lowering, the expression-child lift rule, positional reactivity, and the
  * children skeleton — is SHARED with the `.tsrx` front end through
- * `server/compiler/lower-shared.ts` (LT-202, ADR 0032 sub-design 6's anti-drift
+ * `server/compiler/lower-shared.ts` (ADR 0010 sub-design 6's anti-drift
  * contract). Attribute classification is reused verbatim from
  * `server/compiler/classify-attributes.ts` — it consumes the same estree-shaped
  * JSXAttribute nodes this front end's `to-estree.ts` converter produces.
@@ -77,7 +77,7 @@ const lowerJsxValue = (
 	if (node.type === 'JSXFragment')
 		return lowerChildren(ctx, node, signals, fors)
 	// A PascalCase element is a compose site wherever a JSX value lowers —
-	// an arm root included (LT-460): the boundary and conditional arms take
+	// an arm root included (): the boundary and conditional arms take
 	// the same route an element child list gives a composed element. A
 	// `truc:try` tag is namespaced, so it never reaches this branch.
 	const opening = isNode(node.openingElement) ? node.openingElement : null
@@ -239,7 +239,7 @@ const lowerSwitchIife = (
 /* === @try family → <truc:try pending catch> === */
 
 /**
- * Whether `node` is a `<truc:try>` element (ADR 0041) — the one `truc:*`
+ * Whether `node` is a `<truc:try>` element (ADR 0019) — the one `truc:*`
  * intrinsic this front end lowers. Every other namespaced tag falls through
  * to `lowerElement`, which rejects it with LTC053.
  */
@@ -256,10 +256,10 @@ const isTrucTry = (node: unknown): node is AstNode => {
 }
 
 /**
- * The `.tsx` spelling of `@try`/`@pending`/`@catch` (ADR 0041):
+ * The `.tsx` spelling of `@try`/`@pending`/`@catch` (ADR 0019):
  * `<truc:try catch={e => <jsx/>}>ok</truc:try>` is the error boundary, and
  * adding `pending={<jsx/>}` makes it the async boundary — the winning arm
- * renders live beside the inert arm templates (ADR 0037 s4); which arm
+ * renders live beside the inert arm templates (ADR 0015 s4); which arm
  * SHIPS stays a compiler decision. The children are the success content; the
  * `catch` arrow's parameter is the catch parameter.
  *
@@ -269,7 +269,7 @@ const isTrucTry = (node: unknown): node is AstNode => {
  * never evaluated, so each must be written inline — a JSX element for
  * `pending`, an arrow with a JSX expression body for `catch`.
  *
- * There is no `stale` arm (LT-211): a re-fetching task keeps its `ok`
+ * There is no `stale` arm (): a re-fetching task keeps its `ok`
  * arm, whose content the client never re-renders; the reactive idiom for
  * the in-flight state is an
  * `isPending(signal)` read beside the boundary
@@ -336,7 +336,7 @@ const lowerTrucTry = (
 /* === @for → `.map()` === */
 
 /**
- * The empty-state idiom (LT-212): `{xs.length === 0 ? <empty/> : xs.map(…)}`
+ * The empty-state idiom (): `{xs.length === 0 ? <empty/> : xs.map(…)}`
  * is `.tsx`'s spelling of `@for … @empty`. Recognized by SHAPE, like the
  * switch IIFE: the test compares the map receiver's own `length` to `0`,
  * so the loop and its arm lower together to one `ForIR` with an
@@ -372,7 +372,7 @@ const emptyStateIdiomOf = (
 }
 
 /**
- * Lower the empty-state idiom's arm (LT-212): `null` when the loop has
+ * Lower the empty-state idiom's arm (): `null` when the loop has
  * none, `false` when the arm was diagnosed (the loop is dropped).
  */
 const lowerEmptyArm = (
@@ -429,7 +429,7 @@ const isMapCall = (node: AstNode): boolean => {
  * is the `each()` plan; over a declared `createList` or `deriveList` the
  * reconcile plan — the loop's iterable type, not its spelling, routes it.
  *
- * The callback's second parameter is routed the same way (ADR 0046 s4): the
+ * The callback's second parameter is routed the same way (ADR 0024 s4): the
  * index over an Array, the item's stable key over a List — the `.tsx`
  * spelling of `@for`'s `key k` clause (`items.map((item, k) => …)`).
  */

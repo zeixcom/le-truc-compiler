@@ -1,18 +1,18 @@
 /**
- * The Children Region (ADR 0048 s1, LT-472): content a parent passes as
+ * The Children Region (ADR 0026 s1): content a parent passes as
  * `children` is the parent's markup. The server marks the child's element
  * enclosing `{children}` with `data-children="<owner-tag>"`, and the
  * structural verifier counts the region as the parent's, so a parent's
  * `first()` into its own content resolves — on both surfaces — through a
  * query that excludes the child's own markup and re-includes the region.
- * Since LT-512 the exclusion needs no `data-children` marker where the
+ * Since  the exclusion needs no `data-children` marker where the
  * child's own markup cannot match: the reference ships as authored.
  * A `truc:html` attribute on a content element is the parent's own
- * sanitized binding (LT-492): the data-reference form splices
+ * sanitized binding (): the data-reference form splices
  * server-side, the reactive thunk plans as a host watch against the
  * region — and only where the host walk reaches the site. A `first()`
  * reference into content at a site the walk cannot reach is refused for
- * the same reason (LT-519): the declaration would never ship.
+ * the same reason (): the declaration would never ship.
  */
 import { afterAll, describe, expect, test } from 'bun:test'
 import createDOMPurify, { type WindowLike } from 'dompurify'
@@ -165,7 +165,7 @@ const REGION = (owner: string, ...children: string[]) => {
 
 /* === The region marker and the parent's reference === */
 
-describe('a parent reference into its own children (ADR 0048 s1)', () => {
+describe('a parent reference into its own children (ADR 0026 s1)', () => {
 	for (const surface of SURFACES)
 		test(`${surface}: a reference into content whose child cannot match ships the authored selector, and the server marks the region (LT-512)`, async () => {
 			const child = childPre(surface)
@@ -271,7 +271,7 @@ describe('a parent reference into its own children (ADR 0048 s1)', () => {
 	test(`a reference whose child's own markup can match keeps the region-aware exclusion`, async () => {
 		// ChildSplit's own `<p class="intro">` can match a bare `p`, so the
 		// query must exclude the child's template and re-include the region
-		// (LT-512: the element case is unchanged) — the content `p` still
+		// (: the element case is unchanged) — the content `p` still
 		// resolves, the intro `p` stays out.
 		for (const surface of SURFACES) {
 			const split = mustCompile(
@@ -378,7 +378,7 @@ describe('a reference in the template proper beside compose content (LT-512)', (
 
 /* === Forwarding === */
 
-describe('forwarded children keep their owner (ADR 0048 s1)', () => {
+describe('forwarded children keep their owner (ADR 0026 s1)', () => {
 	test('straight through, the original owner rides along; wrapped first, the regions nest', async () => {
 		const child = childPre('tsrx')
 		const bare = mustCompile(
@@ -441,7 +441,7 @@ describe('forwarded children keep their owner (ADR 0048 s1)', () => {
 		expect(compiled.diagnostics).toEqual([])
 		const parent = mustCompile(compiled, 'basic-parent')
 		// No shape of either forwarder's own markup matches a `span.*`, so
-		// both queries ship as authored (LT-512) — the marker never enters
+		// both queries ship as authored () — the marker never enters
 		// the client.
 		expect(parent.clientCode).toContain(`first('span.a', 'the forwarded span')`)
 		expect(parent.clientCode).toContain(`first('span.b', 'the wrapped span')`)
@@ -478,7 +478,7 @@ describe('forwarded children keep their owner (ADR 0048 s1)', () => {
 
 /* === Extracted templates === */
 
-describe('extracted arm and list templates carry the marker (ADR 0048 s1)', () => {
+describe('extracted arm and list templates carry the marker (ADR 0026 s1)', () => {
 	test('an arm-held compose site: the live arm and its template', async () => {
 		const child = childPre('tsrx')
 		const compiled = compile(
@@ -556,11 +556,11 @@ describe('extracted arm and list templates carry the marker (ADR 0048 s1)', () =
 	})
 })
 
-/* === The parent's own sanitized binding (ADR 0048 s1, LT-492) === */
+/* === The parent's own sanitized binding (ADR 0026 s1, LT-492) === */
 
 describe('a `truc:html` attribute in the content (LT-492)', () => {
 	// `configureHtmlSanitizer` is process-wide and shared with the library's
-	// client half (LT-138): a test that configures one restores the
+	// client half (): a test that configures one restores the
 	// fail-closed default (escape everything) before the next.
 	const purify = createDOMPurify(new JSDOM('').window as unknown as WindowLike)
 	const stripDangerousMarkup = (html: string): string => purify.sanitize(html)
@@ -657,13 +657,13 @@ describe('a `truc:html` attribute in the content (LT-492)', () => {
 			expect(compiled.diagnostics).toEqual([])
 			const parent = mustCompile(compiled, 'basic-parent')
 			// The watch addresses the content element through the same
-			// sanitized sink the template proper uses (LT-025), under the
+			// sanitized sink the template proper uses (), under the
 			// tag-derived query name an unreferenced element gets.
 			expect(parent.clientCode).toContain(
 				'watch(() => body.get(), dangerouslyBindInnerHTML(article, { sanitize: sanitizeHtml }))',
 			)
 			// The value harness renders the seed server-side, escaped — both
-			// halves share one sanitizer configuration (LT-138).
+			// halves share one sanitizer configuration ().
 			const html = await render(
 				[
 					['child-pre', child.serverCode],

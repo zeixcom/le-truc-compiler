@@ -1,10 +1,10 @@
 /**
- * Corpus-level tier assignment (ADR 0029, LT-165).
+ * Corpus-level tier assignment (ADR 0008).
  *
  * `tier.test.ts` pins the routing RULE against synthetic inputs; this file
  * pins what the rule decides about the REAL corpus, which is the half that
  * can regress silently. A component drifting from the Folded tier to the
- * Simulated tier is a build-cost regression (ADR 0029 sub-design 6's whole
+ * Simulated tier is a build-cost regression (ADR 0008 sub-design 6's whole
  * argument for the census); a component drifting the other way is a
  * correctness risk, since a false Folded classification ships wrong HTML
  * with no diagnostic.
@@ -65,9 +65,9 @@ describe('tier assignment over the migrated corpus', () => {
 			expect(registry[tag]?.tier).toBe('folded')
 	})
 
-	// The LT-173 acceptance (basic-pluralize classifies Folded) moved with
+	// The  acceptance (basic-pluralize classifies Folded) moved with
 	// the retired component to the `c-plural` fixture in
-	// gate-wave-verification.test.ts (LT-467).
+	// gate-wave-verification.test.ts .
 
 	test('contamination reached form-combobox through a compose READ', () => {
 		// The only corpus instance of sub-design 3 today: form-combobox reads
@@ -85,14 +85,14 @@ describe('tier assignment over the migrated corpus', () => {
 		for (const [tag, entry] of Object.entries(registry))
 			byTier[entry.tier]?.push(tag)
 		for (const tags of Object.values(byTier)) tags.sort()
-		// LT-386 (2026-10-02): form-spinbutton's Parser fallbacks read
+		//  (2026-10-02): form-spinbutton's Parser fallbacks read
 		// `first()` refs (`asNumber(asNumber(0)(input.value))`) — no server
 		// truth to splice, so its host-prop thunks route off the fold
 		// (LTC034-origin signals, the realm answers) and it leaves the Folded
 		// tier. form-colorgraph and module-coloreditor follow through compose
 		// reads of it (sub-design 3), as form-combobox already did for
 		// form-listbox.
-		// LT-093 (2026-10-07): module-lazyload's task initializer reads
+		//  (2026-10-07): module-lazyload's task initializer reads
 		// authored imports (`fetchWithCache`, `isValidURL`, …), which the
 		// client binds; its only routing signal was that LTC004 false firing,
 		// so it folds. Its served HTML is unchanged: the realm never settled
@@ -132,7 +132,7 @@ describe('tier assignment over the migrated corpus', () => {
 				'module-tabgroup',
 				'module-ticker',
 				'module-todo',
-				// LT-469: section-menu joins Folded by design — no setup const
+				//: section-menu joins Folded by design — no setup const
 				// holds a page-context value (the toggle lookups are inline
 				// call arguments), so it classifies without a routing signal.
 				'section-menu',
@@ -153,7 +153,7 @@ describe('tier assignment over the migrated corpus', () => {
 	})
 })
 
-describe('the tier census (LT-165 step 6, ADR 0029 sub-design 6)', () => {
+describe('the tier census (LT-165 step 6, ADR 0008 sub-design 6)', () => {
 	// Built from the registry the corpus runner wrote — which the fixpoint in
 	// `compileCorpus` updated BEFORE the write, so the census records
 	// POST-contamination tiers by construction (the architect ruling for

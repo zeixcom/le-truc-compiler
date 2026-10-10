@@ -1,5 +1,5 @@
 /**
- * Harvest through a key alias, witnessed by the render (ADR 0047, LT-453),
+ * Harvest through a key alias, witnessed by the render (ADR 0025),
  * on both surfaces:
  *
  * - a flat host-level list seeded from args, rendered only through two
@@ -8,7 +8,7 @@
  *   enclosing items, and connects the list with its keys in list order;
  * - the server records the keys the alias scope renders and throws
  *   `HarvestWitnessError` when an item is missing or out of order;
- * - each ADR 0047 s1 condition is refused with LTC080, one message each,
+ * - each ADR 0025 s1 condition is refused with LTC080, one message each,
  *   identically on both surfaces.
  */
 import { afterAll, describe, expect, test } from 'bun:test'
@@ -400,7 +400,7 @@ const ltc080 = (
 	return { tsrx: of('tsrx'), tsx: of('tsx') }
 }
 
-describe('LTC080 refuses each unmet ADR 0047 s1 condition (LT-453)', () => {
+describe('LTC080 refuses each unmet ADR 0025 s1 condition (LT-453)', () => {
 	test('the base shape compiles clean on both surfaces', () => {
 		expect(ltc080({})).toEqual({ tsrx: [], tsx: [] })
 	})

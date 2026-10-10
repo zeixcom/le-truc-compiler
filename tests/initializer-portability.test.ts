@@ -1,7 +1,7 @@
 /**
  * A signal rendered only through a thunk no site can splice into (a
  * style-map, a computed thunk) seeds the client by reusing its initializer
- * verbatim (LT-036). LT-093 widens which initializers are reusable: a plain
+ * verbatim ().  widens which initializers are reusable: a plain
  * setup const or an authored import is bound in the client module — the
  * signal's declaration is a client-emitted position, so the placement
  * fixpoint emits what it reads — and no longer routes the component
@@ -31,7 +31,7 @@ ${setup}
 import { createState } from '@zeix/le-truc'
 ${imports}`
 
-describe('initializer free names place client-side (LT-093)', () => {
+describe('initializer free names place client-side', () => {
 	test('a plain setup const in the initializer folds', () => {
 		const { component, diagnostics } = compile(
 			styled("\tconst DEFAULT = 'red'\n\tconst color = createState(DEFAULT)"),
@@ -96,7 +96,7 @@ import { createState } from '@zeix/le-truc'`,
 	})
 })
 
-describe('a reactive thunk may read an authored import (LT-091 plainLocalNames)', () => {
+describe('a reactive thunk may read an authored import', () => {
 	test('no LTC005, and the client imports the name', () => {
 		const { component, diagnostics } = compile(`export function C({}: {})
 @{
@@ -120,7 +120,7 @@ import { shade } from './colors'`)
 	})
 })
 
-describe('the LTC004 routing reason names an unportable initializer (LT-093 step 1)', () => {
+describe('the LTC004 routing reason names an unportable initializer', () => {
 	test('a rendered signal over a factory member names the member', () => {
 		const { component } = compile(`export function C({}: {})
 @{

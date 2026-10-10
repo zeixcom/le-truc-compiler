@@ -1,6 +1,6 @@
 /**
- * Unit pins for `selector-syntax.ts` (LTC026's parse half, LT-157b; on
- * css-what since LT-380, ADR 0045 Decision 5). The contract is asymmetric:
+ * Unit pins for `selector-syntax.ts` (LTC026's parse half; on
+ * css-what since , ADR 0023 Decision 5). The contract is asymmetric:
  * a reason for a selector a browser accepts is a build failure over working
  * markup — never acceptable — while passing a browser-invalid string merely
  * leaves the runtime's `InvalidSelectorError` (Tier 2) doing its job. The

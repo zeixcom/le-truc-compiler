@@ -1,5 +1,5 @@
 /**
- * Unit tests for template-literal-safe reindentation (LT-010): the
+ * Unit tests for template-literal-safe reindentation (): the
  * `lineStartsInTemplate` scanner and its consumers `reindent`
  * (emit-server, via setup slices) and `pushStatement` (emit-client, via
  * event-handler slices). A multi-line template literal's interior lines are

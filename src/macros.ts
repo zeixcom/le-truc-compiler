@@ -1,13 +1,13 @@
 /**
  * `@zeix/le-truc-compiler/macros` — the compile-time markers an authored
- * source imports (ADR 0034 s1, LT-442). A marker is a call the compiler
+ * source imports (ADR 0012 s1). A marker is a call the compiler
  * consumes and never runs: it recognizes the call by this module's
  * specifier and the imported name (an alias resolves, a same-named local
  * never matches) and strips the import from both generated modules. The
  * exports here are typed stubs for `tsc` and editors; each throws when a
  * source reaches it uncompiled.
  *
- * In the published package this file is the `./macros` subpath (LT-254) —
+ * In the published package this file is the `./macros` subpath () —
  * it must resolve without loading any of the compiler's dependencies, so
  * it stays import-free. In-repo, the specifier resolves to this source
  * through a `paths` entry in each tsconfig that checks authored `.tsx`
@@ -29,7 +29,7 @@ const uncompiled = (name: string): Error =>
 	)
 
 /**
- * The CSS template tag (LT-202): `<style>{css`…`}</style>` is the default
+ * The CSS template tag (): `<style>{css`…`}</style>` is the default
  * spelling for a component's stylesheet — editors highlight a `css`-tagged
  * template literal as CSS out of the box. The tag is compile-consumed:
  * evaluated by nothing, and a `${}` substitution inside is rejected by the
@@ -47,8 +47,8 @@ export const css = (
 }
 
 /**
- * The per-field parsers of a list seeded from server args (ADR 0046 s7,
- * LT-429): `createList(harvest(items, { due: asDate() }), …)`. The client
+ * The per-field parsers of a list seeded from server args (ADR 0024 s7,
+ * ): `createList(harvest(items, { due: asDate() }), …)`. The client
  * rebuilds each server-rendered item field by field from the item's markup,
  * and reads each field through a parser. The compiler infers a parser from
  * a same-file item type (`string` → `asString`, `number` → `asNumber`,
@@ -68,7 +68,7 @@ export function harvest<T extends object>(
 	parsers: { [K in keyof T]?: FieldParser<T[K]> },
 ): T[]
 /**
- * The parser of a scalar signal seed (ADR 0046 s7, LT-443):
+ * The parser of a scalar signal seed (ADR 0024 s7):
  * `createState(harvest(price, asNumber()))`. A seed whose type the
  * compiler cannot read (an alias, a union, a `Date`) would otherwise
  * harvest from its render site as a string; this declares the parser the

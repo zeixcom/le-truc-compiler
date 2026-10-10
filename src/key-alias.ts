@@ -1,5 +1,5 @@
 /**
- * The key alias (ADR 0047 s1, LT-453): a host-level list seeded from server
+ * The key alias (ADR 0025 s1): a host-level list seeded from server
  * args and never rendered by its own `map` is read in a reactive list's
  * item setup through `const t = list.byKey(k)`, where the item of the
  * loop's list is its key. This module finds the reads syntactically; the
@@ -52,7 +52,7 @@ const byKeyArgsOf = (node: unknown, list: string): AstNode[] | null => {
 /* === Exported Functions === */
 
 /**
- * Whether an arg-seeded list harvests per field (ADR 0046 s7): a
+ * Whether an arg-seeded list harvests per field (ADR 0024 s7): a
  * `harvest()` seed, or an item type that is not a primitive. A `string`
  * (or untyped) item keeps the whole-item read of its bare `{item}` hole.
  */
@@ -113,7 +113,7 @@ export const byKeyReadsOf = (
 }
 
 /**
- * The alias scope the witness records (ADR 0047 s2): the loop holding the
+ * The alias scope the witness records (ADR 0025 s2): the loop holding the
  * first exact alias of `list`, or null. The harvest pass has refused every
  * other shape before a module is emitted.
  */

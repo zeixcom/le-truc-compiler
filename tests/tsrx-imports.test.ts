@@ -1,5 +1,5 @@
 /**
- * Generated `.tsx` → `.tsrx` compose-import typings (LT-312): one ambient
+ * Generated `.tsx` → `.tsrx` compose-import typings (): one ambient
  * `declare module` per compiled `.tsrx` source, keyed by the shortest path
  * suffix no other source shares, typed through the served server module.
  */
@@ -164,7 +164,7 @@ describe('the corpus compile writes the typings (LT-312)', () => {
 		expect(text).toContain(
 			"typeof import('./basic-counter.server').renderBasicCounter",
 		)
-		// Tag-map entries only for the `.tsrx`-served tag (LT-325): the
+		// Tag-map entries only for the `.tsrx`-served tag (): the
 		// served `.tsx` carries basic-counter's own entry.
 		expect(text).toContain(
 			`"basic-button": HTMLElement & import('./basic-button.client').BasicButtonProps`,

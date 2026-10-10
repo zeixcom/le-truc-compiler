@@ -1,6 +1,6 @@
 /**
  * The scalar `harvest(seed, parser)` marker and the LTC077 refusal (ADR
- * 0046 s7, LT-443), on both surfaces:
+ * 0046 s7), on both surfaces:
  *
  * - a signal whose seed type the compiler cannot read (an alias, a union —
  *   anything but the bare `string`/`number`/`boolean` keyword) is refused

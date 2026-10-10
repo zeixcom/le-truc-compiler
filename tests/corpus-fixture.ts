@@ -16,7 +16,7 @@ const ROOT = path.resolve(import.meta.dir, '..')
 
 /**
  * The corpus under `examples/` — BOTH authored surfaces — as `FileInfo[]`,
- * read through the CONFIGURED scan (LT-273): the same glob list, dedup and
+ * read through the CONFIGURED scan (): the same glob list, dedup and
  * runtime-neutral order the build, `check:corpus` and `i18n:sync` get, so a
  * test fixture cannot drift from what the pipeline actually compiles.
  */
@@ -29,7 +29,7 @@ export const C_PLURAL_FIXTURE = 'tests/fixtures/plural/c-plural.tsrx'
 /**
  * The `c-plural` compiler fixture as a `FileInfo` — the retired
  * basic-pluralize example, kept outside the corpus for the i18n coverage it
- * carried (LT-467). Compile it with `compileCorpus([cPluralFixture()], …)`.
+ * carried (). Compile it with `compileCorpus([cPluralFixture()], …)`.
  */
 export const cPluralFixture = (): FileInfo => {
 	const full = path.join(ROOT, C_PLURAL_FIXTURE)
@@ -46,8 +46,8 @@ export const cPluralFixture = (): FileInfo => {
 
 /**
  * Front-end-only compile of one corpus file, the surface chosen by
- * extension — the same dispatch `compileCorpus` makes (ADR 0039 variant
- * sets put a `.tsx` beside a `.tsrx` in one folder, LT-237).
+ * extension — the same dispatch `compileCorpus` makes (ADR 0017 variant
+ * sets put a `.tsx` beside a `.tsrx` in one folder).
  */
 export const compileCorpusSource = (content: string, filename: string) =>
 	filename.endsWith('.tsx')

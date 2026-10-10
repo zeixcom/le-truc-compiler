@@ -1,5 +1,5 @@
 /**
- * Client-module emitter (ADR 0024 milestone 2, LT-002).
+ * Client-module emitter (ADR 0005 milestone 2).
  *
  * Renders the analysis plan into a `defineComponent()` factory whose
  * imports come solely from `@zeix/le-truc` (signal constructors via the CE
@@ -8,7 +8,7 @@
  * Factory layout, mirroring today's hand-written components:
  * 1. element queries (`first()`/`all()`, selectors synthesized and
  *    uniqueness-proven by analyze.ts)
- * 2. signal declarations seeded by DOM harvest (ADR 0003 — the client
+ * 2. signal declarations seeded by DOM harvest (ADR 0001 — the client
  *    never sees the server args)
  * 3. `expose()` verbatim
  * 4. effects in document order: `each()` blocks for server-data `@for`
@@ -55,7 +55,7 @@ export type EmittedClientModule = {
 	/** `@zeix/le-truc` imports the module needs (sorted for emission). */
 	imports: Set<string>
 	/**
-	 * Generated-file ↔ `.tsrx`-source span table (LT-011): one entry per
+	 * Generated-file ↔ `.tsrx`-source span table : one entry per
 	 * verbatim setup statement, thunk, or event handler slice. `check:corpus`
 	 * maps tsc diagnostics back through it onto the source location.
 	 */
@@ -65,7 +65,7 @@ export type EmittedClientModule = {
 /* === Internal Functions === */
 
 /**
- * The lib.dom interface of each dirty-flag control tag (LT-116), so an
+ * The lib.dom interface of each dirty-flag control tag , so an
  * `each()` item's `querySelector<…>()` lets `bindProperty`'s keyed setter
  * typecheck. DOM knowledge is emitter business: the analysis only needs to
  * know WHICH tags carry the flag (`vocabulary.ts`), and the `Record` type
@@ -84,7 +84,7 @@ const DIRTY_FLAG_CONTROL_INTERFACES: ReadonlyMap<string, string> = new Map(
 
 /**
  * The module's `@zeix/le-truc` names — imports and factory-context members
- * alike — with the local name each synthesized call site must use (LT-302).
+ * alike — with the local name each synthesized call site must use .
  * An authored setup const, signal, query or loop variable named like a
  * name the emitter writes a call to (`const bindText = …`) would shadow it
  * inside the factory, so a colliding name is bound under a `__` alias
@@ -127,7 +127,7 @@ const memberAccess = (object: string, key: string): string =>
 	isJsIdentifier(key) ? `${object}.${key}` : `${object}[${jsString(key)}]`
 
 /**
- * The parser expression a text/attr harvest reads through (LT-443): an
+ * The parser expression a text/attr harvest reads through : an
  * inferred parser resolves through the import table (`asString()`), an
  * authored `harvest()` parser is spliced as written — wrapped in
  * parentheses when a call cannot follow it bare — and its slice maps the
@@ -151,7 +151,7 @@ const harvestInitializer = (
 ): { text: string; slices: SourceSlice[] } | null => {
 	if (plan.kind === 'substitute') {
 		// The substituted read is a DOM string; the marker's parser parses
-		// it back (LT-443), its slice mapping to the authored expression.
+		// it back , its slice mapping to the authored expression.
 		if (!plan.parser) return { text: plan.expr, slices: [] }
 		const { call, slice } = parserExpression(plan.parser, imports)
 		return {
@@ -195,7 +195,7 @@ const harvestInitializer = (
 	// substituted seed) and never reaches this initializer path.
 	if (plan.kind === 'list') return null
 	// membership: find the marked element in the collection, read its value.
-	// A marked seed reads through its `harvest()` parser (LT-443) — the
+	// A marked seed reads through its `harvest()` parser  — the
 	// parser owns the no-match miss, so the read hands it `null` and the
 	// typed default stays unused.
 	const markProp = ariaProperty(plan.markAttr)
@@ -234,7 +234,7 @@ const listDeclaration = (
 	return spliceInit(signal, harvested)
 }
 
-/** One field's raw-value read in an adopted item `el` (ADR 0046 s7). */
+/** One field's raw-value read in an adopted item `el` (ADR 0024 s7). */
 const fieldRead = (site: ListFieldPlan['site']): string => {
 	if (site.kind === 'key') return "el.getAttribute('data-key')"
 	const query = (typed: boolean): string => {
@@ -259,7 +259,7 @@ const fieldRead = (site: ListFieldPlan['site']): string => {
 }
 
 /**
- * An arg-seeded List's per-field declaration (ADR 0046 s7, LT-429): the
+ * An arg-seeded List's per-field declaration (ADR 0024 s7): the
  * authored call with its seed — or its `harvest()` call — replaced by the
  * adopted items, each rebuilt field by field through its parser. The
  * rebuilt item is annotated with the item type, so a wrong parser type or a
@@ -297,7 +297,7 @@ const fieldListDeclaration = (
 		{ text: children, start: cut.start },
 		{ text: '({', start: cut.start },
 	]
-	// A key alias (ADR 0047 s3) reads the alias scope's roots, in document
+	// A key alias (ADR 0025 s3) reads the alias scope's roots, in document
 	// order, through every enclosing list's items.
 	const adopted = ".filter(el => el.hasAttribute('data-key'))"
 	const roots = (seed.through ?? [])
@@ -366,9 +366,9 @@ const restArguments = (signal: InitSignalIR): SourceSlice | null => {
 
 /**
  * The declaring call's type arguments as authored — `<string>` in
- * `createTask<string>(…)` — or `''`. A harvested declaration rebuilds the
+ * `createTask<string>` ‖ or `''`. A harvested declaration rebuilds the
  * call head around the client initializer, and dropping them widens the
- * signal's type (LT-093: a `Task<unknown>` no longer fits its `watch`).
+ * signal's type.
  */
 const typeArguments = (signal: InitSignalIR): string =>
 	/^[\w$.]+\s*(<[\s\S]*?>)\s*\(/.exec(signal.text)?.[1] ?? ''
@@ -377,7 +377,7 @@ const sliceOf = (text: string, start: number | undefined): SourceSlice[] =>
 	start === undefined ? [] : [{ text, start }]
 
 /**
- * Spans for a text sink's statement (ADR 0046 s6, LT-428): `bindText` is
+ * Spans for a text sink's statement (ADR 0024 s6): `bindText` is
  * typed `string | number`, so a non-text value is a tsc error, and these
  * slices let `check:corpus` report it at the authored child. `anchor` is the
  * generated call that opens the statement (`watch(`): it maps to the child
@@ -407,7 +407,7 @@ const emitEachBlock = (
 	imports: ClientImports,
 	out: CodeBuilder,
 ): boolean => {
-	// A loop nested in a Mount Scope (LT-424) iterates a static query against
+	// A loop nested in a Mount Scope  iterates a static query against
 	// the scope root: its items are fixed for the life of the clone, and the
 	// effects below register in the enclosing mount, disposed with it.
 	if (plan.scoped) {
@@ -423,13 +423,13 @@ const emitEachBlock = (
 	}
 	for (const rebinding of plan.rebindings)
 		out.line(`const ${rebinding.name} = ${rebinding.expr}`)
-	// LT-037: constructs on descendants of the loop's output root (rather
+	//: constructs on descendants of the loop's output root (rather
 	// than the root itself) carry a `target` selector, resolved within the
 	// item's own subtree. Query each distinct descendant once per item and
 	// cache it under a generated local, so N constructs on the same nested
 	// element (e.g. an <input>'s `checked` + `tabIndex` + `onChange`) share
 	// one `querySelector` call instead of repeating it per construct.
-	// LT-116: when the target's leading tag is a native form control, the
+	//: when the target's leading tag is a native form control, the
 	// query emits with the tag's element interface as its type argument —
 	// `querySelector` itself returns bare `Element`, and the dirty-flag
 	// property dispatch below (`bindProperty(input, 'checked')`) needs the
@@ -467,7 +467,7 @@ const emitEachBlock = (
 				? `() => String((${effect.thunkText})())`
 				: effect.thunkText
 			if (effect.dispatch === 'property') {
-				// LT-116: dirty-flag IDL attrs (and host-prop mirrors) write
+				//: dirty-flag IDL attrs (and host-prop mirrors) write
 				// the live property, not the attribute — the loop-body
 				// counterpart of the top-level property dispatch.
 				imports.add('bindProperty')
@@ -530,17 +530,17 @@ const factoryScopeNames = (
 }
 
 /**
- * The client message preamble (ADR 0030 s9, LT-218): the factory's own `t`
+ * The client message preamble (ADR 0009 s9): the factory's own `t`
  * for the keys client positions read. It is the source-locale record the
  * build parsed, merged under the per-instance `i18n` attribute the server
  * rendered, parsed once at connect. The server leaves out every key whose
  * form equals the source's, so a source-locale render and an instance
  * created outside a compiled parent carry no attribute and speak the
  * source record; a malformed one warns in DEV_MODE and falls back the
- * same way. No `@zeix/le-truc` export (ADR 0030 s8): the evaluator is
+ * same way. No `@zeix/le-truc` export (ADR 0009 s8): the evaluator is
  * `icu/evaluate.ts`'s walk, inlined and narrowed to the node kinds these
  * keys' source patterns use, with one `Intl` formatter per node per
- * connection. The locale is the DOM's (ADR 0030 s6): the nearest `[lang]`,
+ * connection. The locale is the DOM's (ADR 0009 s6): the nearest `[lang]`,
  * read at the first format rather than at connect, so a locale the
  * component materializes onto its own root first counts, and fixed for
  * the connection.
@@ -548,10 +548,10 @@ const factoryScopeNames = (
  * Narrowing reads the SOURCE patterns: the compiler sees no translation.
  * A translation that uses a construct its source does not (a `plural`
  * where the source interpolates) throws a private sentinel from the walk,
- * and that key's accessor formats its source message instead (LT-350,
+ * and that key's accessor formats its source message instead (
  * owner ruling): the wrong language until the catalog is fixed, never
  * blank. The source parses with exactly the carried kinds, so the
- * fallback cannot throw again. LT-219's census reports such translations.
+ * fallback cannot throw again. the ticket's census reports such translations.
  */
 const messagePreambleLines = (
 	component: ComponentIR,
@@ -562,7 +562,7 @@ const messagePreambleLines = (
 	const { source, withArgs } = clientSourceRecord(component.i18nMessages, keys)
 	const kinds = carriedKinds([...withArgs].map(key => source[key] as Message))
 	const lines = [
-		'// Client messages (ADR 0030 s9): the source-locale record, merged under',
+		'// Client messages (ADR 0009 s9): the source-locale record, merged under',
 		'// the server-rendered `i18n` attribute and fixed for the connection.',
 		`const __i18nSource: Record<string, unknown> = ${jsData(source)}`,
 		'let __i18nMessages = __i18nSource',
@@ -639,7 +639,7 @@ const messagePreambleLines = (
 				'\t\t\t\tbreak',
 				'\t\t\t}',
 			)
-		// A kind the source does not carry: the accessor falls back (LT-350).
+		// A kind the source does not carry: the accessor falls back .
 		cases.push('\t\t\tdefault:', '\t\t\t\tthrow __i18nUncarried')
 		lines.push(
 			'const __i18nUncarried = Symbol()',
@@ -697,7 +697,7 @@ const messagePreambleLines = (
  * @param options.childImports - Registry tag → module specifier (relative to
  *   the generated dir); every addressed child component is side-effect
  *   imported so its `declare global` tag-map entry is in scope (type flow
- *   by projection, ADR 0024 sub-design 6)
+ *   by projection, ADR 0005 sub-design 6)
  */
 export const emitClientModule = (
 	component: ComponentIR,
@@ -724,7 +724,7 @@ export const emitClientModule = (
 		// `'host'` is never a real query entry — `usedNames` reserves the name
 		// (analysis/plan.ts) so `addQuery` cannot allocate it — but
 		// HarvestPlans address the component ROOT through the literal `'host'`
-		// (LT-114/LT-115 root-site routing), so a future writer that DID add
+		// (LT-114/ root-site routing), so a future writer that DID add
 		// one would otherwise emit `const host = first('host')`, shadowing the
 		// factory context member. Skip defensively and let the root's reads
 		// resolve to the destructured `host`.
@@ -753,7 +753,7 @@ export const emitClientModule = (
 	// Plain (non-signal) setup consts — documented as available in both
 	// generated modules (vocabulary.ts, diagnostics.ts), but only the SERVER
 	// module (emit-server.ts) actually emitted them until now; found and
-	// fixed alongside LT-034 (`card-colorscale.tsrx` needed a pure helper
+	// fixed alongside  (`card-colorscale.tsrx` needed a pure helper
 	// function usable from a `style-map` thunk). Only the subset actually
 	// reachable from a client-emitted position is included — one referenced
 	// only from an `@if` condition (server-only branch selection) would
@@ -762,7 +762,7 @@ export const emitClientModule = (
 	const clientNeededNames = computeClientNeededNames(component)
 	// Set by any emission that types an element query by its selector.
 	let needsElementType = false
-	// Setup runs in source order (LT-451): plain consts, signal declarations,
+	// Setup runs in source order : plain consts, signal declarations,
 	// `expose()` and client-only statements are collected, then emitted by
 	// authored offset — a declaration after `expose()` reads the props it
 	// installed, as the hand-written factory would.
@@ -786,14 +786,14 @@ export const emitClientModule = (
 		if (signal.family === 'context') continue
 		const harvest = plan.harvests.find(h => h.signal === signal.name)
 		if (!harvest) {
-			// No harvest site — under tiering (LT-165 step 5, ADR 0029 s5) this
+			// No harvest site — under tiering ( step 5, ADR 0008 s5) this
 			// is a routing signal, not a compile error, and the client module is
 			// the artifact every tier's mechanism runs (the realm replays it for
 			// Simulated-tier components; Static-tier components are "the client
 			// corrects at connect"). So the declaration MUST exist here: seeded
 			// from its own initializer, exactly as a hand-written factory would
 			// declare it. An initializer naming a server param has no client
-			// representation, so the analysis rejects it (LTC005, LT-348) before
+			// representation, so the analysis rejects it (LTC005) before
 			// this runs — in every tier, since the realm answering the value
 			// does not make the initializer runnable in the browser.
 			imports.add(signal.constructor)
@@ -840,7 +840,7 @@ export const emitClientModule = (
 			continue
 		}
 		const initializer = harvestInitializer(harvest, imports)
-		// A derived List keeps its whole call (ADR 0046 s4): its `keyConfig`
+		// A derived List keeps its whole call (ADR 0024 s4): its `keyConfig`
 		// keys the client's items, which must match the server's `data-key`s,
 		// and a source-mapping form carries its item callback after the source.
 		const call =
@@ -850,9 +850,9 @@ export const emitClientModule = (
 		if (call) pushAt(signal.textStart, `const ${signal.name} = ${call}`)
 		else if (initializer) {
 			// An authored `harvest()` parser maps its slice back to the
-			// authored expression (LT-443); the inferred call is fully
+			// authored expression ; the inferred call is fully
 			// synthesized and maps nowhere. The call's other arguments follow
-			// the seed verbatim (LT-451): a dropped `{ keyConfig }` would key
+			// the seed verbatim : a dropped `{ keyConfig }` would key
 			// the client's items apart from the server's.
 			const head = `const ${signal.name} = ${imports.local(signal.constructor)}${typeArguments(signal)}(`
 			const rest = restArguments(signal)
@@ -868,7 +868,7 @@ export const emitClientModule = (
 		}
 	}
 
-	// requestContext-backed signals (LT-035, ADR 0024 sub-design 15): no DOM
+	// requestContext-backed signals (ADR 0005 sub-design 15): no DOM
 	// harvest at all — the client re-dispatches the context-request itself
 	// (a `FactoryContext` member, destructured via `plan.ambientContext`
 	// below, never a module import) and owns the initial value (a Slot
@@ -895,14 +895,14 @@ export const emitClientModule = (
 		)
 	}
 
-	// Client-only setup side effects (LT-008): connect-time statements the
+	// Client-only setup side effects : connect-time statements the
 	// server never runs — internals?.states.add('clearable') and friends.
 	for (const stmt of component.clientSetup)
 		pushAt(stmt.range.start, stmt.text, sliceOf(stmt.text, stmt.range.start))
 	for (const entry of ordered.sort((a, b) => a.start - b.start))
 		push(entry.text, entry.slices)
 
-	// A reactive conditional (ADR 0037): `reconcile()`'s arm form over the
+	// A reactive conditional (ADR 0015): `reconcile()`'s arm form over the
 	// templates the server stamped `data-arms`, a key thunk over the test,
 	// and one branch of `bindArm` per arm with effects.
 	const emitArms = (plan: ArmsPlan): void => {
@@ -917,7 +917,7 @@ export const emitClientModule = (
 		let thunk: string
 		if (plan.construct === 'if') {
 			const [then, otherwise] = plan.arms
-			// The test's own parens (LT-385b): a ternary, comma or assignment
+			// The test's own parens : a ternary, comma or assignment
 			// test would bind into the conditional's branches and return a
 			// non-key.
 			thunk = `() => ((${plan.testText}) ? ${then ? key(then) : 'null'} : ${otherwise ? key(otherwise) : 'null'})`
@@ -971,7 +971,7 @@ export const emitClientModule = (
 		out.close('})')
 	}
 
-	// Key-derived attributes (ADR 0046 s1): set once at mount — a key never
+	// Key-derived attributes (ADR 0024 s1): set once at mount — a key never
 	// changes, so there is nothing to watch.
 	const emitKeyAttrs = (keyAttrs: readonly KeyAttrPlan[]): void => {
 		for (const keyAttr of keyAttrs)
@@ -981,7 +981,7 @@ export const emitClientModule = (
 			)
 	}
 
-	// An item's setup (ADR 0046 s5), verbatim and in source order, once per
+	// An item's setup (ADR 0024 s5), verbatim and in source order, once per
 	// entering item: consts, signal declarations and client-only side
 	// effects, disposed with the item. A ref queries through the item's
 	// `first` — or, naming the item root, is the element parameter itself.
@@ -1006,8 +1006,8 @@ export const emitClientModule = (
 		}
 	}
 
-	// One reactive-list @for → reconcile()'s list form (ADR 0017), the item
-	// a Mount Scope (ADR 0046 s1): bindItem mounts the item's own effects
+	// One reactive-list @for → reconcile()'s list form (ADR 0004), the item
+	// a Mount Scope (ADR 0024 s1): bindItem mounts the item's own effects
 	// against its element parameter and `first` — descendants queried once
 	// per entering item, key-derived attributes set once at clone (a key
 	// never changes), and the bare `{item}` shorthand watched as the signal
@@ -1016,7 +1016,7 @@ export const emitClientModule = (
 	// direct-child step and the stamp lift the one-list-per-component limit.
 	const emitReconcile = (plan: ReconcilePlan): void => {
 		imports.add('reconcile')
-		// A list in a server-rendered branch of its scope (LT-455): the
+		// A list in a server-rendered branch of its scope : the
 		// branch folds per render call, the same for every clone, but may
 		// leave the list out, so its container local is a non-throwing query
 		// and the nested mount binds only when the container is there.
@@ -1025,7 +1025,7 @@ export const emitClientModule = (
 		const keyParam = plan.keyParam ?? '_key'
 		// The stamp addresses the template the compiler extracted; a missing
 		// one is markup drift, and `reconcile()`'s own template checks are
-		// the Contained backstop (ADR 0028).
+		// the Contained backstop (ADR 0007).
 		const templateQuery = `host.querySelector<HTMLTemplateElement>(${jsString(`:scope > template[data-list="${plan.listIndex}"]`)})!`
 		if (
 			scope.effects.length === 0 &&
@@ -1037,7 +1037,7 @@ export const emitClientModule = (
 			)
 		} else {
 			// The item's `first` answers its locals, its non-root refs and any
-			// setup statement that queries through it (ADR 0046 s5).
+			// setup statement that queries through it (ADR 0024 s5).
 			const usesFirst =
 				scope.locals.length > 0 ||
 				scope.setup.some(stmt =>
@@ -1065,7 +1065,7 @@ export const emitClientModule = (
 			for (const inner of scope.effects) emitTopEffect(inner)
 			out.close('})')
 		}
-		// The @empty arm on the toggle path (LT-212, ADR 0037 s5): the List's
+		// The @empty arm on the toggle path (ADR 0015 s5): the List's
 		// `length` read subscribes, so each root shows exactly while it is
 		// empty.
 		for (const query of plan.emptyQueries) {
@@ -1077,7 +1077,7 @@ export const emitClientModule = (
 		if (plan.inBranch) out.close()
 	}
 
-	// An async boundary (ADR 0037 s4): the arm key follows the task's
+	// An async boundary (ADR 0015 s4): the arm key follows the task's
 	// state with `match()`'s precedence — no value yet is `nil`, a
 	// rejection `err`, anything else (a re-fetch keeping its value
 	// included) `ok`. The `ok` and `err` mounts write the resolved value
@@ -1103,7 +1103,7 @@ export const emitClientModule = (
 		out.between(
 			`}, (${plan.elementParam}, ${plan.keyParam}${usesFirst ? ', first' : ''}) => {`,
 		)
-		// Both writes go through the typed `bindText` sink (ADR 0046 s6), so
+		// Both writes go through the typed `bindText` sink (ADR 0024 s6), so
 		// an object result or a bare `{e}` is a tsc error at its child.
 		// The boundary plans exactly three arms — `[ok, nil, err]`.
 		const okArm = plan.arms[0] as ArmPlan
@@ -1112,7 +1112,7 @@ export const emitClientModule = (
 		const okViaHtml = okArm.effects.some(e => e.kind === 'watch-html')
 		out.open(`if (${plan.keyParam} === 'ok') {`)
 		if (okArm.root) {
-			// LT-449: the ok arm's root carries the client constructs — the
+			//: the ok arm's root carries the client constructs — the
 			// `truc:html` watch is the value channel, so the text write is
 			// skipped and the constructs mount inside the branch, dying with
 			// the arm.
@@ -1134,7 +1134,7 @@ export const emitClientModule = (
 				),
 			)
 		}
-		// LT-481: the pending and catch arms can be compose sites whose
+		//: the pending and catch arms can be compose sites whose
 		// `truc:pass` entries plan in the arm's mount — their branches mount
 		// like any arm's, the pass swapping the signal into the child's slot
 		// until the arm flips and its effects are disposed.
@@ -1163,7 +1163,7 @@ export const emitClientModule = (
 			for (const inner of errArm.effects) emitTopEffect(inner)
 			if (boundary.errText !== null) {
 				const bindText = imports.use('bindText')
-				// The nested message element (LT-449) writes through its arm-
+				// The nested message element  writes through its arm-
 				// scoped local; the depth-0 channel keeps writing the arm root.
 				const target = errArm.locals[0]?.name ?? plan.elementParam
 				const sink = `${bindText}(${target})(`
@@ -1211,11 +1211,11 @@ export const emitClientModule = (
 		if (effect.kind === 'watch-attr') {
 			imports.add('watch')
 			const slices = sliceOf(effect.thunkText, effect.sourceStart)
-			// No `class:` prefix arm (LT-222): the spelling is rejected at
+			// No `class:` prefix arm : the spelling is rejected at
 			// classification, so no watch-attr plan can carry one.
 			if (effect.dispatch === 'property') {
 				imports.add('bindProperty')
-				// LT-116 widened this beyond bare host-prop mirrors: dirty-flag
+				//  widened this beyond bare host-prop mirrors: dirty-flag
 				// IDL attrs on native form controls dispatch here too, so a
 				// number-valued `value` thunk now needs the same String
 				// coercion the attribute branch applies (the DOMString-typed
@@ -1240,7 +1240,7 @@ export const emitClientModule = (
 			return
 		}
 		if (effect.kind === 'watch-style') {
-			// LT-028/LT-029: one watch() call against bindStyle()'s map-form
+			// One watch() call against bindStyle()'s map-form
 			// overload — every declared CSS property is set from the single
 			// evaluated map.
 			imports.add('watch')
@@ -1254,7 +1254,7 @@ export const emitClientModule = (
 			return
 		}
 		if (effect.kind === 'watch-class') {
-			// LT-031/LT-029: one watch() call against bindClass()'s map-form
+			// One watch() call against bindClass()'s map-form
 			// overload — every declared class token is toggled from the single
 			// evaluated map, mirroring watch-style.
 			imports.add('watch')
@@ -1268,8 +1268,8 @@ export const emitClientModule = (
 			return
 		}
 		if (effect.kind === 'watch-html') {
-			// LT-025: dangerouslyBindInnerHTML is the sanctioned XSS-aware sink
-			// (ADR 0010) — never a raw innerHTML property binding. LT-138: the
+			//: dangerouslyBindInnerHTML is the sanctioned XSS-aware sink
+			// (ADR 0002) — never a raw innerHTML property binding.: the
 			// explicit `sanitizeHtml` makes the client fail closed exactly like
 			// the server render (configured default, else escape) instead of
 			// falling back to the sink's raw passthrough.
@@ -1340,7 +1340,7 @@ export const emitClientModule = (
 		: '{}'
 	const typeArg = component.propsTypeName ? `<${component.propsTypeName}>` : ''
 
-	// Extension activation (ADR 0024 sub-design 8): config keys lower to the
+	// Extension activation (ADR 0005 sub-design 8): config keys lower to the
 	// third argument. The form variant always leads — that is what selects
 	// the FormFactoryContext overload (ADR 0019's ordering rule, enforced
 	// structurally by construction).
@@ -1374,7 +1374,7 @@ export const emitClientModule = (
 	// Real-export names an authored `import { … } from '@zeix/le-truc'` line
 	// already provides to this module (sub-design 16) — synthesized names
 	// are subtracted so no name is bound by two import statements.
-	// The `isPending` idiom (LT-211): a reactive thunk reading
+	// The `isPending` idiom : a reactive thunk reading
 	// `isPending(knownSignal)` needs the binding in the generated module
 	// whether or not the author imported the name (the profile declares it
 	// ambient). Tokenized over the emitted text like the server emitter's
@@ -1394,7 +1394,7 @@ export const emitClientModule = (
 	const importList = [...imports]
 		.filter(name => !FACTORY_CONTEXT_MEMBERS.has(name))
 		// An aliased name is always imported here: the authored import binds
-		// the bare name, which the author's own binding shadows (LT-302).
+		// the bare name, which the author's own binding shadows .
 		.filter(
 			name =>
 				!component.imports.clientLeTrucNames.has(name) ||
@@ -1417,7 +1417,7 @@ export const emitClientModule = (
 	for (const decl of component.typeDecls) body.append([decl, ''])
 	if (component.globalDecl) body.append([component.globalDecl, ''])
 	// The authored component JSDoc rides above the generated default export:
-	// identical comment text ⇒ identical CEM extraction (LT-006), and the
+	// identical comment text ⇒ identical CEM extraction , and the
 	// generated client documents itself.
 	if (component.componentDoc) body.append([component.componentDoc, ''])
 	body.open(`export default ${imports.local('defineComponent')}${typeArg}(`)

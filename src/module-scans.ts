@@ -1,5 +1,5 @@
 /**
- * Whole-module verbatim scans shared by both front ends (LT-202, ADR 0032
+ * Whole-module verbatim scans shared by both front ends (ADR 0010
  * sub-design 6: the anti-drift half of the dual front-end contract) —
  * malformed `first()`/`all()` selectors (LTC026), collector-requiring
  * helpers deferred into nested functions (LTC045), and authored
@@ -31,7 +31,7 @@ import {
 
 /**
  * Report every malformed `first()`/`all()` selector in the module (LTC026,
- * LT-157b, ADR 0028 sub-design 5). Scanning the whole AST rather than just
+ * , ADR 0007 sub-design 5). Scanning the whole AST rather than just
  * setup is what makes this worth having: `all()` is legitimately called from
  * inside an event handler or a `defineMethod()` body (form-listbox does
  * both), and those calls never pass through the setup extraction below.
@@ -75,13 +75,13 @@ export const reportMalformedSelectors = (
 
 /**
  * Report every collector-requiring helper called from inside a nested
- * function in the component body (LTC045, LT-157d, ADR 0028 sub-design 5).
+ * function in the component body (LTC045, ADR 0007 sub-design 5).
  *
  * `watch`/`on`/`pass`/`provideContexts` do not create their effect where
  * they are called — they push a descriptor into the ambient collector, which
  * exists only for the duration of the factory call (ADR 0018). Deferring one
  * into a callback therefore throws `NoActiveCollectorError` at connect, and
- * since LT-155 that throw is contained: the effect silently never activates.
+ * since  that throw is contained: the effect silently never activates.
  * The compiler never emits this shape, so the rule is entirely about
  * hand-authored setup statements.
  *
@@ -98,7 +98,7 @@ export const reportDeferredCollectorCalls = (
 		'ArrowFunctionExpression',
 	])
 	// The declared Lists (`createList`/`deriveList` consts, an item's own
-	// included): a `.map()` over one is a reactive loop (ADR 0046 s4), whose
+	// included): a `.map()` over one is a reactive loop (ADR 0024 s4), whose
 	// callback body is the item's setup, mounted in `bindItem`'s collector.
 	const lists = new Set<string>()
 	walkNodes(fn, node => {
@@ -126,7 +126,7 @@ export const reportDeferredCollectorCalls = (
 		// `each(collection, item => …)` runs its callback inside a collector
 		// of its own (`withCollector`, src/helpers/reactive.ts), so a helper
 		// called directly in that callback is registered, not deferred
-		// (LT-108, module-carousel's per-slide `watch`). Its body keeps the
+		// (module-carousel's per-slide `watch`). Its body keeps the
 		// caller's depth; a function nested inside it is still deferred.
 		if (
 			node.type === 'CallExpression' &&
@@ -144,7 +144,7 @@ export const reportDeferredCollectorCalls = (
 			visit(rest, depth)
 			return
 		}
-		// A reactive loop's `map` callback (ADR 0046 s5): its block body is
+		// A reactive loop's `map` callback (ADR 0024 s5): its block body is
 		// the item's setup, run inside `bindItem`'s collector — a helper
 		// called directly there is registered per item, not deferred.
 		const callee = node.type === 'CallExpression' ? node.callee : null
@@ -174,8 +174,8 @@ export const reportDeferredCollectorCalls = (
 }
 
 /**
- * Validate authored `'@zeix/le-truc'` imports against real usage (ADR 0024
- * sub-design 16, LT-082), on the same scope walk as `freeIdentifiers`
+ * Validate authored `'@zeix/le-truc'` imports against real usage (ADR 0005
+ * sub-design 16), on the same scope walk as `freeIdentifiers`
  * (`forEachFreeIdentifier`): params, declarator, loop and catch bindings,
  * function-declaration names, non-computed property keys and member
  * properties never count as reads — a local `const createCell = …`

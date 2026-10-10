@@ -1,5 +1,5 @@
 /**
- * The simulation seam holds (ADR 0035 sub-designs 3 and 4, LT-263).
+ * The simulation seam holds (ADR 0013 sub-designs 3 and 4).
  *
  * `bun run check:nosubstrate` proves the same property properly — it
  * typechecks the compiler with jsdom uninstalled — but only when jsdom is
@@ -38,7 +38,7 @@ const staticSpecifiers = (source: string): string[] =>
 		...source.matchAll(/(?:^|\n)\s*(?:import|export)[^\n]*?from\s*'([^']+)'/g),
 	].map(match => match[1] as string)
 
-describe('the simulation seam (ADR 0035 s3)', () => {
+describe('the simulation seam (ADR 0013 s3)', () => {
 	test('no compiler-side module imports jsdom', () => {
 		const offenders = compilerSources().filter(file =>
 			staticSpecifiers(readFileSync(file, 'utf8')).includes('jsdom'),

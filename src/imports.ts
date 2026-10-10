@@ -1,18 +1,18 @@
 /**
- * Source-import collection and placement (LT-044, regrouping move M6 of
+ * Source-import collection and placement (regrouping move M6 of
  * LE_TRUC_COMPILER.md §7): the ONE module owning "what does this source
  * import, and where does each import land". Three concerns, previously
  * split across `config.ts` (compose-import resolution) and
  * `plain-imports.ts` (plain-import placement):
  *
  * 1. `parseComposeImports` — named imports of sibling `.tsrx` modules
- *    (ADR 0024 sub-design 10), the composable targets.
+ *    (ADR 0005 sub-design 10), the composable targets.
  * 2. `parseLeTrucImports`/`placeLeTrucImports` — authored
  *    `import { … } from '@zeix/le-truc'` statements: real package exports
- *    (ADR 0024 sub-design 16), placed per name against the runtime-harness
+ *    (ADR 0005 sub-design 16), placed per name against the runtime-harness
  *    filter rather than re-emitted verbatim.
  * 3. `parsePlainImports` — every OTHER top-level import, with relative
- *    specifiers rewritten for the flat generated directory (LT-034, ADR
+ *    specifiers rewritten for the flat generated directory (ADR
  *    0024 sub-design 14).
  * 4. `placePlainImports`/`computeClientNeededNames` — placement of each
  *    plain import into whichever generated module(s) actually reference
@@ -79,8 +79,8 @@ const normalize = (p: string): string => {
 /* === Compose imports (from config.ts) === */
 
 /**
- * Named imports of other component modules (ADR 0024 sub-design 10, dual
- * surface per ADR 0032 sub-design 6): local binding name → import specifier
+ * Named imports of other component modules (ADR 0005 sub-design 10, dual
+ * surface per ADR 0010 sub-design 6): local binding name → import specifier
  * resolved to a repo-relative path. `filename` is itself repo-relative, so
  * the specifier resolves against its directory. Both authored extensions
  * compose — `.tsrx` and `.tsx` (cross-surface composition included; the
@@ -118,7 +118,7 @@ export const parseComposeImports = (
 	return imports
 }
 
-/* === Compile-time markers (ADR 0034 s1, LT-442) === */
+/* === Compile-time markers (ADR 0012 s1, LT-442) === */
 
 /** The module an authored source imports its compile-time markers from. */
 export const MACROS_SPECIFIER = '@zeix/le-truc-compiler/macros'
@@ -211,7 +211,7 @@ export const shadowMarkers = (
  * The marker an identifier node resolves to, or null when it is none.
  * `enclosing` names what the scopes between the component function and the
  * identifier declare — a reactive-list item's binding, key and setup names
- * (ADR 0046 s5) — so a marker one of them shadows resolves to nothing there,
+ * (ADR 0024 s5) — so a marker one of them shadows resolves to nothing there,
  * as a component-scope declaration does through `shadowMarkers`.
  */
 export const markerOf = (
@@ -258,7 +258,7 @@ export const reportUnclaimedMarkers = (
 /**
  * An import declaration's text with its marker specifiers removed, or null
  * when every specifier is a marker — a marker import never reaches a
- * generated module (ADR 0034 s1). A declaration with no marker specifier
+ * generated module (ADR 0012 s1). A declaration with no marker specifier
  * returns its text unchanged.
  */
 const withoutMarkers = (source: string, stmt: AstNode): string | null => {
@@ -278,7 +278,7 @@ const withoutMarkers = (source: string, stmt: AstNode): string | null => {
 	return `import ${kind}${parts.join(', ')} from ${text(source, stmt.source as AstNode)}`
 }
 
-/* === `@zeix/le-truc` authored imports (ADR 0024 sub-design 16, LT-082) === */
+/* === `@zeix/le-truc` authored imports === */
 
 /**
  * One `import { … } from '@zeix/le-truc'` statement in an authored source:
@@ -295,7 +295,7 @@ export type LeTrucImport = {
 
 /**
  * Every named VALUE import from `'@zeix/le-truc'` — the author's declaration
- * of which real package exports the source uses (ADR 0024 sub-design 16).
+ * of which real package exports the source uses (ADR 0005 sub-design 16).
  * NOT a plain import (`parsePlainImports` still excludes this specifier
  * below): placement is per-name against the runtime-harness filter
  * (`placeLeTrucImports`), not the verbatim re-emission plain imports get.
@@ -336,7 +336,7 @@ export const parseLeTrucImports = (ast: AstNode): LeTrucImport[] => {
 
 /**
  * Exports of the server runtime harness (`server/compiler/runtime.ts`,
- * ADR 0024 sub-design 2): the names a generated SERVER module binds from the
+ * ADR 0005 sub-design 2): the names a generated SERVER module binds from the
  * harness import `emit-server.ts` synthesizes. An authored
  * `'@zeix/le-truc'` import must not re-bind any of them server-side — two
  * import statements can't share a local name, and the harness's plain-value
@@ -377,7 +377,7 @@ const RUNTIME_HARNESS_EXPORTS: ReadonlySet<string> = new Set<string>([
 ])
 
 /**
- * `emit-server.ts`'s `argsFromAttrs` emission (LT-194) re-emits Parser
+ * `emit-server.ts`'s `argsFromAttrs` emission () re-emits Parser
  * expressions outside `expose()`, so it needs to know which of a parsed
  * expression's free identifiers are harness-provided (importable) and which
  * resolve through the existing stubs/imports instead.
@@ -386,7 +386,7 @@ export { RUNTIME_HARNESS_EXPORTS }
 
 /**
  * The span from the first to the last of `names`' specifiers in `imp` —
- * what an unused-import report covers (LT-371); the whole declaration when
+ * what an unused-import report covers (); the whole declaration when
  * a specifier carries no position.
  */
 const specifierSpan = (
@@ -409,7 +409,7 @@ const specifierSpan = (
  * `imp.names` split into maximal runs of adjacent specifiers that `skip`
  * does not hold — so an unused-import range never covers a context name
  * LTC037 reports on its own (`{ createTask, host, createCell }` is two
- * runs, LT-371).
+ * runs).
  */
 const runsWithout = (
 	imp: LeTrucImport,
@@ -429,7 +429,7 @@ const runsWithout = (
 
 /**
  * Place each authored `'@zeix/le-truc'` import into the generated modules,
- * per name (ADR 0024 sub-design 16): a name lands in the CLIENT module when
+ * per name (ADR 0005 sub-design 16): a name lands in the CLIENT module when
  * a client-emitted position uses it (the real package IS the client
  * implementation), and in the SERVER module only when used there AND the
  * runtime harness cannot provide it — the harness keeps providing its
@@ -495,7 +495,7 @@ export const placeLeTrucImports = (
 		const usedClient = names.filter(n => clientUsage.has(n))
 		// Type-only survivors: unused as values, named in the module's own
 		// verbatim texts. Placed as `type X` so a type-only export stays one
-		// (LT-423 fixture: `MutableStore<T>` in a verbatim signal
+		// ( fixture: `MutableStore<T>` in a verbatim signal
 		// declaration — the usage walks count value reads only).
 		const typeServer = names.filter(
 			n => !serverUsage.has(n) && serverTypeNames.has(n),
@@ -510,7 +510,7 @@ export const placeLeTrucImports = (
 			typeClient.length === 0
 		) {
 			// One report per run of adjacent names, so no range covers a
-			// context name between them (LT-371).
+			// context name between them ().
 			for (const run of runsWithout(imp, contextVocabulary))
 				ctx.diagnostics.push(
 					diagnostic.unusedPlainImport(
@@ -555,8 +555,8 @@ export type PlainImportIR = {
 /**
  * Every top-level `ImportDeclaration` whose specifier does NOT resolve to a
  * composable target — `.tsrx` OR `.tsx` (`parseComposeImports` above claims
- * both; the dual-extension filter is the production shape LT-183's spike
- * worked around by local-name overlap; LT-183 spike findings fact 7,
+ * both; the dual-extension filter is the production shape the ticket's spike
+ * worked around by local-name overlap;  spike findings fact 7,
  * `adr/archive/0032-spike-findings.md`) — and is not
  * `'@zeix/le-truc'` (`parseLeTrucImports` above claims that specifier — its
  * placement is per-name against the runtime-harness filter, not the
@@ -568,7 +568,7 @@ export type PlainImportIR = {
  * up.
  *
  * `outDirPrefix` is that rewrite's prefix back to the project root — `../`
- * once per segment of the CONFIGURED output root (LT-255,
+ * once per segment of the CONFIGURED output root (
  * `corpus-config.ts`). It was a hard-coded `'../../../'` until the output
  * root became a consumer's choice; the default still is, so an unconfigured
  * call emits exactly what it emitted before.
@@ -597,7 +597,7 @@ export const parsePlainImports = (
 			specifier === '@zeix/le-truc'
 		)
 			continue
-		// A marker specifier never reaches a generated module (ADR 0034 s1):
+		// A marker specifier never reaches a generated module (ADR 0012 s1):
 		// the declaration drops whole when every specifier is a marker.
 		const stripped = withoutMarkers(ctx.source, stmt)
 		if (stripped === null) continue
@@ -628,17 +628,13 @@ export const parsePlainImports = (
 }
 
 /**
- * Every server-known-position expression node anywhere in the template
- * (LT-042: rebuilt on `walkTemplate` — traversal encoded once in walk.ts;
- * the collected NAME SET is unchanged, which is all `placePlainImports`
- * consumes). Includes `'server'`-kind attributes (the classifier's fallback
+ * Every server-known-position expression node anywhere in the template.
+ * Includes `'server'`-kind attributes (the classifier's fallback
  * for any non-arrow `{…}` expression, e.g. `data-foo={helper(count)}`) —
  * they are spliced verbatim and unconditionally into the SERVER module by
  * emit-server.ts, no scope/dependency gate exists there, unlike `reactive`/
  * `style-map`/`class-map`. They belong in this always-server-rendered
- * bucket, not the scope-gated `serverRenderedThunkNodes` one (LT-037,
- * found reviewing LT-034: a plain import used only inside a `'server'`-kind
- * attribute was invisible to `placePlainImports`, mis-diagnosed as unused,
+ * bucket, not the scope-gated `serverRenderedThunkNodes` one (a plain import used only inside a `'server'`-kind attribute was invisible to `placePlainImports`, mis-diagnosed as unused,
  * and dropped from the server module even though the generated code
  * referenced it).
  */
@@ -666,19 +662,19 @@ const clientExprNodes = (root: TemplateNode): AstNode[] => {
 		if (node.kind === 'expr' && node.reactivity === 'reactive')
 			out.push(node.expr)
 		else if (node.kind === 'client-stmt') out.push(node.node)
-		// A reactive conditional's test is its client arm-key thunk (ADR 0037).
+		// A reactive conditional's test is its client arm-key thunk (ADR 0015).
 		else if (node.kind === 'conditional' && node.mode === 'reactive')
 			out.push(node.test)
-		// `pass={{ }}` on a composed element (LT-088): `collectAttrs` only
+		// `pass={{ }}` on a composed element (): `collectAttrs` only
 		// covers `kind: 'element'` attrs (`ComposeAttrIR` is a different
 		// vocabulary, walk.ts's own doc comment on `collectAttrs` used to
 		// flag this as a known gap) — a plain-setup-const/plain-import
 		// referenced ONLY inside a compose `pass` thunk (`truc:pass={{ value:
 		// () => toDisplay(...) }}`) needs the exact same client-need tracing
 		// raw-element `pass` gets below, or it silently never gets emitted.
-		// A compose-site handler arg (LT-461) lowers to a parent-side `on()`
+		// A compose-site handler arg () lowers to a parent-side `on()`
 		// in the factory, exactly like a native `onX` event attribute
-		// (LT-490); a forwarded one emits nothing.
+		// (); a forwarded one emits nothing.
 		else if (node.kind === 'compose')
 			for (const attr of node.attrs) {
 				if (attr.kind === 'pass')
@@ -708,7 +704,7 @@ const clientExprNodes = (root: TemplateNode): AstNode[] => {
 /**
  * Server-conditional reactive-family thunks (`reactive`/`style-map`/
  * `class-map`) — gated by the same `isServerEvaluable` rule emit-server.ts
- * applies (evaluability.ts, LT-043), so a plain import used only inside a
+ * applies (evaluability.ts), so a plain import used only inside a
  * thunk that DOES get server-rendered still lands server-side.
  */
 const serverRenderedThunkNodes = (
@@ -766,7 +762,7 @@ type SetupLikeComponent = Pick<
  * plain const referenced ONLY from a server-only position (e.g. an `@if`
  * condition) is correctly excluded — it would be a "Cannot find name"
  * client-side otherwise (found migrating `form-textbox.tsrx`'s `@if
- * (validatable)`, alongside LT-034).
+ * (validatable)`, alongside ).
  */
 export const computeClientNeededNames = (
 	component: SetupLikeComponent,
@@ -777,8 +773,8 @@ export const computeClientNeededNames = (
 	for (const stmt of component.clientSetup)
 		for (const n of dependenciesOf(stmt.node)) needed.add(n)
 	// A `harvest()` marker is spliced into the client's declaration as
-	// authored (ADR 0046 s7): the list form's parser entries (LT-429) and
-	// the scalar form's parser (LT-443); the server reads the seed through
+	// authored (ADR 0024 s7): the list form's parser entries () and
+	// the scalar form's parser (); the server reads the seed through
 	// without it.
 	for (const signal of component.signals) {
 		if (signal.family !== 'declared') continue
@@ -821,10 +817,10 @@ export const computeClientNeededNames = (
 
 /**
  * Every name a server-evaluated position uses: setup statements (emitted
- * verbatim into the server module unconditionally, ADR 0024 sub-design 12),
+ * verbatim into the server module unconditionally, ADR 0005 sub-design 12),
  * always-server template expressions, and server-conditional reactive-family
  * thunks. Shared by `placePlainImports` and `placeLeTrucImports`; exported
- * since LT-165 step 5 for the rendered-client-only-const check (`LTC046`),
+ * since  step 5 for the rendered-client-only-const check (`LTC046`),
  * which asks the complementary question — did a setup const the harness
  * cannot evaluate reach one of these positions?
  */
@@ -834,7 +830,7 @@ export const serverUsageNames = (
 	const serverNames = new Set<string>()
 	for (const stmt of component.setup)
 		for (const n of dependenciesOf(stmt.node)) serverNames.add(n)
-	// The item setup the server's loop declares (ADR 0046 s5).
+	// The item setup the server's loop declares (ADR 0024 s5).
 	for (const stmt of component.itemSetup)
 		if (onServer(stmt))
 			for (const n of dependenciesOf(stmt.node)) serverNames.add(n)

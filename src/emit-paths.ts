@@ -1,6 +1,6 @@
 /**
  * The facts the emitters need from the corpus configuration (LT-255; the
- * CSS target joined as the third fact in LT-304).
+ * CSS target joined as the third fact in ).
  *
  * A leaf on purpose: the emitters (`imports.ts`, `pipeline.ts`) need only
  * these defaults, not config resolution. RESOLUTION — which needs real
@@ -16,16 +16,16 @@ export const DEFAULT_OUT_DIR = 'server/generated/components'
  * Specifier the generated SERVER modules (and the generated `i18n` module)
  * import the render harness from.
  *
- * The default is the published package's own `./runtime` subpath (LT-254,
- * ADR 0034 s1): a consumer never sets `runtimeImport`. This repo is the one
+ * The default is the published package's own `./runtime` subpath (
+ * ADR 0012 s1): a consumer never sets `runtimeImport`. This repo is the one
  * consumer that must — its harness is the in-tree `server/compiler/runtime`
  * source, not an installed package — so its `le-truc.config.json` pins the
  * repo-relative specifier the generated modules used before publication
- * (ADR 0036 s2's exception, made deliberate by the same task).
+ * (ADR 0014 s2's exception, made deliberate by the same task).
  */
 export const DEFAULT_RUNTIME_IMPORT = '@zeix/le-truc-compiler/runtime'
 
-/* === The CSS target (ADR 0033 s5, LT-304) === */
+/* === The CSS target (ADR 0011 s5, LT-304) === */
 
 /**
  * The browsers a `cssTargets` entry names. The four engines the runtime
@@ -64,7 +64,7 @@ export type CssTargets = Partial<Record<CssBrowser, number>>
  * 2026-09-24: a pin moves only with a major).
  *
  * `@scope` is NOT widely available at this pin (Firefox crossed 128 only in
- * July 2024), so the default compiles the **lowered** emission — ADR 0033
+ * July 2024), so the default compiles the **lowered** emission — ADR 0011
  * s5's "with the default, `@scope` lowers until widely available". The pin
  * moves only with a compiler/runtime major, never silently.
  */
@@ -82,7 +82,7 @@ export const DEFAULT_CSS_TARGETS: CssTargets = {
  * authored source was nested, so a relative specifier the author wrote
  * (resolved to a root-relative path) needs a fixed prefix back to the project
  * root — and that prefix is a function of how deep the configured output root
- * sits. Both facts were hard-coded for this repo's layout before LT-255,
+ * sits. Both facts were hard-coded for this repo's layout before ,
  * which is what made the output root un-configurable in practice.
  */
 export type EmitPaths = {
@@ -91,7 +91,7 @@ export type EmitPaths = {
 	/** See `DEFAULT_RUNTIME_IMPORT`. */
 	runtimeImport: string
 	/**
-	 * The resolved CSS target (ADR 0033 s5, LT-304): decides native `@scope`
+	 * The resolved CSS target (ADR 0011 s5): decides native `@scope`
 	 * vs the flat-selector lowering, and feeds lightningcss's own lowering.
 	 */
 	cssTargets: CssTargets
@@ -100,7 +100,7 @@ export type EmitPaths = {
 /**
  * What the emitters assume when no configuration is threaded through — this
  * repo's layout, so every call site that has not been handed a config keeps
- * emitting exactly what it emitted before LT-255.
+ * emitting exactly what it emitted before .
  */
 export const DEFAULT_EMIT_PATHS: EmitPaths = {
 	outDirPrefix: '../'.repeat(DEFAULT_OUT_DIR.split('/').length),

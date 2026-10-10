@@ -1,6 +1,6 @@
 /**
  * Thunk-body type predicates shared across passes: `returnsNumber`
- * (LT-126/LT-443), read by pass 1's loop attribute planning (`loops.ts`)
+ * , read by pass 1's loop attribute planning (`loops.ts`)
  * and pass 4's reactive-attribute planning (`effects.ts`). A leaf by design
  * (2026-10-10 architecture review): homed in pass 2 (`harvest.ts`) it made
  * pass 1 import a later pass backwards. Pure functions — no pass state.
@@ -19,7 +19,7 @@ const NUMBER_PARSERS: ReadonlySet<string> = new Set([
 
 /**
  * Does a signal's scalar `harvest()` marker declare a number-valued parser
- * (LT-443)? The marker does not inform `inferredType`, so a seed whose
+ * ()? The marker does not inform `inferredType`, so a seed whose
  * annotation the compiler cannot read (`price: Price`) still connects as a
  * number once wrapped. Matched by name, called or bare — the same syntactic
  * honesty as `CALLABLE_AS_WRITTEN`: an aliased factory misses and its
@@ -41,10 +41,10 @@ const hasNumberMarker = (signal: SignalIR): boolean => {
 
 /**
  * Conservative check: does a thunk body evaluate to a number? Number
- * literals, conditionals over them, and — since LT-126 — a bare read of a
+ * literals, conditionals over them, and — since  — a bare read of a
  * number-typed signal (`count.get()`), resolved through the signal's own
  * `inferredType` rather than guessed from the expression's shape — or,
- * since LT-443, through a number-valued `harvest()` marker parser.
+ * since , through a number-valued `harvest()` marker parser.
  *
  * The signal case matters because of LT-116: `value` on a native form
  * control now dispatches as a PROPERTY write, and `HTMLInputElement.value`

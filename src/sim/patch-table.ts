@@ -1,5 +1,5 @@
 /**
- * The realm patch table (ADR 0027 sub-design 2, LT-151).
+ * The realm patch table (ADR 0006 sub-design 2).
  *
  * Executing a generated client module against jsdom means the module's free
  * globals — `HTMLElement`, `customElements`, `document`, observer and event
@@ -25,13 +25,13 @@
  * already absent is a fill and forcing one that is present is the de-shadow —
  * the same operation covers both cases.
  *
- * ## The applier's half only (LT-263)
+ * ## The applier's half only ()
  *
  * This table used to serve two audiences. The CLASSIFIER's half — the names
  * of the globals no realm answers, the member reads a realm answers wrong,
  * and the census copy for each — moved to
  * `../simulation/capabilities.ts` so `tier.ts` classifies and the census
- * prints with no substrate installed (ADR 0035 sub-design 3 limb 2). What
+ * prints with no substrate installed (ADR 0013 sub-design 3 limb 2). What
  * remains is per-runtime force/fill/stub data, which only `realm.ts` reads.
  *
  * The two halves name the same globals and are held together by a test
@@ -88,7 +88,7 @@ export type StubGlobalPatch = {
 
 /**
  * An ambient network global, replaced with a no-op that reports at call
- * time and then NEVER SETTLES (amended sub-design 2d, LT-154, 2026-09-03).
+ * time and then NEVER SETTLES (amended sub-design 2d, 2026-09-03).
  * A rejecting stub is wrong under the hermetic-quiescence boundary
  * (`boundary.ts`): draining a rejection to settlement routes every fetching
  * component to its `@catch` arm, but the build cannot know the request
@@ -224,7 +224,7 @@ export const STUB_GLOBALS: readonly StubGlobalPatch[] = [
 
 /**
  * Every ambient network global, replaced with a reporting, never-settling
- * stub (amended sub-design 2d, LT-154). Reporting happens at CALL time, so a
+ * stub (amended sub-design 2d). Reporting happens at CALL time, so a
  * network attempt is always a build warning regardless of what the component
  * does with the returned promise. The promise itself never settles, which is
  * what keeps a fetching component's task at `nil` and its markup on the

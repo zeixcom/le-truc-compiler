@@ -1,5 +1,5 @@
 /**
- * The substrate resolver's absence discrimination (LT-256, ADR 0034 s5).
+ * The substrate resolver's absence discrimination (ADR 0012 s5).
  *
  * `resolveSimulationProvider` used to swallow EVERY error from the driver
  * import, which made a driver that is installed but broken indistinguishable

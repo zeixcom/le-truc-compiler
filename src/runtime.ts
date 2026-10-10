@@ -6,12 +6,12 @@
  * constructors and `expose()` — must resolve to server-side shims. On the
  * server a signal is its initial value in a box: `.get()` reads it once and
  * `.set()` is a no-op, because the server renders once and never reacts
- * (ADR 0024 sub-design 2: "signals as plain values").
+ * (ADR 0005 sub-design 2: "signals as plain values").
  *
  * This module is imported by *generated* code (`server/generated/components/`
  * in this repo, any output root elsewhere), never by the compiler itself.
  * In the published package it is the `@zeix/le-truc-compiler/runtime`
- * subpath — the default `runtimeImport` (LT-254) — so its own runtime-library
+ * subpath — the default `runtimeImport` () — so its own runtime-library
  * imports (`sanitizeHtml`, `configureHtmlSanitizer`) name the peer package
  * `@zeix/le-truc`, which resolves in-repo to the same barrel through the
  * root tsconfig's `paths` entry and Bun's package self-reference.
@@ -23,9 +23,9 @@ import { bakeMessageEnv, type Message, type MessageEnv } from './icu/evaluate'
 /* === Re-exports === */
 
 /**
- * The shared ICU evaluator (LT-250, ADR 0030 s4): the generated `i18n`
+ * The shared ICU evaluator (ADR 0009 s4): the generated `i18n`
  * module wraps each argument message's parsed AST in a call to it, so the
- * server fold runs the same walk LT-218 inlines into the client.
+ * server fold runs the same walk  inlines into the client.
  */
 export {
 	formatMessage,
@@ -36,7 +36,7 @@ export {
 
 /**
  * Where the generated `i18n` module keeps an argument message's parsed AST
- * on the closure `t.<key>` resolves to (LT-218). The server fold only ever
+ * on the closure `t.<key>` resolves to (). The server fold only ever
  * calls the closure; `clientMessages` reads the AST back to serialize it
  * into the client channel. A symbol, so it never shows up in `t`'s type or
  * in a spread.
@@ -68,7 +68,7 @@ export type ServerFieldSignal<V> = V extends readonly (infer U)[]
 		: ServerCell<V>
 
 /**
- * Server-side stand-in for a `MutableStore` (ADR 0046 s3): every field is a
+ * Server-side stand-in for a `MutableStore` (ADR 0024 s3): every field is a
  * signal ({@link ServerFieldSignal}), and `get()` returns the whole value.
  */
 export type ServerStore<T extends Record<string, unknown>> = ServerCell<T> & {
@@ -76,7 +76,7 @@ export type ServerStore<T extends Record<string, unknown>> = ServerCell<T> & {
 }
 
 /**
- * Server-side stand-in for a `List` (ADR 0046 s3, s4): iterates the item
+ * Server-side stand-in for a `List` (ADR 0024 s3, s4): iterates the item
  * CELLS it hands out — `S` is the `createItem` result, a cell by default —
  * keyed exactly as Cause & Effect keys the same seed. `get()` returns the
  * plain values. Never mutates.
@@ -105,7 +105,7 @@ type ServerListOptions<T, S> = {
 	keyConfig?: KeyConfig<T>
 	/**
 	 * The authored factory's return is the CLIENT type the authored generic
-	 * pins (`MutableStore<T>`, ADR 0046 s3) — the harness cannot implement
+	 * pins (`MutableStore<T>`, ADR 0024 s3) — the harness cannot implement
 	 * the mutation half, so its own `createStore` is admitted through the
 	 * union and the iteration keeps the authored `S`. The server render
 	 * reads fields and never mutates, so the reduced stand-in carries every
@@ -131,7 +131,7 @@ export const createCell = <T>(initial: T): ServerCell<T> => ({
  * → `prefix0…`, function → `fn(item) || auto`, none → positional `0…`) —
  * the server render's `data-key` values must match the keys the client's
  * real `createList` generates for the same seed, or `reconcile()` adoption
- * fails (ADR 0024 sub-design 3: one seeding story).
+ * fails (ADR 0005 sub-design 3: one seeding story).
  */
 export const createList = <T, S = ServerCell<T>>(
 	seed: Iterable<T> = [],
@@ -187,7 +187,7 @@ const fieldSignal = (value: unknown): unknown =>
  * `createStore(initial)` → a store whose fields are signals (nested objects
  * stores, arrays lists, anything else cells) and whose `get()` returns the
  * whole value — so `item.label.get()` runs at render time, as it does on the
- * client (ADR 0046 s3).
+ * client (ADR 0024 s3).
  */
 export const createStore = <T extends Record<string, unknown>>(
 	initial: T,
@@ -202,7 +202,7 @@ export const createStore = <T extends Record<string, unknown>>(
 
 /**
  * `createSensor(start, { value })` → box over the `value` seed, its server
- * value (ADR 0046 s5). `start` subscribes to a client source and never runs
+ * value (ADR 0024 s5). `start` subscribes to a client source and never runs
  * here. Unseeded, a sensor has no server value: the compiler routes every
  * read of one as unresolvable, so this `get()` throwing is only a backstop
  * against a read that analysis missed.
@@ -226,8 +226,8 @@ export const createSensor = <T>(
 export const createState = <T>(initial: T): ServerCell<T> => createCell(initial)
 
 /**
- * Marks a `ServerCell` as pending (ADR 0024 sub-design 13, async boundaries,
- * LT-012) — never exposed on the type; `isPending` is the only sanctioned way
+ * Marks a `ServerCell` as pending (ADR 0005 sub-design 13, async boundaries,
+ * ) — never exposed on the type; `isPending` is the only sanctioned way
  * to read it.
  */
 const ASYNC_PENDING = Symbol('tsrx-async-pending')
@@ -239,7 +239,7 @@ const isAsyncFunction = (fn: (...args: never[]) => unknown): boolean =>
 
 /**
  * `deriveCell(fn, options?)` → box over `fn()` evaluated once, UNLESS `fn` is
- * an `async` function (ADR 0024 sub-design 13): the server render is
+ * an `async` function (ADR 0005 sub-design 13): the server render is
  * synchronous and never awaits, so an async compute is never invoked at
  * all — calling it would produce a dangling, uncaught Promise. Instead: an
  * `{ initial }` option seeds the retained value directly (the `ok` arm,
@@ -260,7 +260,7 @@ export const deriveCell = <T>(
 	return {
 		get: () => {
 			throw new Error(
-				'deriveCell(...) is pending (no { initial } seed) — read it only inside an isPending()-guarded branch (ADR 0024 async boundaries).',
+				'deriveCell(...) is pending (no { initial } seed) — read it only inside an isPending()-guarded branch (ADR 0005 async boundaries).',
 			)
 		},
 		set: () => {},
@@ -269,7 +269,7 @@ export const deriveCell = <T>(
 }
 
 /**
- * Whether an async-derived cell is pending at render time (ADR 0024 sub-
+ * Whether an async-derived cell is pending at render time (ADR 0005 sub-
  * design 13) — `@try`/`@pending`/`@catch` async boundaries route on this,
  * mirroring `@zeix/cause-effect`'s real `isPending()` behaviorally (a
  * different underlying representation server-side, since the server shim
@@ -282,7 +282,7 @@ export const isPending = (signal: unknown): boolean =>
 
 /**
  * `createTask(fn, options?)` → the explicit spelling of the async
- * `deriveCell` branch above (LT-449): the server render is synchronous and
+ * `deriveCell` branch above (): the server render is synchronous and
  * never awaits, so the task callback is never invoked here — invoking it
  * would start a fetch the render discards. A `{ value }` seed is the
  * retained value the client task also starts with (the `ok` arm); without
@@ -299,7 +299,7 @@ export const createTask = <T>(
 	return {
 		get: () => {
 			throw new Error(
-				'createTask(...) is pending (no { value } seed) — read it only inside an isPending()-guarded branch (ADR 0024 async boundaries).',
+				'createTask(...) is pending (no { value } seed) — read it only inside an isPending()-guarded branch (ADR 0005 async boundaries).',
 			)
 		},
 		set: () => {},
@@ -378,13 +378,13 @@ export const deriveStore = <T>(compute: () => T): ServerCell<T> =>
 export const expose = (_props: Record<string, unknown>): void => {}
 
 /**
- * The render witness of a key-alias harvest failed (ADR 0047 s2, LT-453):
+ * The render witness of a key-alias harvest failed (ADR 0025 s2):
  * the keys the alias scope rendered do not reach every key of the
  * harvested list, in list order. The client rebuilds the list at connect
  * from the rendered items only, so it would connect a list with an item
  * missing or out of place, and no client check can see an item it never
  * received. Channel: the server render — static generation and the Server
- * Simulation realm fail the build (ADR 0028: Prevented in effect). The
+ * Simulation realm fail the build (ADR 0007: Prevented in effect). The
  * static half is LTC080. No client counterpart.
  */
 export class HarvestWitnessError extends Error {
@@ -395,7 +395,7 @@ export class HarvestWitnessError extends Error {
 }
 
 /**
- * Assert the render witness of a key-alias harvest (ADR 0047 s2): the
+ * Assert the render witness of a key-alias harvest (ADR 0025 s2): the
  * first occurrences of `rendered` — the keys the alias scope rendered, in
  * render order — equal the keys of `list`. Throws
  * {@link HarvestWitnessError} naming the first key missing, out of order,
@@ -432,7 +432,7 @@ export const witnessHarvest = (
 /**
  * Stand-in for a client-only ambient the server render function still
  * has to DECLARE — a `first()`-bound element reference, `host`,
- * `internals` (LT-121). Those name connect-time DOM the server never
+ * `internals` (). Those name connect-time DOM the server never
  * has, but `expose()`'s argument object is a real expression the
  * generated module evaluates: a component following the
  * children-are-data rule seeds its props by READING the reference
@@ -445,7 +445,7 @@ export const witnessHarvest = (
  * instead: every property read yields the stub again, calls return it,
  * and coercion yields the empty/zero/false primitive for the hint. The
  * VALUES are meaningless by construction and never reach the markup —
- * `host.<prop>` is never server-known (ADR 0003: the client harvests
+ * `host.<prop>` is never server-known (ADR 0001: the client harvests
  * the real value from the rendered DOM at connect) — so the only
  * contract here is "evaluates without throwing".
  */
@@ -485,7 +485,7 @@ export const refStub: any = new Proxy((() => {}) as never, {
  * rejects a method whose own params have a concrete (non-`unknown`) type
  * under `strictFunctionTypes`' parameter contravariance, e.g. a union type
  * (`(axis: 'l' | 'c' | 'h', big?: boolean) => void`) — found migrating
- * `form-colorgraph.tsrx` (LT-088); every prior `defineMethod` in the corpus
+ * `form-colorgraph.tsrx` (); every prior `defineMethod` in the corpus
  * happened to use only inferred-`boolean`/no-param callbacks, which
  * apparently didn't trip this.
  */
@@ -493,9 +493,9 @@ export const defineMethod = <T extends (...args: any[]) => void>(fn: T): T => fn
 
 /**
  * Parser-factory shims (`asString` etc.). The verbatim setup calls them when
- * `expose()` carries Parser-backed attribute-driven props (ADR 0024
+ * `expose()` carries Parser-backed attribute-driven props (ADR 0005
  * sub-design 8); their results are metadata on the server — the real parsers
- * run in the browser at connect time against the host attribute (ADR 0003).
+ * run in the browser at connect time against the host attribute (ADR 0001).
  */
 export const asString =
 	(fallback: string = '') =>
@@ -562,7 +562,7 @@ export const esc = (text: string): string =>
 /**
  * What a text position renders: the type of every text sink the compiler
  * emits, on the server ({@link text}) and the client (`bindText`), per
- * ADR 0046 s6. Nil renders empty here; on the client it keeps the last
+ * ADR 0024 s6. Nil renders empty here; on the client it keeps the last
  * value, which on first render is the same empty text.
  */
 export type TextValue = string | number | null | undefined
@@ -571,7 +571,7 @@ export type TextValue = string | number | null | undefined
  * The server's text sink: HTML-escape one text position's value.
  *
  * Typed `TextValue` so an object or a boolean reaching a text position is a
- * tsc error at its authored line, through `check:corpus` (ADR 0046 s6) —
+ * tsc error at its authored line, through `check:corpus` (ADR 0024 s6) —
  * stringifying it would render `[object Object]` or `true`. To fix one,
  * render a field (`{() => item.get().label}`), or choose the text with a
  * ternary for a boolean (`{() => (done.get() ? 'Done' : 'Open')}`).
@@ -604,7 +604,7 @@ export const attr = (name: string, value: unknown): string => {
 
 /**
  * The VALUE one rendered attribute carries, `attr()`'s own dispatch seen
- * from the parser side (LT-386): a connect-time parser never reads the raw
+ * from the parser side (): a connect-time parser never reads the raw
  * expression — it reads the SERIALIZED attribute — so a spliced Parser
  * seed must apply the parser to this, not to the expression's value.
  * `true` → the bare-presence empty string, `false`/`null`/`undefined` →
@@ -628,7 +628,7 @@ export const cls = (map: Record<string, unknown>): string =>
 /**
  * Render a style map's non-nil entries as an inline style declaration list
  * (`{ color: 'red', '--x': null }` → `"color: red"`), matching `bindStyle()`'s
- * map-form client dispatch (LT-028, LT-029): a `null`/`undefined` value is
+ * map-form client dispatch (): a `null`/`undefined` value is
  * omitted, same as `removeProperty` on the client. Returns `''` when every
  * entry is nil.
  */
@@ -642,12 +642,12 @@ export const styleAttr = (
 
 /**
  * The `truc:html={expr}` sanitizer is the library's own `sanitizeHtml`
- * (LT-138): the configured default from `configureHtmlSanitizer`, else escape
+ * (): the configured default from `configureHtmlSanitizer`, else escape
  * everything — safe but inert. The generated client passes every reactive
  * `truc:html` value through the same function, so both halves share one
  * configuration and one fail-closed default: an unconfigured app renders
  * escaped text on the server AND after hydration, never escaped-then-live.
- * The library still owns no sanitizer (ADR 0010); the consumer configures
+ * The library still owns no sanitizer (ADR 0002); the consumer configures
  * one — DOMPurify on jsdom here (`createDOMPurify(new JSDOM('').window)`),
  * plain DOMPurify in the browser.
  */
@@ -671,7 +671,7 @@ export const entries = <T>(
 ): IterableIterator<[number, T]> => Array.from(iterable).entries()
 
 /**
- * Compose-site `class`/`id` materialization (LT-090) — implemented in
+ * Compose-site `class`/`id` materialization () — implemented in
  * `compose-attrs.ts` (markup post-processing, not a signal shim) and
  * re-exported here so generated modules keep a single runtime import.
  */
@@ -721,7 +721,7 @@ const pickClientMessages = (
 }
 
 /**
- * The per-instance `i18n` attribute's value (ADR 0030 s9, LT-218): the
+ * The per-instance `i18n` attribute's value (ADR 0009 s9): the
  * client-referenced keys this render's locale changes. Called per render
  * call, so each locale serializes its own messages; a source-locale render
  * usually changes none. Null when nothing is left, which omits the
@@ -738,7 +738,7 @@ export const clientMessages = (
 
 /**
  * The render locale, for a root `lang` the component does not render
- * itself (ADR 0030 s6): read off the first client-referenced argument
+ * itself (ADR 0009 s6): read off the first client-referenced argument
  * message's record. Emitted only for a component whose client messages
  * format (number, date, plural), so the client's `closest('[lang]')` finds
  * the locale the server folded in even when no ancestor carries it.

@@ -35,7 +35,7 @@ const NATIVE: Record<string, number> = {
 	safari: (17 << 16) | (4 << 8),
 }
 
-/** The guard one limit adds (ADR 0033 s4), for tag `my-box`. */
+/** The guard one limit adds (ADR 0011 s4), for tag `my-box`. */
 const guardOf = (limit: string, root = 'my-box'): string =>
 	`:where(:not(:is(${root} ${limit}, ${root} ${limit} *):not(${root} ${limit} my-box, ${root} ${limit} my-box *, ${root} ${limit}:is(my-box), ${root} ${limit}:is(my-box) *)))`
 
@@ -116,7 +116,7 @@ const firstSelector = (css: string): string =>
 
 /* === The CSS target === */
 
-describe('scopeModeOf (ADR 0033 s7)', () => {
+describe('scopeModeOf (ADR 0011 s7)', () => {
 	test('the default target lowers — @scope is not widely available there', () => {
 		expect(scopeModeOf(DEFAULT_CSS_TARGETS)).toBe('lowered')
 	})
@@ -137,7 +137,7 @@ describe('scopeModeOf (ADR 0033 s7)', () => {
 	})
 })
 
-/* === The authored-form checks (ADR 0033 s6) === */
+/* === The authored-form checks (ADR 0011 s6) === */
 
 describe('checkSheetContract', () => {
 	const findingsOf = (sheetText: string, tag = 'my-box') => {
@@ -313,7 +313,7 @@ describe('checkSheetLowering (LTC089)', () => {
 	})
 })
 
-/* === The lowered emission (ADR 0033 s4) === */
+/* === The lowered emission (ADR 0011 s4) === */
 
 describe('emitScopedSheet — lowered (the default targets)', () => {
 	test('bare selectors lead with :where(tag); :scope becomes the padded root compound', () => {
@@ -336,7 +336,7 @@ describe('emitScopedSheet — lowered (the default targets)', () => {
 			[':scope.on .x', [0, 3, 0]],
 			[':scope:is(.a, .b) .x', [0, 3, 0]],
 			['p .x', [0, 1, 1]],
-			// The ADR 0033 s1 idiom: the host at zero, a variant at (0,1,0),
+			// The ADR 0011 s1 idiom: the host at zero, a variant at (0,1,0),
 			// a relative descendant under the implicit `:where(:scope)`.
 			[':where(:scope)', [0, 0, 0]],
 			[':where(:scope).x', [0, 1, 0]],
@@ -516,7 +516,7 @@ describe('emitScopedSheet — lowered (the default targets)', () => {
 	})
 })
 
-/* === The native emission (ADR 0033 s3) === */
+/* === The native emission (ADR 0011 s3) === */
 
 describe('emitScopedSheet — native (@scope-capable targets)', () => {
 	const native = (sheetText: string) => emit(sheetText, { cssTargets: NATIVE })

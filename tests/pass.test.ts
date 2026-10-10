@@ -1,5 +1,5 @@
 /**
- * `truc:pass={{ }}` dispatch (ADR 0024 sub-design 10, amending sub-design 4):
+ * `truc:pass={{ }}` dispatch (ADR 0005 sub-design 10, amending sub-design 4):
  * the sole client-prop interop channel for custom-element targets, for both
  * raw dashed tags and composed (PascalCase) elements — replacing the old
  * shape-inferred "function-valued attribute on a custom tag" dispatch.
@@ -192,7 +192,7 @@ export function C({}: {})
 	})
 })
 
-describe('truc:pass — namespaced host-owned attribute (LT-053)', () => {
+describe('truc:pass — namespaced host-owned attribute', () => {
 	const source = (attr: string) => `import { createCell } from '@zeix/le-truc'
 import { Child } from './child.tsrx'
 
@@ -238,7 +238,7 @@ import { Child } from './child.tsrx'
 /* === Per-prop legality against the target's own expose() (LT-158) === */
 
 /**
- * [ADR 0028](../../../adr/0028-tiered-error-surfacing.md) sub-design 6: a
+ * [ADR 0007](../adr/0007-tiered-error-surfacing.md) sub-design 6: a
  * `pass()` target whose prop EXISTS but is not Slot-backed is ADR 0011's own
  * motivating example, and the one shape TypeScript cannot carry — a
  * read-only prop is structurally identical to a writable one. The registry
@@ -383,7 +383,7 @@ describe('pass={{ }} prop legality against the target registry entry', () => {
 		// A hand-written (non-.tsrx) child is registry-known via
 		// `childImports` but never has an entry, and the discovery pass has
 		// no compose registry at all. Silence here is the deliberate
-		// answer — ADR 0028 sub-design 1 keeps the runtime check for
+		// answer — ADR 0007 sub-design 1 keeps the runtime check for
 		// exactly this case ([M15] no-build components, foreign markup).
 		const { component, diagnostics } = compileComponent(
 			parent,

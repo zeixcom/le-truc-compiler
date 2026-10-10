@@ -1,5 +1,5 @@
 /**
- * Tests for lazy-child `watch()`-source lowering (LT-038): a lazy child
+ * Tests for lazy-child `watch()`-source lowering (): a lazy child
  * whose expression is neither a signal identifier nor a string prop-name
  * lowers to an arrow thunk automatically, so `watch()`'s overload
  * resolution succeeds without the author needing to hand-wrap it.

@@ -1,5 +1,5 @@
 /**
- * The per-field harvest's front-end half (ADR 0046 s7, LT-429): a
+ * The per-field harvest's front-end half (ADR 0024 s7): a
  * `createList` declaration's item type, read syntactically, and the
  * `harvest()` marker's parser map.
  *
@@ -132,7 +132,7 @@ const fieldsOf = (
 	return fields
 }
 
-/** An item type node's shape (ADR 0046 s7). */
+/** An item type node's shape (ADR 0024 s7). */
 const shapeOf = (
 	node: AstNode,
 	types: ReadonlyMap<string, AstNode>,
@@ -268,7 +268,7 @@ export const collectModuleTypes = (
 }
 
 /**
- * A `createList` call's item type (ADR 0046 s7): the first type argument,
+ * A `createList` call's item type (ADR 0024 s7): the first type argument,
  * else the element type of the seed arg's annotation (`seed` is the seed a
  * `harvest()` marker wraps, when there is one).
  */
@@ -300,7 +300,7 @@ export const resolveListItem = (
 /**
  * Why a `harvest()` call cannot be read, or its seed and parser. The list
  * form is `harvest(seed, { field: parser, … })` with a literal map of
- * plain keys; the scalar form is `harvest(seed, parser)` (LT-443).
+ * plain keys; the scalar form is `harvest(seed, parser)` ().
  */
 export type HarvestCall =
 	| {
@@ -317,7 +317,7 @@ export type HarvestCall =
 
 /**
  * Read a `harvest()` marker call. `node` is a call expression; null when
- * its callee is not the marker (ADR 0034 s1: resolved by binding, through
+ * its callee is not the marker (ADR 0012 s1: resolved by binding, through
  * the enclosing scopes' declarations in `enclosing`).
  */
 export const harvestCallOf = (

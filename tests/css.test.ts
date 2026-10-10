@@ -1,5 +1,5 @@
 /**
- * The parsed stylesheet (ADR 0033 s9, LT-268): the model the IR carries
+ * The parsed stylesheet (ADR 0011 s9): the model the IR carries
  * (`ComponentIR.sheet`), and the LTC064 spec-grammar faces the parse
  * reports. The emission stays verbatim — `component.css` is asserted
  * byte-identical with the authored dedent on every compiled fixture, and
@@ -10,7 +10,7 @@
  * parse: nested rules fold into positioned Raw nodes whose brace regions
  * the parse recurses into. lightningcss collects the sheet READ-ONLY —
  * returning parsed nodes into the parser crashes on `var()` inside
- * nested rules at 1.33 (the write path is LT-304's) — so every assertion
+ * nested rules at 1.33 (the write path is the's) — so every assertion
  * below reads the model after the parse has returned. A grammar error
  * points at the declaration it sits on (the property's own offset).
  */
@@ -175,7 +175,7 @@ describe('parseComponentSheet — the LTC064/LTC065 faces', () => {
 		expect(errors).toEqual([])
 	})
 
-	// LT-394: a conditional group nested in a rule holds properties, so its
+	//: a conditional group nested in a rule holds properties, so its
 	// declarations are checked like the rule's own.
 	test('a conditional group nested in a rule is checked', () => {
 		const css =
@@ -240,7 +240,7 @@ describe('the IR carries the parsed sheet', () => {
 			['LTC065', 'warning'],
 		])
 		expect(lineAt(source, diagnostics[0])).toBe(lineOf(source, 'width: 10pxx'))
-		// LT-371: the range covers the declaration (css-tree's own span).
+		//: the range covers the declaration (css-tree's own span).
 		expect(textAt(source, diagnostics[0])).toBe('width: 10pxx')
 		expect(diagnostics[0]?.message).toContain('`width`')
 		expect(diagnostics[0]?.message).toContain('10pxx')

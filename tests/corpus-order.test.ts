@@ -4,7 +4,7 @@
  * `compileCorpus` discovers tags in a first pass that grows the
  * registry AS IT VISITS FILES. A raw-tag `truc:pass={{ … }}` target that
  * was fully migrated to .tsrx (no hand-written .ts twin left to seed the
- * registry — e.g. basic-button, cutover LT-117) only becomes
+ * registry — e.g. basic-button, cutover ) only becomes
  * "registry-known" once its own file has been visited. In the CI
  * runner's glob order module-list.tsrx came FIRST, its `pass` target
  * <basic-button> failed the registry check ([LTC012], error severity),
@@ -27,7 +27,7 @@ const ROOT = path.resolve(import.meta.dir, '..')
 
 // These tests run the REAL corpus runner, which writes every generated
 // module. Point it at a per-run directory so it never races the build
-// pipeline writing the same files (LT-140).
+// pipeline writing the same files ().
 const generated = createGeneratedDir('corpus-order')
 afterAll(() => generated.cleanup())
 
@@ -88,7 +88,7 @@ describe('corpus error policy', () => {
 		}
 		// Via settle() rather than `expect(...).rejects`: bun-types types
 		// every matcher as returning void, so the awaited-matcher form draws
-		// TS 80007 even though the runtime promise is real (LT-140 review).
+		// TS 80007 even though the runtime promise is real ( review).
 		const settled = await settle(compileCorpus([...files, bad], generated.path))
 		if (settled.status !== 'rejected')
 			throw new Error('the run should have failed with LTC012')

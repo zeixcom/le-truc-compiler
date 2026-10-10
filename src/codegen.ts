@@ -1,12 +1,12 @@
 /**
- * The shared code-generation kit (LT-234): what both emitters use to write
+ * The shared code-generation kit (): what both emitters use to write
  * generated TypeScript. Three parts, one rule each.
  *
  * - `jsString()` / `jsTemplate()` are THE sanctioned ways to put an author
  *   string into generated source: a string literal, or a template literal
  *   whose static segments are escaped and whose interpolations are code. Raw
  *   `'${author}'` interpolation is a syntax error at best and a source
- *   injection at worst (review §1.2/§1.3, point-fixed by LT-221).
+ *   injection at worst (review §1.2/§1.3, point-fixed by ).
  * - `HtmlWriter` collects one push argument's HTML: static markup (with
  *   attribute values HTML-escaped) and code expressions, rendered through
  *   `jsTemplate()`.
@@ -30,7 +30,7 @@ import {
 
 /**
  * One segment of a template literal: escaped static text, or a code
- * expression. Not a **Hole** (CONTEXT.md, ADR 0043) — that is a request-time
+ * expression. Not a **Hole** (CONTEXT.md, ADR 0021) — that is a request-time
  * template-target position with an escaping context; this is generated JS.
  */
 export type TemplatePart = { static: string } | { expr: string }
@@ -93,7 +93,7 @@ export const isJsIdentifier = (name: string): boolean =>
 	/^[A-Za-z_$][\w$]*$/.test(name)
 
 /**
- * The client query for one arm set's inert `<template>`s (ADR 0037): the
+ * The client query for one arm set's inert `<template>`s (ADR 0015): the
  * exact selector the generated client modules run (`emit-client.ts`'s
  * `reconcile()` calls) and the realm's `liveArmOf` re-derives
  * (`sim/realm.ts`) — against the `<template data-arms data-key>` stamp the
@@ -106,7 +106,7 @@ export const dataArmsSelector = (armSet: string | number): string =>
 /* === Classes === */
 
 /**
- * One push argument's HTML (LT-234, generalising the server emitter's
+ * One push argument's HTML (generalising the server emitter's
  * `Part[]`): static markup and code expressions in order, rendered with
  * `jsTemplate()`. `attr()` HTML-escapes a static attribute value; `expr()`
  * takes generated code whose RESULT is markup (the harness's `attr()`,
@@ -157,7 +157,7 @@ export class HtmlWriter {
 
 /**
  * A generated block's lines, its indentation depth and its span table
- * (LT-234). `line()` writes one statement at the current depth; `open()` /
+ * (). `line()` writes one statement at the current depth; `open()` /
  * `close()` / `between()` move the depth around a braced block, so no caller
  * computes a tab prefix. The character offset spans are recorded against is
  * kept as an invariant of every write, never by hand.
@@ -168,7 +168,7 @@ export class HtmlWriter {
  * lines pass through as written. A statement written with `slices` takes the
  * `reindent` path in either mode, so its spans are recorded: a single-line
  * statement comes out the same, and a multi-line one is re-indented (the
- * server's text sinks over a multi-line authored arrow, LT-428).
+ * server's text sinks over a multi-line authored arrow).
  */
 export class CodeBuilder {
 	readonly lines: string[] = []

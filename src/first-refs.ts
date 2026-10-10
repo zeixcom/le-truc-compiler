@@ -1,5 +1,5 @@
 /**
- * `first(selector, required)` element-reference resolution (LT-055,
+ * `first(selector, required)` element-reference resolution (
  * replacing `ref={}`). A front-end-owned pure leaf, sibling of
  * `reactivity.ts`/`evaluability.ts`: `compiler.ts` calls this once the
  * template IR exists (`lowerChildren` has run) to structurally match an
@@ -61,10 +61,10 @@ const staticAttrs = (element: ElementNode): Map<string, string | null> => {
  * Parse ONE simple selector (no combinators, no pseudo-classes) into its
  * structural parts. Supports an optional tag followed by any combination of
  * `.class`, `#id`, and `[attr]`/`[attr="value"]` clauses, in any order.
- * Since LT-380 (ADR 0045 Decision 5) the parse itself runs on css-what;
+ * Since  (ADR 0023 Decision 5) the parse itself runs on css-what;
  * the post-checks keep the VERIFIED SUBSET exactly what it was — the swap
  * changed how the selector parses, not what it verifies (widening is
- * LT-381): pseudo-classes, combinators, selector lists, namespaced or
+ * ): pseudo-classes, combinators, selector lists, namespaced or
  * uppercase tags, attribute operators beyond `=`/presence, the `i` flag,
  * single-quoted or unquoted attribute values, and any whitespace outside a
  * quoted value (css-what is lenient there in ways the subset predates)
@@ -141,7 +141,7 @@ const parseSimpleSelector = (selector: string): SimpleSelector | null => {
  * The subset's only whitespace is inside a quoted attribute value, and its
  * only attribute spelling is `[name="value"]`: css-what additionally
  * tolerates `[ a = "b" ]` (browser-valid, but the subset predates it and
- * LT-381 owns widening), single-quoted values, and unquoted values — all
+ *  owns widening), single-quoted values, and unquoted values — all
  * refused here so the verified subset stays what it was.
  */
 const leavesSimpleSubset = (trimmed: string): boolean => {
@@ -214,7 +214,7 @@ export const matchesAuthoredSelectorOn = (
  * Every element in `root` matching an author-written selector. A composed
  * element's own template is a different component and never enters the IR,
  * but the content a compose site passes as `children` does: it is this
- * component's markup, rendered into the child's Children Region (ADR 0048
+ * component's markup, rendered into the child's Children Region (ADR 0026
  * s1), so the walk enters it.
  */
 export const collectMatchingElements = (
@@ -252,7 +252,7 @@ export const namesCustomElementTag = (selectorList: string): boolean =>
 
 /**
  * Does any branch of an author-written selector list name one of `roles`
- * in its SUBJECT compound (ADR 0048 s2, LT-474)? The subject compound is
+ * in its SUBJECT compound (ADR 0026 s2)? The subject compound is
  * what the query matches — the part after the last combinator — so a role
  * class anywhere earlier does not address the content through the contract.
  * Selector lists are OR semantics: one role-naming subject is enough.
@@ -349,7 +349,7 @@ export const shareExclusiveIf = (
 }
 
 /**
- * LTC039 (LT-122): report every site that renders a server arg
+ * LTC039 (): report every site that renders a server arg
  * whose name is a PARSER-exposed prop — the value's own seeding
  * channel is the host attribute, so such a site is a second copy.
  *
@@ -360,17 +360,17 @@ export const shareExclusiveIf = (
  * root attribute — form-textbox ships `value` twice today).
  *
  * A site whose OWN element the Parser's fallback reads is skipped too
- * (LT-129). `asNumber(asNumber(1)(input.step))` rendered onto the very
+ * (). `asNumber(asNumber(1)(input.step))` rendered onto the very
  * `<input>` that `input` addresses is not one value arriving twice — it
  * is the data account's sanctioned OVERRIDE precedence (bullet 2: the
- * host attribute wins over the harvested value), which LT-112 restored
+ * host attribute wins over the harvested value), which  restored
  * deliberately for form-spinbutton's `value`/`min`/`max`/`step`. The
  * criterion is the one confirmed with the owner: warn only when the two
  * channels are genuinely INDEPENDENT copies. Note this is per-SITE, not
  * per-prop — the same prop rendered onto a DIFFERENT element than the
  * one its fallback reads is still a duplicate and still warns.
  *
- * The exclusion covers text-child sites as well as attributes (LT-139):
+ * The exclusion covers text-child sites as well as attributes ():
  * `expose({ label: asString(labelSpan.textContent ?? '') })` over
  * `<span class="label">{label}</span>` is bullet 4's canonical harvest
  * site with bullet 2's override added. A text child's site element is
@@ -378,9 +378,9 @@ export const shareExclusiveIf = (
  *
  * A `formAssociated()`/`formAssociatedCheckbox()` host's reserved prop
  * (`value`/`checked`) is a THIRD exclusion, distinct from bullet 2's
- * override (LT-141): the root's own content attribute is the RESET
+ * override (): the root's own content attribute is the RESET
  * BASELINE the extension reads on `formResetCallback` (`defaultValue`/
- * `defaultChecked`, LT-056/LT-057), and the owned site is the CURRENT
+ * `defaultChecked`, ), and the owned site is the CURRENT
  * value — native `<input value>` semantics, where the content attribute
  * and the IDL property deliberately diverge. Neither channel is
  * removable, so the ordinary fix-it ("drop the attribute") would break
@@ -420,7 +420,7 @@ export const reportDuplicatedChannels = ({
 	}
 	// The root carries the reserved prop as its own baseline attribute —
 	// the condition that makes the second channel a baseline rather than
-	// a duplicate (LT-141).
+	// a duplicate ().
 	const rootHasBaselineAttr =
 		formResetProp !== null &&
 		root.kind === 'element' &&
@@ -458,7 +458,7 @@ export const reportDuplicatedChannels = ({
 	walkTemplate(root, (node, parent) => {
 		if (node.kind === 'expr') {
 			const prop = named(node.expr)
-			// A text child's site element is its PARENT (LT-139) — `walkTemplate`
+			// A text child's site element is its PARENT () — `walkTemplate`
 			// hands it to the visitor, so the same per-site exclusion the
 			// attribute branch below applies works here unchanged. The root is
 			// not skipped the way it is for attributes: a text child OF the root
@@ -489,7 +489,7 @@ export const reportDuplicatedChannels = ({
 }
 
 /**
- * LTC042 (LT-131): every element in the template carrying a STATIC `id`.
+ * LTC042 (): every element in the template carrying a STATIC `id`.
  * A template is per-INSTANCE; an `id` is per-DOCUMENT. The constant is
  * correct for exactly one instance on a page and silently wrong for the
  * second — including the root element, which is the host itself.
@@ -521,7 +521,7 @@ export const reportStaticIds = (
 
 /**
  * The server-side condition deciding whether `refName`'s matched element
- * is in this component's OWN rendered output (LT-118) — the expression
+ * is in this component's OWN rendered output () — the expression
  * text to substitute for a `Boolean(ref)` presence read when folding a
  * thunk server-side (`evaluability.ts`).
  *
@@ -574,7 +574,7 @@ export const refBranchGuard = (
 
 /**
  * Does every path to `target` from `root` pass through an `@if`
- * with no `@else` (LT-123)? Such an element is absent from the
+ * with no `@else` ()? Such an element is absent from the
  * rendered DOM whenever that branch didn't take, so a reference
  * to it is optional NO MATTER how `first()` was called — the
  * analysis addresses it with a non-throwing query under a
@@ -604,7 +604,7 @@ export const inOptionalBranch = (
 }
 
 /**
- * Does `target` sit inside a reactive conditional's arm (ADR 0037)? Such an
+ * Does `target` sit inside a reactive conditional's arm (ADR 0015)? Such an
  * element is recreated from its arm template whenever the arm switches, so
  * no connect-time reference to it stays valid.
  */
@@ -623,7 +623,7 @@ export const inReactiveArm = (
 }
 
 /**
- * Does `target` sit inside a reactive-list item (ADR 0046 s1)? An item's
+ * Does `target` sit inside a reactive-list item (ADR 0024 s1)? An item's
  * elements exist once per item and are recreated on every reconcile —
  * adopted, cloned, removed — so a connect-time reference from the host
  * scope goes as stale as an arm's.

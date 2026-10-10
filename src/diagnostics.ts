@@ -1,5 +1,5 @@
 /**
- * Compile diagnostics for the Le Truc component compiler (ADR 0024).
+ * Compile diagnostics for the Le Truc component compiler (ADR 0005).
  *
  * Diagnostics are the compiler's product surface: a wrong rewrite is a wrong
  * component, so every rule that cannot be applied reports a code, a message,
@@ -29,7 +29,7 @@ export type DiagnosticCode =
 	| 'LTC001' // @for over a reactive source that is not a declared createList
 	| 'LTC002' // loop variable referenced inside a reactive thunk — hoist it first
 	| 'LTC003' // hoisted const not rebindable to a server-rendered attribute
-	// ('LTC004' is spent: retired as an emitted code at LT-165 step 5, it
+	// ('LTC004' is spent: retired as an emitted code at  step 5, it
 	// survives ONLY as a routing-signal origin — see tier.ts's
 	// `RoutingSignalOrigin`, which owns the spelling now)
 	| 'LTC005' // construct outside the supported subset
@@ -40,7 +40,7 @@ export type DiagnosticCode =
 	| 'LTC010' // managed form prop used without formAssociated
 	| 'LTC011' // composed (PascalCase) element with no resolvable .tsrx/.tsx import
 	| 'LTC012' // pass={{ }}/reactive dispatch legality on a custom-element target, incl. per-prop Slot-backedness (LT-158)
-	// ('LTC013' is spent: retired as an emitted code at LT-165 step 5 — its
+	// ('LTC013' is spent: retired as an emitted code at  step 5 — its
 	// two server-evaluation factories became routing signals, the other two
 	// split to LTC044/LTC045 in step 1 — and survives ONLY as a
 	// routing-signal origin; see tier.ts's `RoutingSignalOrigin`)
@@ -50,7 +50,7 @@ export type DiagnosticCode =
 	| 'LTC017' // template child whose reactivity cannot be traced — needs a thunk
 	| 'TSRX018' // retired `&{}` lazy-child sigil
 	| 'LTC019' // string-literal prop name in child position — write host.<prop>
-	| 'TSRX020' // RETIRED (LT-210 pin bump) — @tsrx/core 0.2 dropped lazy destructuring from the grammar, so `&{ … }`/`&[ … ]` no longer parse; the rejection is the parser's own syntax error, surfaced as LTC008. No builder emits this code; the member stays so every spent number is visible in the union (ADR 0028 lifecycle)
+	| 'TSRX020' // RETIRED (LT-210 pin bump) — @tsrx/core 0.2 dropped lazy destructuring from the grammar, so `&{ … }`/`&[ … ]` no longer parse; the rejection is the parser's own syntax error, surfaced as LTC008. No builder emits this code; the member stays so every spent number is visible in the union (ADR 0007 lifecycle)
 	| 'TSRX021' // React `{cond && <jsx/>}` conditional-render idiom in child position
 	| 'TSRX022' // React `{cond ? <a/> : <b/>}` conditional-render idiom in child position
 	| 'TSRX023' // React `.map()` producing JSX in child position
@@ -61,70 +61,70 @@ export type DiagnosticCode =
 	| 'LTC028' // expose() names a member it cannot: managed by formAssociated(), or a reserved word
 	| 'LTC029' // a form-associated component's inner control carries a name
 	| 'LTC030' // <textarea value={…}> — textarea has no value content attribute
-	| 'LTC031' // RETIRED — per-branch addressing replaced it; no builder emits this code; the member stays so every spent number is visible in the union (ADR 0028 lifecycle)
+	| 'LTC031' // RETIRED — per-branch addressing replaced it; no builder emits this code; the member stays so every spent number is visible in the union (ADR 0007 lifecycle)
 	| 'LTC032' // destructured prop has a default value but its type isn't marked optional
 	| 'LTC033' // a static child or server-rendered attribute reads an impure ambient (Date/Intl/Math.random/crypto RNG/toLocaleString), and so do a server-data loop's items (LT-326) — reactive thunks are omitted silently instead (LT-165 step 5)
 	| 'LTC034' // severe only (LT-165 step 5): disabled/checked unresolvable on a submittable control of a Static-tier component; non-severe sites are routing signals
-	// ('LTC035' is spent: retired at LT-275 — template-cloned arms keep every
-	// non-winning arm out of the document (ADR 0037 s4), so a literal id
+	// ('LTC035' is spent: retired at  — template-cloned arms keep every
+	// non-winning arm out of the document (ADR 0015 s4), so a literal id
 	// repeated across arms no longer collides. No builder emits this code;
 	// the member stays so every spent number is visible in the union (ADR
 	// 0028 lifecycle))
 	| 'LTC036' // real `@zeix/le-truc` export used without an explicit import (sub-design 16)
 	| 'LTC037' // FactoryContext name inside an authored `@zeix/le-truc` import (sub-design 16)
-	| 'LTC038' // duplicate static id across compose sites (LT-090)
+	| 'LTC038' // duplicate static id across compose sites
 	| 'LTC039' // Parser-exposed prop whose value is also rendered into an owned site (LT-122)
 	| 'LTC040' // required first() whose only match sits in a branch that may not render (LT-123)
 	| 'LTC041' // two first() names resolve to the same element (LT-132)
 	| 'LTC042' // a static id in a template duplicates once the component is instantiated twice (LT-131)
-	// ('LTC043' is spent: retired as an emitted code at LT-165 step 5, it
+	// ('LTC043' is spent: retired as an emitted code at  step 5, it
 	// survives ONLY as a routing-signal origin — see tier.ts's
 	// `RoutingSignalOrigin`, which owns the spelling now)
-	| 'LTC044' // a signal's initializer conditionally chooses between two constructor calls (ADR 0024 sub-design 12 format rule; split from LTC013 by LT-165)
+	| 'LTC044' // a signal's initializer conditionally chooses between two constructor calls (ADR 0005 sub-design 12 format rule; split from LTC013 by LT-165)
 	| 'LTC045' // a collector-requiring helper deferred into a callback, so it throws NoActiveCollectorError at connect (split from LTC013 by LT-165)
 	| 'LTC046' // a setup const the value harness cannot evaluate has its value rendered into the markup — no tier can produce the site (LT-165 step 5)
-	| 'LTC047' // literal prose in a component that declares `export const i18n` — route it through a message key (LT-173 step 5, ADR 0030 sub-design 4)
-	| 'LTC048' // one component tag declared by multiple corpus sources outside a folder-local variant set (dual front end, ADR 0032 sub-design 6; narrowed to the ADR 0039 variant-set rule, LT-283) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC047' // literal prose in a component that declares `export const i18n` — route it through a message key (LT-173 step 5, ADR 0009 sub-design 4)
+	| 'LTC048' // one component tag declared by multiple corpus sources outside a folder-local variant set (dual front end, ADR 0010 sub-design 6; narrowed to the ADR 0017 variant-set rule, LT-283) — tier 1 Prevented, statically decidable, no runtime half
 	| 'LTC049' // the factory-context parameter destructures a name that is not FactoryContext vocabulary, or is not a destructured object (LT-209) — tier 1 Prevented, statically decidable, no runtime half
 	| 'LTC050' // the factory-context annotation's surface disagrees with `config.formAssociated` (LT-209) — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC051' // a variant set's compiled members disagree on CSS (ADR 0039, LT-283) — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC052' // a server-data @for carries a `key` clause, which only a reactive List's reconcile() reads (ADR 0040 s1, LT-286) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC051' // a variant set's compiled members disagree on CSS (ADR 0017, LT-283) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC052' // a server-data @for carries a `key` clause, which only a reactive List's reconcile() reads (ADR 0018 s1, LT-286) — tier 1 Prevented, statically decidable, no runtime half
 	| 'LTC053' // an element tag that is not a static name: a `.tsrx` dynamic `<{expr}>` tag, or a `.tsx` namespaced/member tag the front end does not recognize (LT-213, scope A0) — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC054' // a position the server render evaluates reads page context outside the declared ambient set, or the reserved `i18n` record is destructured for a member outside it (ADR 0034 s4, LT-258) — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC055' // an `export const i18n` source pattern is not a supported ICU MessageFormat 1 pattern, or a `t.<key>` site disagrees with its pattern's arguments: missing/extra/non-literal arguments, an argument message read without a call, an argument-less message called (ADR 0030 s4, LT-250) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC054' // a position the server render evaluates reads page context outside the declared ambient set, or the reserved `i18n` record is destructured for a member outside it (ADR 0012 s4, LT-258) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC055' // an `export const i18n` source pattern is not a supported ICU MessageFormat 1 pattern, or a `t.<key>` site disagrees with its pattern's arguments: missing/extra/non-literal arguments, an argument message read without a call, an argument-less message called (ADR 0009 s4, LT-250) — tier 1 Prevented, statically decidable, no runtime half
 	| 'LTC056' // an authored `<script>` element in a component template, whatever its `type` — the page owns script loading (LT-358 rider) — tier 1 Prevented, statically decidable, no runtime half
 	| 'LTC059' // a signal seeded from server args renders only as formatted text (`Intl`, `toLocaleString()`/`toLocaleDateString()`/`toLocaleTimeString()`, a message call with a number/date argument) and has no raw value source to harvest from (D-20, HOST_PROFILE data account bullet 6, LT-374) — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC060' // a fragment root, whatever it wraps — the template's root is the host element (ADR 0032 s1, LT-375) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC060' // a fragment root, whatever it wraps — the template's root is the host element (ADR 0010 s1, LT-375) — tier 1 Prevented, statically decidable, no runtime half
 	| 'LTC061' // an authored `<template>` element in a component template — the compiler owns template extraction, and the selector proof cannot see inside one (LT-383) — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC062' // a reactive switch (one whose discriminant reads a signal) has a `@case`/`case` value that is not a literal, or two cases share an arm key (ADR 0037 s2, LT-274) — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC063' // a reactive condition inside a reactive list's reconcile() container (ADR 0037 s5, LT-274) — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC064' // the component's stylesheet does not parse (ADR 0033 s9, LT-268) — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC065' // a stylesheet declaration names a property the CSS dictionary does not know, or a value outside the property's grammar (ADR 0033 s9, LT-394) — tier 2 Contained: the dictionary (mdn-data, via css-tree) lags the platform, so a finding is evidence, not proof; the sheet ships as authored
-	| 'LTC066' // a rule inside the component's `@scope` led by the component's own tag — it matches only a nested instance, never the host; the fix-it is `:where(:scope)` (ADR 0033 s1/s6, LT-501) — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC067' // `::slotted()` in a component stylesheet — slotted content is a shadow-DOM construct, and compiled components are light DOM (ADR 0033 s6, LT-304) — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC068' // `:host-context()` in a component stylesheet — removed from the CSS spec, matched by no browser (ADR 0033 s6, LT-304) — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC069' // `:global` anywhere in a component stylesheet — an unscoped rule is a top-level rule, so the fix-it removes the wrapper and moves the rule to the top level (ADR 0033 s6, LT-501) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC062' // a reactive switch (one whose discriminant reads a signal) has a `@case`/`case` value that is not a literal, or two cases share an arm key (ADR 0015 s2, LT-274) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC063' // a reactive condition inside a reactive list's reconcile() container (ADR 0015 s5, LT-274) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC064' // the component's stylesheet does not parse (ADR 0011 s9, LT-268) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC065' // a stylesheet declaration names a property the CSS dictionary does not know, or a value outside the property's grammar (ADR 0011 s9, LT-394) — tier 2 Contained: the dictionary (mdn-data, via css-tree) lags the platform, so a finding is evidence, not proof; the sheet ships as authored
+	| 'LTC066' // a rule inside the component's `@scope` led by the component's own tag — it matches only a nested instance, never the host; the fix-it is `:where(:scope)` (ADR 0011 s1/s6, LT-501) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC067' // `::slotted()` in a component stylesheet — slotted content is a shadow-DOM construct, and compiled components are light DOM (ADR 0011 s6, LT-304) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC068' // `:host-context()` in a component stylesheet — removed from the CSS spec, matched by no browser (ADR 0011 s6, LT-304) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC069' // `:global` anywhere in a component stylesheet — an unscoped rule is a top-level rule, so the fix-it removes the wrapper and moves the rule to the top level (ADR 0011 s6, LT-501) — tier 1 Prevented, statically decidable, no runtime half
 	| 'LTC070' // RETIRED (LT-501) — a qualifier after `:scope` is valid CSS; the number is spent, see VOCABULARY_LEDGER.md
-	| 'LTC071' // a selector inside a `@scope` block descends past a compound the block's own `to (…)` limit excludes, so the limit always excludes its subject — a dead rule (ADR 0033 s6, LT-501) — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC072' // a field of a list item seeded from server args has no harvest site in the item — no text child or reactive attribute reads exactly the field, and the `keyConfig` does not return it verbatim — so the client cannot rebuild the item at connect (ADR 0046 s7, LT-429) — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC073' // a `<style>` block that is not the root's single direct `<style>` child — a second direct one, or one nested in a descendant; only the first direct child is hoisted as the stylesheet, so the CSS would be dropped (ADR 0032 s1, LT-417) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC071' // a selector inside a `@scope` block descends past a compound the block's own `to (…)` limit excludes, so the limit always excludes its subject — a dead rule (ADR 0011 s6, LT-501) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC072' // a field of a list item seeded from server args has no harvest site in the item — no text child or reactive attribute reads exactly the field, and the `keyConfig` does not return it verbatim — so the client cannot rebuild the item at connect (ADR 0024 s7, LT-429) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC073' // a `<style>` block that is not the root's single direct `<style>` child — a second direct one, or one nested in a descendant; only the first direct child is hoisted as the stylesheet, so the CSS would be dropped (ADR 0010 s1, LT-417) — tier 1 Prevented, statically decidable, no runtime half
 	| 'LTC074' // an element sibling of a reactive-list loop in its reconcile() container — directly or as an arm root, in any arm, of a server-mode conditional or a non-async `try` — carries no `data-unreconciled`, so the first reconcile removes it (LT-186, LT-431; an authored `data-key` is no exemption) — tier 1 Prevented, statically decidable; the runtime half is LT-185's DEV_MODE advisory, not a Contained error. Lands out of numeric order: `LTC072` is LT-429's, `LTC073` LT-417's — both reserved before this rule picked
-	| 'LTC075' // a composed element in a reactive-list item whose args or content read the item or key binding — the child renders once, into the extracted `<template>` every item clones (ADR 0030 s9, ADR 0046, LT-355) — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC076' // a field of a list item seeded from server args has a harvest site but no parser — its type is not one the compiler infers a parser from (`string`, a string-literal union, `number`, `boolean`; never an optional field) and no `harvest()` entry declares one; or the item type itself is unreadable (imported, generic) and no `harvest()` map lists its fields (ADR 0046 s7, LT-429) — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC077' // a scalar-seeded signal whose harvest read is a raw DOM string — a direct text/attribute site, the substituted read of a seed that is the arg itself, or a membership value read — and whose seed type the compiler cannot read (any annotation that is not the bare `string`/`number`/`boolean` keyword) with no `harvest()` marker declaring its parser: the inferred-type fallback would connect e.g. `2.5` as `'2.5'` (ADR 0046 s7, LT-443) — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC078' // a `<style>` block whose content is not a stylesheet spelling — on `.tsx` anything but the `css` marker's tagged template, a bare template literal or nothing (another tag, a shadowed or unimported `css`, a `${}` substitution, any other expression or text); on `.tsrx` an expression child in place of the CSS body. The sheet would read as empty and ship no CSS (ADR 0034 s1, LT-444) — tier 1 Prevented, statically decidable, no runtime half. Lands out of numeric order: `LTC076` is LT-429's, `LTC077` LT-443's — both reserved before this rule picked
-	| 'LTC080' // a key alias that does not meet ADR 0047 s1 — a host-level list seeded from server args, never rendered by its own `map`, is harvested through `const t = list.byKey(k)` in a reactive list's item setup only when the aliasing list keys each item by itself, the read is that alias statement over the loop key, the list has one alias scope, and every field renders at a site in it (LT-453) — tier 1 Prevented, statically decidable; the render witness is the dynamic half, a server-render error with no client counterpart
+	| 'LTC075' // a composed element in a reactive-list item whose args or content read the item or key binding — the child renders once, into the extracted `<template>` every item clones (ADR 0009 s9, ADR 0024, LT-355) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC076' // a field of a list item seeded from server args has a harvest site but no parser — its type is not one the compiler infers a parser from (`string`, a string-literal union, `number`, `boolean`; never an optional field) and no `harvest()` entry declares one; or the item type itself is unreadable (imported, generic) and no `harvest()` map lists its fields (ADR 0024 s7, LT-429) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC077' // a scalar-seeded signal whose harvest read is a raw DOM string — a direct text/attribute site, the substituted read of a seed that is the arg itself, or a membership value read — and whose seed type the compiler cannot read (any annotation that is not the bare `string`/`number`/`boolean` keyword) with no `harvest()` marker declaring its parser: the inferred-type fallback would connect e.g. `2.5` as `'2.5'` (ADR 0024 s7, LT-443) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC078' // a `<style>` block whose content is not a stylesheet spelling — on `.tsx` anything but the `css` marker's tagged template, a bare template literal or nothing (another tag, a shadowed or unimported `css`, a `${}` substitution, any other expression or text); on `.tsrx` an expression child in place of the CSS body. The sheet would read as empty and ship no CSS (ADR 0012 s1, LT-444) — tier 1 Prevented, statically decidable, no runtime half. Lands out of numeric order: `LTC076` is LT-429's, `LTC077` LT-443's — both reserved before this rule picked
+	| 'LTC080' // a key alias that does not meet ADR 0025 s1 — a host-level list seeded from server args, never rendered by its own `map`, is harvested through `const t = list.byKey(k)` in a reactive list's item setup only when the aliasing list keys each item by itself, the read is that alias statement over the loop key, the list has one alias scope, and every field renders at a site in it (LT-453) — tier 1 Prevented, statically decidable; the render witness is the dynamic half, a server-render error with no client counterpart
 	| 'LTC081' // a handler arg (an `on[A-Z]…` arg, LT-461) the parent cannot address: its declared type is not a function type; or it is read anywhere but as an event attribute on a raw element or forwarded to a composed child's handler arg; or it is placed inside one of the component's reactive arms or list items, whose elements are recreated on a flip or a reconcile — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC083' // a first()/all() selector that can only resolve inside the content a parent passes as `children` — it matches nothing in the component's own template, the template inserts `{children}`, and its subject compound names no role class declared on the `children` prop's `Children<…>` type (ADR 0048 s2, LT-474) — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC085' // a compose site of a child whose `children` prop declares `Children<…, 'non-interactive'>` passes interactive content — `a[href]`, `button`, `input` (except `type="hidden"`), `select`, `textarea`, `label`, `details`, `iframe`, any `[tabindex]`, `audio`/`video` with `controls` — among its literal children, or a composed child whose own template renders any, transitively (ADR 0048 s4, LT-477) — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC084' // a parent `watch` binding on a `first()` reference into a compose site's content writes the same property, attribute, class token, style property or text on an element carrying a role class the child's client also writes through its role-targeted `watch` bindings (ADR 0048 s3, LT-476) — tier 1 Prevented, statically decidable on both sides, no runtime half
-	| 'LTC086' // `:host` anywhere in a component stylesheet — it matches nothing in light DOM; the fix-it is `:where(:scope)` (`:host(X)` → `:where(:scope)X`) (ADR 0033 s1/s6, LT-501) — tier 1 Prevented, statically decidable, no runtime half
-	| 'LTC087' // a rule in the component's `@scope` block whose subject can match an element a composed child renders in its own template (transitively through the registry), with no authored limit excluding the child; passed `children` content is the parent's own markup and never counts (ADR 0033 s5, ADR 0048 s5, LT-502) — tier 2 Contained: the CSS ships as authored
-	| 'LTC088' // a top-level stylesheet rule that is neither in `@scope` nor led by the component's own tag — it applies page-wide; `@keyframes`, `@font-face` and `@property` are exempt (ADR 0033 s1/s5, LT-502) — tier 2 Contained: the CSS ships as authored
-	| 'LTC089' // a `@scope` form the flat-selector lowering cannot express — a `@scope` inside a component `@scope`, or a limit naming `:scope` — on a CSS target without native `@scope` (ADR 0033 s4, LT-501) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC083' // a first()/all() selector that can only resolve inside the content a parent passes as `children` — it matches nothing in the component's own template, the template inserts `{children}`, and its subject compound names no role class declared on the `children` prop's `Children<…>` type (ADR 0026 s2, LT-474) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC085' // a compose site of a child whose `children` prop declares `Children<…, 'non-interactive'>` passes interactive content — `a[href]`, `button`, `input` (except `type="hidden"`), `select`, `textarea`, `label`, `details`, `iframe`, any `[tabindex]`, `audio`/`video` with `controls` — among its literal children, or a composed child whose own template renders any, transitively (ADR 0026 s4, LT-477) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC084' // a parent `watch` binding on a `first()` reference into a compose site's content writes the same property, attribute, class token, style property or text on an element carrying a role class the child's client also writes through its role-targeted `watch` bindings (ADR 0026 s3, LT-476) — tier 1 Prevented, statically decidable on both sides, no runtime half
+	| 'LTC086' // `:host` anywhere in a component stylesheet — it matches nothing in light DOM; the fix-it is `:where(:scope)` (`:host(X)` → `:where(:scope)X`) (ADR 0011 s1/s6, LT-501) — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC087' // a rule in the component's `@scope` block whose subject can match an element a composed child renders in its own template (transitively through the registry), with no authored limit excluding the child; passed `children` content is the parent's own markup and never counts (ADR 0011 s5, ADR 0026 s5, LT-502) — tier 2 Contained: the CSS ships as authored
+	| 'LTC088' // a top-level stylesheet rule that is neither in `@scope` nor led by the component's own tag — it applies page-wide; `@keyframes`, `@font-face` and `@property` are exempt (ADR 0011 s1/s5, LT-502) — tier 2 Contained: the CSS ships as authored
+	| 'LTC089' // a `@scope` form the flat-selector lowering cannot express — a `@scope` inside a component `@scope`, or a limit naming `:scope` — on a CSS target without native `@scope` (ADR 0011 s4, LT-501) — tier 1 Prevented, statically decidable, no runtime half
 
 /**
- * A range in the file the author wrote (ADR 0044 s1–s2): `start` and `end`
+ * A range in the file the author wrote (ADR 0022 s1–s2): `start` and `end`
  * are 0-based character offsets (UTF-16 code units, `end` exclusive) — the
  * convention of the estree `start`/`end` every compiler stage walks and of
  * `SourceSpan`. `file` is the path the caller handed the compiler.
@@ -142,7 +142,7 @@ export type DiagnosticEdit = {
 }
 
 /**
- * A repair that is safe to apply without author judgement (ADR 0044 s1).
+ * A repair that is safe to apply without author judgement (ADR 0022 s1).
  * A rule with two equally valid repairs names both in its message and
  * carries no fix.
  */
@@ -152,7 +152,7 @@ export type DiagnosticFix = {
 }
 
 /**
- * The published diagnostic record (ADR 0044 s1, s5): adding an optional
+ * The published diagnostic record (ADR 0022 s1, s5): adding an optional
  * field is a minor; removing or retyping one is a major.
  */
 export type CompileDiagnostic = {
@@ -162,7 +162,7 @@ export type CompileDiagnostic = {
 	/**
 	 * The offending construct. A producer with no construct in scope (a
 	 * file-level shape) reports the nearest enclosing range — the whole
-	 * file — rather than none (ADR 0044 s2).
+	 * file — rather than none (ADR 0022 s2).
 	 */
 	location: DiagnosticLocation
 	/** Further locations the message refers to; empty when there are none. */
@@ -198,7 +198,7 @@ export type LocalDiagnostic = {
 }
 
 /**
- * Why a `<style>` block's content is not a stylesheet (LTC078, LT-444), as
+ * Why a `<style>` block's content is not a stylesheet (LTC078), as
  * a surface's `stylesheetOf` reports it. `content` is the one reason both
  * surfaces share; the other three are `.tsx` template-literal shapes.
  * `tag` carries the authored tag text for the message.
@@ -233,7 +233,7 @@ const corpusError = (
 
 /**
  * `basic-gauge-label` → `basicGaugeLabelId`: a plausible server-arg name for
- * an id the author has to lift out of the template (LT-131). Only used to
+ * an id the author has to lift out of the template (). Only used to
  * make LTC042's fix-it concrete — the author is free to pick another name.
  */
 const sanitizeArgName = (id: string): string => {
@@ -280,7 +280,7 @@ export const lineOf = (
  * The range a factory reports for `at` in `source`: the node's own
  * `start`/`end`; a zero-width range where only `start` is known; the whole
  * file when nothing in range is known — the nearest enclosing span, never
- * none (ADR 0044 s2).
+ * none (ADR 0022 s2).
  */
 export const rangeOf = (source: string, at: Site): SourceRange => {
 	const start = at?.start
@@ -304,7 +304,7 @@ export const wholeFile = (
 })
 
 /**
- * Publish a stage's diagnostic against `file` (ADR 0044 s1): the compile
+ * Publish a stage's diagnostic against `file` (ADR 0022 s1): the compile
  * shells call this once, on the way out.
  */
 export const locate = (
@@ -346,21 +346,21 @@ export const diagnostic = {
 	) =>
 		warning(
 			'LTC001',
-			`${wording.loop} over reactive source \`${iterable}\` — only declared createList(…) and deriveList(…) signals lower (reconcile(), ADR 0017); other reactive sources are not supported. File skipped.`,
+			`${wording.loop} over reactive source \`${iterable}\` — only declared createList(…) and deriveList(…) signals lower (reconcile(), ADR 0004); other reactive sources are not supported. File skipped.`,
 			rangeOf(source, at),
 		),
 
 	/**
-	 * A `@for` over server data carries a `key` clause (ADR 0040 s1,
-	 * LT-286). Keys identify items across `reconcile()`'s keyed diff — a
+	 * A `@for` over server data carries a `key` clause (ADR 0018 s1,
+	 * ). Keys identify items across `reconcile()`'s keyed diff — a
 	 * reactive-List concern; a server-data loop lowers to `each()`, which
 	 * has no key parameter, so the clause was silently collected and
-	 * dropped. ADR 0028 tier 1 (Prevented): statically decidable from the
+	 * dropped. ADR 0007 tier 1 (Prevented): statically decidable from the
 	 * loop's iterable alone, no runtime half exists. The `.tsx` twin is the
 	 * receiver's type: over an Array a `.map()` callback's second parameter
-	 * is the index, over a List the key (ADR 0046 s4, LT-425).
+	 * is the index, over a List the key (ADR 0024 s4).
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
 	 * (reviewed 2026-09-24).
 	 */
 	keyOnServerDataFor: (source: string, at: Site) =>
@@ -371,18 +371,18 @@ export const diagnostic = {
 		),
 
 	/**
-	 * An element whose tag is not a static name (LT-213, owner ruling
+	 * An element whose tag is not a static name (owner ruling
 	 * 2026-09-24: scope A0). `.tsrx`: `@tsrx/core` parses `<{expr}>…</{expr}>`
 	 * into a dynamic-name container that the lowering used to flatten to
 	 * `tag: ""` with no diagnostic. `.tsx`: a namespaced (`<truc:element>`)
 	 * or member (`<a.b>`) tag the front end does not recognize — `tsc` would
 	 * reject the missing `IntrinsicElements` entry, but the build does not
-	 * necessarily run `tsc`. ADR 0028 tier 1 (Prevented): statically
+	 * necessarily run `tsc`. ADR 0007 tier 1 (Prevented): statically
 	 * decidable from the tag node alone, no runtime half. The recorded
-	 * server-known-tag design (TODO LT-213) is built only when a migration
+	 * server-known-tag design (TODO ) is built only when a migration
 	 * needs it.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
 	 * (reviewed 2026-09-24).
 	 */
 	unsupportedElementTag: (
@@ -398,7 +398,7 @@ export const diagnostic = {
 		),
 
 	/**
-	 * A boundary in a loop body (LT-213 follow-up; `.tsrx` parity LT-358a).
+	 * A boundary in a loop body (LT-213 follow-up; `.tsrx` parity ).
 	 * The root of a loop body is the element the client addresses each item
 	 * through, so it must be an element — and a boundary in the body's
 	 * statement position has no element to attach to either. `.tsx`: the
@@ -414,8 +414,8 @@ export const diagnostic = {
 	 * only the spelled constructs differ (`wording.boundary`,
 	 * `wording.loop`).
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
-	 * (reviewed 2026-10-02, LT-359 — worded for both trigger positions).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
+	 * (reviewed 2026-10-02 — worded for both trigger positions).
 	 */
 	boundaryAsLoopRoot: (source: string, at: Site, wording: SurfaceWording) =>
 		error(
@@ -433,12 +433,12 @@ export const diagnostic = {
 	 * refused, whatever its `type` (`module`, `importmap`, a data type, an
 	 * empty classic script): the hazard is the same and the fix — move the
 	 * loading to the page, the work to the factory — does not depend on it.
-	 * ADR 0028 tier 1 (Prevented): statically decidable from the tag name
+	 * ADR 0007 tier 1 (Prevented): statically decidable from the tag name
 	 * alone, no runtime half. Raised in `lowerElement` (shared), so both
 	 * surfaces refuse it identically.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
-	 * (reviewed 2026-10-02, LT-359 — the LT-358 first draft, finalized).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
+	 * (reviewed 2026-10-02 — the  first draft, finalized).
 	 */
 	scriptElementInTemplate: (source: string, at: Site) =>
 		error(
@@ -450,7 +450,7 @@ export const diagnostic = {
 	/**
 	 * A signal seeded from server args whose only render site is formatted
 	 * text, with no raw value source to harvest from (D-20, HOST_PROFILE
-	 * data account bullet 6, LT-374). Formatted text (`1’234`, a localized
+	 * data account bullet 6). Formatted text (`1’234`, a localized
 	 * date) does not parse back into state, so the client cannot seed the
 	 * signal from it; it needs the unformatted value beside the text — a
 	 * reactive `value`/`aria-valuenow`/`datetime` attribute reading exactly
@@ -458,12 +458,12 @@ export const diagnostic = {
 	 * an attribute on the host or an owned element. `subject` opens the
 	 * sentence (`` Signal `count` ``); `formatting` names how the site
 	 * formats it (`` `Intl` ``, `` `toLocaleString()` ``, `` message
-	 * `t.items` ``). ADR 0028 tier 1 (Prevented): statically decidable from
+	 * `t.items` ``). ADR 0007 tier 1 (Prevented): statically decidable from
 	 * the template and the setup consts the site reads, no runtime half — a
 	 * harvest of formatted text cannot know the text was formatted. Raised
 	 * in Pass 3 (`analysis/harvest.ts`), shared by both surfaces.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages).
 	 */
 	formattedWithoutRawSource: (
 		source: string,
@@ -478,18 +478,18 @@ export const diagnostic = {
 		),
 
 	/**
-	 * A reference to a compile-time marker (ADR 0034 s1) that no consumer
-	 * reads: LTC005's marker face (LT-429). The compiler consumes `css` only
+	 * A reference to a compile-time marker (ADR 0012 s1) that no consumer
+	 * reads: LTC005's marker face (). The compiler consumes `css` only
 	 * as the tag of the root's `<style>` content, and `harvest()` only as the
 	 * seed of a component-setup `createList`; it strips the marker import
 	 * from both generated modules, so any other reference — a template
 	 * expression, a handler, a thunk, an `expose()` entry, a setup statement
 	 * — would reach a module where the name is unbound, or run the throwing
-	 * stub. One copy per marker, so a new marker adds a row. ADR 0028 tier 1
+	 * stub. One copy per marker, so a new marker adds a row. ADR 0007 tier 1
 	 * (Prevented): statically decidable, no runtime half beyond the stub.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages);
-	 * first draft (LT-429).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages);
+	 * first draft ().
 	 */
 	misplacedMarker: (source: string, at: Site, marker: MarkerName) => {
 		const copy: Record<MarkerName, { what: string; fix: string }> = {
@@ -504,25 +504,25 @@ export const diagnostic = {
 		}
 		return error(
 			'LTC005',
-			`${copy[marker].what} is outside the supported subset (ADR 0024). ${copy[marker].fix}`,
+			`${copy[marker].what} is outside the supported subset (ADR 0005). ${copy[marker].fix}`,
 			rangeOf(source, at),
 		)
 	},
 
 	/**
-	 * A field of an arg-seeded list's item with no harvest site (ADR 0046
-	 * s7, LT-429). The client rebuilds each server-rendered item field by
+	 * A field of an arg-seeded list's item with no harvest site (ADR 0024
+	 * s7). The client rebuilds each server-rendered item field by
 	 * field from the item's markup — a text child or a reactive attribute
 	 * reading exactly the field, or `data-key` for the field the `keyConfig`
 	 * returns verbatim — and a field the markup does not carry has no value
-	 * at connect (ADR 0003). `list` names the list signal, `field` the field.
+	 * at connect (ADR 0001). `list` names the list signal, `field` the field.
 	 * Located at the item's root element, where the fix goes. A field whose
 	 * only site formats it is LTC059's instead. Channel: compiler (Pass 3,
-	 * `analysis/list-harvest.ts`, both surfaces). ADR 0028 tier 1
+	 * `analysis/list-harvest.ts`, both surfaces). ADR 0007 tier 1
 	 * (Prevented): statically decidable, no runtime half.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages);
-	 * first draft (LT-429).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages);
+	 * first draft ().
 	 */
 	listFieldWithoutSite: (
 		source: string,
@@ -537,7 +537,7 @@ export const diagnostic = {
 		),
 
 	/**
-	 * A key alias that does not meet ADR 0047 s1 (LT-453). A host-level
+	 * A key alias that does not meet ADR 0025 s1 (). A host-level
 	 * list seeded from server args and never rendered by its own `map`
 	 * harvests through `const t = list.byKey(k)` in a reactive list's item
 	 * setup; the compiler proves where each field renders, the server render
@@ -557,12 +557,12 @@ export const diagnostic = {
 	 *   LTC059's, one with no parser LTC076's, as for any per-field harvest.
 	 *
 	 * Channel: compiler (Pass 3, `analysis/list-harvest.ts`, both
-	 * surfaces). ADR 0028 tier 1 (Prevented): statically decidable. The
+	 * surfaces). ADR 0007 tier 1 (Prevented): statically decidable. The
 	 * runtime half is the render witness (`HarvestWitnessError`,
 	 * `runtime.ts`), which no static rule covers.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages);
-	 * first draft (LT-453).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages);
+	 * first draft ().
 	 */
 	keyAliasRefused: (
 		source: string,
@@ -597,7 +597,7 @@ export const diagnostic = {
 
 	/**
 	 * A field of an arg-seeded list's item that has a harvest site but no
-	 * parser (ADR 0046 s7, LT-429): its type is none the compiler infers a
+	 * parser (ADR 0024 s7): its type is none the compiler infers a
 	 * parser from (`string` or a string-literal union → `asString`, `number`
 	 * → `asNumber`, `boolean` → `asBoolean`; an optional field infers none),
 	 * and no `harvest()` entry declares one. `field` null is the whole item: its type is unreadable
@@ -606,11 +606,11 @@ export const diagnostic = {
 	 * seed's text; `marked` whether the seed already carries a `harvest()`
 	 * map, which the fix then extends. Located at the seed, where the fix
 	 * goes. Channel: compiler (Pass 3, `analysis/list-harvest.ts`, both
-	 * surfaces). ADR 0028 tier 1 (Prevented): statically decidable, no
+	 * surfaces). ADR 0007 tier 1 (Prevented): statically decidable, no
 	 * runtime half.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages);
-	 * first draft (LT-429).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages);
+	 * first draft ().
 	 */
 	listFieldWithoutParser: (
 		source: string,
@@ -635,7 +635,7 @@ export const diagnostic = {
 	 * the arg itself, or a membership value read — whose seed type the
 	 * compiler cannot read (an alias, a union, an imported type, any
 	 * annotation that is not the bare `string`/`number`/`boolean` keyword),
-	 * and no `harvest()` marker declaring a parser (ADR 0046 s7, LT-443).
+	 * and no `harvest()` marker declaring a parser (ADR 0024 s7).
 	 * The inferred-type fallback would read the string as-is, silently
 	 * connecting e.g. `2.5` as `'2.5'`. A seed that derives from the arg
 	 * (`value.length`) is never refused — the substitution reproduces the
@@ -647,8 +647,8 @@ export const diagnostic = {
 	 * Channel: compiler (Pass 3, `analysis/harvest.ts`, both surfaces). ADR
 	 * 0028 tier 1 (Prevented): statically decidable, no runtime half.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages);
-	 * first draft (LT-443).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages);
+	 * first draft ().
 	 */
 	scalarSeedWithoutParser: (
 		source: string,
@@ -669,19 +669,19 @@ export const diagnostic = {
 		),
 
 	/**
-	 * An authored `<template>` element in a component template (LT-383,
-	 * LT-379 follow-up). The compiler owns template extraction: a reactive
-	 * list's item template and template-cloned arms (ADR 0037) are emitted
+	 * An authored `<template>` element in a component template (
+	 *  follow-up). The compiler owns template extraction: a reactive
+	 * list's item template and template-cloned arms (ADR 0015) are emitted
 	 * `<template>`s, and an authored one collides with them. The selector
 	 * proof also cannot see inside one — css-select's HTML-mode traversal
-	 * skips `<template>` content (ADR 0045) — so a uniqueness answer over a
+	 * skips `<template>` content (ADR 0023) — so a uniqueness answer over a
 	 * template carrying one would be silently wrong. Every authored
-	 * `<template>` is refused. ADR 0028 tier 1 (Prevented): statically
+	 * `<template>` is refused. ADR 0007 tier 1 (Prevented): statically
 	 * decidable from the tag name alone, no runtime half. Raised in
 	 * `lowerElement` (shared), so both surfaces refuse it identically.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
-	 * (reviewed 2026-10-02, LT-359 — the LT-383 first draft, finalized).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
+	 * (reviewed 2026-10-02 — the  first draft, finalized).
 	 */
 	templateElementInTemplate: (source: string, at: Site) =>
 		error(
@@ -692,18 +692,18 @@ export const diagnostic = {
 
 	/**
 	 * A fragment root — the template output is a `<>…</>` fragment, whatever
-	 * it wraps (LT-375; owner ruling 2026-09-29, ADR 0032 s1): the template's
+	 * it wraps (LT-375; owner ruling 2026-09-29, ADR 0010 s1): the template's
 	 * root is the host element, there is no fragment root, and a stylesheet
 	 * is a `<style>` child of the root, not a sibling of it. The copy is
 	 * shape-neutral: the fragment may hold no `<style>` block at all. The
 	 * fragment never reached the output — the migration of the corpus
 	 * sources that still wrapped the root is purely textual — so the rule
 	 * prevents the shape from returning, it fixes no wrong bytes.
-	 * Channel: compiler (the shared driver, both surfaces). ADR 0028 tier 1
+	 * Channel: compiler (the shared driver, both surfaces). ADR 0007 tier 1
 	 * (Prevented): statically decidable from the output node alone, no
 	 * runtime half.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages).
 	 */
 	fragmentRoot: (source: string, at: Site) =>
 		error(
@@ -714,16 +714,16 @@ export const diagnostic = {
 
 	/**
 	 * A `<style>` block that is not the root's single direct `<style>` child
-	 * (LT-417, LT-375 review; owner ruling 2026-09-29, ADR 0032 s1): a second
+	 * (LT-375 review; owner ruling 2026-09-29, ADR 0010 s1): a second
 	 * direct `<style>` child of the root, or a `<style>` nested in any
 	 * descendant. `resolveTemplateOutput` hoists only the first direct child
 	 * as the stylesheet, so any other block's CSS was dropped and an empty
 	 * `<style></style>` rendered into the host markup — a silent drop. The
 	 * fix names the one accepted place. Channel: compiler (the shared hoist
-	 * in `template-output.ts`, both surfaces). ADR 0028 tier 1 (Prevented):
+	 * in `template-output.ts`, both surfaces). ADR 0007 tier 1 (Prevented):
 	 * statically decidable from the lowered template, no runtime half.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages).
 	 */
 	misplacedStyleBlock: (source: string, at: Site, nested: boolean) =>
 		error(
@@ -735,8 +735,8 @@ export const diagnostic = {
 		),
 
 	/**
-	 * A `<style>` block whose content is not a stylesheet spelling (LT-444,
-	 * the LT-442 finding; ADR 0034 s1). The `.tsx` stylesheet is the `css`
+	 * A `<style>` block whose content is not a stylesheet spelling (
+	 * the  finding; ADR 0012 s1). The `.tsx` stylesheet is the `css`
 	 * marker's tagged template, a bare template literal, or nothing; a
 	 * `.tsrx` one is the CSS body itself. Anything else — on `.tsx` another
 	 * tag, a `css` that is not the marker (unimported, another module's,
@@ -746,10 +746,10 @@ export const diagnostic = {
 	 * nothing. `tsc` catches some `.tsx` shapes (the missing import, the
 	 * `never`-typed substitution), but the compiler decides the drop and so
 	 * reports it. Channel: compiler (each surface's `stylesheetOf`, reported
-	 * by the shared hoist in `template-output.ts`). ADR 0028 tier 1
+	 * by the shared hoist in `template-output.ts`). ADR 0007 tier 1
 	 * (Prevented): statically decidable, no runtime half.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages).
 	 */
 	unreadableStyleBlock: (
 		source: string,
@@ -786,16 +786,16 @@ export const diagnostic = {
 	},
 
 	/**
-	 * A reactive switch keys its arms by their case values (ADR 0037 s2:
+	 * A reactive switch keys its arms by their case values (ADR 0015 s2:
 	 * `case:` + the literal's JSON), so a case value must be a literal the
 	 * server emit and the generated client can name identically at compile
 	 * time, and no two cases may share a key (`1` and `1.0` do; `'1'` and
 	 * `1` do not). A dynamic value has no fallback. Channel: compiler
-	 * (shared lowering, both surfaces). ADR 0028 tier 1 (Prevented):
+	 * (shared lowering, both surfaces). ADR 0007 tier 1 (Prevented):
 	 * statically decidable, no runtime half.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
-	 * (reviewed 2026-10-02, LT-275 — the LT-274 first draft, finalized).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
+	 * (reviewed 2026-10-02 — the  first draft, finalized).
 	 */
 	dynamicCaseValue: (
 		source: string,
@@ -814,18 +814,18 @@ export const diagnostic = {
 
 	/**
 	 * A reactive condition inside a reactive list's `reconcile()` container
-	 * (ADR 0037 s5): the container is self-cleaning — its first run removes
+	 * (ADR 0015 s5): the container is self-cleaning — its first run removes
 	 * every unkeyed child — so the arm templates and the live arm would be
-	 * swept until the unkeyed-sibling rule exists (LT-185's follow-up).
-	 * Channel: compiler (shared lowering, both surfaces). ADR 0028 tier 1
+	 * swept until the unkeyed-sibling rule exists (the ticket's follow-up).
+	 * Channel: compiler (shared lowering, both surfaces). ADR 0007 tier 1
 	 * (Prevented): statically decidable, no runtime half.
 	 *
-	 * An async boundary is an arm set too (ADR 0037 s4): `construct` names
-	 * which one fired, so the message names it (LT-432).
+	 * An async boundary is an arm set too (ADR 0015 s4): `construct` names
+	 * which one fired, so the message names it ().
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
-	 * (reviewed 2026-10-02, LT-275 — the LT-274 first draft, finalized;
-	 * the boundary subject added, LT-432).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
+	 * (reviewed 2026-10-02 — the  first draft, finalized;
+	 * the boundary subject added).
 	 */
 	reactiveConditionInReconcileContainer: (
 		source: string,
@@ -841,23 +841,23 @@ export const diagnostic = {
 
 	/**
 	 * An element beside a reactive-list loop in its `reconcile()` container
-	 * (ADR 0017), carrying no `data-unreconciled`: the container is
+	 * (ADR 0004), carrying no `data-unreconciled`: the container is
 	 * self-cleaning, so the list's first run removes it — the shape that
-	 * cost form-tokenbox its text input (LT-185). A server-mode
+	 * cost form-tokenbox its text input (). A server-mode
 	 * conditional's arm roots, and a non-async `try`'s body and catch roots,
-	 * count as such elements, in every arm (LT-431).
+	 * count as such elements, in every arm ().
 	 * An authored `data-key` is no exemption: `reconcile()` removes a key
 	 * the source lacks and adopts a matching one as that item. Channel:
-	 * compiler (shared lowering, both surfaces). ADR 0028 tier 1
-	 * (Prevented). The runtime half is LT-185's DEV_MODE `console.warn` in
+	 * compiler (shared lowering, both surfaces). ADR 0007 tier 1
+	 * (Prevented). The runtime half is the ticket's DEV_MODE `console.warn` in
 	 * `reconcile()`, deliberately an advisory rather than a Contained error:
 	 * it covers hand-authored markup the compiler never sees. A composed
 	 * element takes no `data-unreconciled`, so its fix-it moves it out.
 	 * Arm sets in the container are LTC063's, not this rule's.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages);
-	 * first draft (LT-186), agreeing with LT-185's runtime message; the
-	 * `data-key` exemption dropped (LT-431).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages);
+	 * first draft (), agreeing with the ticket's runtime message; the
+	 * `data-key` exemption dropped ().
 	 */
 	unkeyedSiblingInReconcileContainer: (
 		source: string,
@@ -874,18 +874,18 @@ export const diagnostic = {
 
 	/**
 	 * A composed element in a reactive-list item whose args or content read
-	 * the item or key binding (ADR 0030 s9, ADR 0046; LT-355). The parent's
+	 * the item or key binding (ADR 0009 s9, ADR 0024; ). The parent's
 	 * server render calls the child's `render*()` once per render call. The
 	 * call renders into the extracted `<template>` that every client clone
 	 * copies, root `lang` and `i18n` included. No per-item value exists
 	 * there. `site` names where the read sits (`its \`label\` arg`,
 	 * `its content`); `reads` are the bindings it reads. `truc:pass` is the
 	 * per-item client channel: the item's mount wires it against each clone.
-	 * Channel: compiler (shared lowering, both surfaces). ADR 0028 tier 1
+	 * Channel: compiler (shared lowering, both surfaces). ADR 0007 tier 1
 	 * (Prevented): statically decidable, no runtime half.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
-	 * (reviewed 2026-10-05, LT-355).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
+	 * (reviewed 2026-10-05).
 	 */
 	composeReadsListItem: (
 		source: string,
@@ -902,7 +902,7 @@ export const diagnostic = {
 		),
 
 	/**
-	 * A handler arg the parent cannot address (LT-461). An arg whose name is
+	 * A handler arg the parent cannot address (). An arg whose name is
 	 * `on` plus a capital letter is a handler arg: the child places it as an
 	 * event attribute on an element it owns, and the parent's compose site
 	 * lowers to an `on()` against that element in the parent's client. The
@@ -921,7 +921,7 @@ export const diagnostic = {
 	 *   the element once per item where the parent binds one listener per
 	 *   placement.
 	 *
-	 * Channel: compiler (shared front end, both surfaces). ADR 0028 tier 1
+	 * Channel: compiler (shared front end, both surfaces). ADR 0007 tier 1
 	 * (Prevented): statically decidable, no runtime half.
 	 */
 	unaddressableHandlerArg: (
@@ -950,18 +950,18 @@ export const diagnostic = {
 	},
 
 	/**
-	 * The partial-readiness invariant (ADR 0034 sub-design 4, LT-258): a
+	 * The partial-readiness invariant (ADR 0012 sub-design 4): a
 	 * position the server render evaluates — a static child or attribute, a
 	 * condition, a setup const, a folded reactive thunk — reads page context
 	 * (`document`, `window`, `navigator`, …; the list is
 	 * `PAGE_CONTEXT_GLOBALS` in fold-inputs.ts), directly or through a setup
 	 * helper. The fold would bake the build's answer into the markup, and a
-	 * template emitter has no variable to carry it to a backend. ADR 0028
+	 * template emitter has no variable to carry it to a backend. ADR 0007
 	 * tier 1 (Prevented): statically decidable, no runtime half. `where`
 	 * names the position in lower case (`attribute \`title\` on <c-el>`);
 	 * `ambients` is `PAGE_AMBIENTS`, passed in so the copy follows the set.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
 	 * (reviewed 2026-09-25).
 	 */
 	foldReadsPageContext: (
@@ -983,7 +983,7 @@ export const diagnostic = {
 	 * a rest element. `member` is null for a rest element or a computed key.
 	 * `ambients` is `PAGE_AMBIENTS`, passed in so the copy follows the set.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
 	 * (reviewed 2026-09-25).
 	 */
 	undeclaredPageAmbient: (
@@ -1001,7 +1001,7 @@ export const diagnostic = {
 	/**
 	 * Loop variable used inside a reactive thunk — the hoist-first rule.
 	 * Worded surface-neutrally ("loop variables"): the rule is the same for
-	 * a `@for` and a `.map()` callback (LT-233).
+	 * a `@for` and a `.map()` callback ().
 	 */
 	loopVariableInReactiveThunk: (source: string, at: Site, names: string[]) =>
 		error(
@@ -1025,14 +1025,14 @@ export const diagnostic = {
 
 	// --- subset, attribute shapes, addressing, source structure ---
 	/**
-	 * A construct outside the supported subset of ADR 0024. `what` names the
+	 * A construct outside the supported subset of ADR 0005. `what` names the
 	 * construct as the subject of the sentence; `fix`, when the site knows
-	 * it, is the imperative the author acts on (LT-300).
+	 * it, is the imperative the author acts on ().
 	 */
 	unsupported: (source: string, at: Site, what: string, fix?: string) =>
 		error(
 			'LTC005',
-			`${what} is outside the supported subset (ADR 0024).${fix ? ` ${fix}` : ''}`,
+			`${what} is outside the supported subset (ADR 0005).${fix ? ` ${fix}` : ''}`,
 			rangeOf(source, at),
 		),
 
@@ -1052,14 +1052,14 @@ export const diagnostic = {
 	 * spelling when the site reads a message other than by a literal
 	 * declared key — the `t` binding itself (a computed key, a bare `t`, an
 	 * undeclared key) or, for a record-spelled read (`i18n.t.<key>`,
-	 * LT-358c), the component's own `t` binding, or the canonical `t` when
-	 * none is declared — for the client message channel's rule (ADR 0030
+	 * ), the component's own `t` binding, or the canonical `t` when
+	 * none is declared — for the client message channel's rule (ADR 0009
 	 * s9). `channel` is the subset of `server` that IS the message channel
 	 * (the `t` bindings and the reserved record's bindings): a flagged
 	 * channel name earns the literal-key sentence, not the generic
 	 * exposed-prop fix, which would contradict it.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
 	 * (reviewed 2026-10-01).
 	 */
 	serverOnlyNames: (
@@ -1113,7 +1113,7 @@ export const diagnostic = {
 
 	/**
 	 * A loop whose nearest control-flow ancestor is an `if`/`switch` branch
-	 * (LT-301). The client addresses a branch's content by its roots, so a
+	 * (). The client addresses a branch's content by its roots, so a
 	 * loop there binds only its first item. Diagnosed, not supported: a
 	 * branch-scoped `each()` waits for a migration that needs it.
 	 */
@@ -1141,7 +1141,7 @@ export const diagnostic = {
 
 	/**
 	 * Source-level structure violations. `invalidSource` takes the family's
-	 * `(source, at, what)` shape like its siblings (LT-223): sites that have
+	 * `(source, at, what)` shape like its siblings (): sites that have
 	 * a node in scope pass it so the report covers it; a parse failure
 	 * passes the parser's position, and a file-level shape (a missing
 	 * component function) passes `undefined` and reports the whole file.
@@ -1150,13 +1150,13 @@ export const diagnostic = {
 		error('LTC008', what, rangeOf(source, at)),
 
 	// --- config, managed form props, composition, pass legality ---
-	/** Invalid `export const config` declaration (ADR 0024 sub-design 8). */
+	/** Invalid `export const config` declaration (ADR 0005 sub-design 8). */
 	invalidConfig: (source: string, at: Site, what: string) =>
 		error('LTC009', what, rangeOf(source, at)),
 
 	/**
 	 * Managed form prop (`{host.validationMessage}`) without `formAssociated`
-	 * — the watch source exists only on FormFactoryContext (LT-008).
+	 * — the watch source exists only on FormFactoryContext ().
 	 */
 	managedPropWithoutForm: (source: string, at: Site, prop: string) =>
 		error(
@@ -1167,13 +1167,13 @@ export const diagnostic = {
 
 	/**
 	 * A capitalized JSX tag with no matching component import (`'….tsrx'` or
-	 * `'….tsx'`; ADR 0024 sub-design 10) — composition resolves by import,
+	 * `'….tsx'`; ADR 0005 sub-design 10) — composition resolves by import,
 	 * never falls back to raw custom-element treatment.
 	 */
 	unresolvedComposedComponent: (source: string, at: Site, name: string) =>
 		error(
 			'LTC011',
-			`\`<${name}>\` has no matching \`import { ${name} }\` of a \`.tsrx\` or \`.tsx\` module — composed (capitalized) tags must import the component they compose (ADR 0024 sub-design 10). A lowercase dashed tag addresses a raw custom element instead.`,
+			`\`<${name}>\` has no matching \`import { ${name} }\` of a \`.tsrx\` or \`.tsx\` module — composed (capitalized) tags must import the component they compose (ADR 0005 sub-design 10). A lowercase dashed tag addresses a raw custom element instead.`,
 			rangeOf(source, at),
 		),
 
@@ -1202,12 +1202,12 @@ export const diagnostic = {
 	composedElementUnsupported: (source: string, at: Site, what: string) =>
 		error(
 			'LTC011',
-			`${what} is not supported yet (ADR 0024 sub-design 10). Move the construct into the composed component's own template, or out of this position.`,
+			`${what} is not supported yet (ADR 0005 sub-design 10). Move the construct into the composed component's own template, or out of this position.`,
 			rangeOf(source, at),
 		),
 
 	/**
-	 * A function-valued attribute on a custom-element target (ADR 0024
+	 * A function-valued attribute on a custom-element target (ADR 0005
 	 * sub-design 4, amended by sub-design 10) — reactive-shape inference on
 	 * custom elements is gone; `pass={{ }}` is the sole client-prop channel.
 	 */
@@ -1219,7 +1219,7 @@ export const diagnostic = {
 	) =>
 		error(
 			'LTC012',
-			`Reactive attribute \`${attr}={…}\` on custom element <${tag}> is no longer bound to anything (ADR 0024 sub-design 10) — use \`pass={{ ${attr}: ${attr} }}\` for client-side signal interop, or a plain value for a static attribute.`,
+			`Reactive attribute \`${attr}={…}\` on custom element <${tag}> is no longer bound to anything (ADR 0005 sub-design 10) — use \`pass={{ ${attr}: ${attr} }}\` for client-side signal interop, or a plain value for a static attribute.`,
 			rangeOf(source, at),
 		),
 
@@ -1227,13 +1227,13 @@ export const diagnostic = {
 	passTargetNotCustom: (source: string, at: Site, tag: string) =>
 		error(
 			'LTC012',
-			`pass={{ … }} on <${tag}> — its target must be a registry-known custom element (ADR 0024 sub-design 10); native elements use reactive attribute bindings instead. At connect this is \`InvalidCustomElementError\`.`,
+			`pass={{ … }} on <${tag}> — its target must be a registry-known custom element (ADR 0005 sub-design 10); native elements use reactive attribute bindings instead. At connect this is \`InvalidCustomElementError\`.`,
 			rangeOf(source, at),
 		),
 
 	/**
 	 * `pass={{ prop }}` naming a prop the target component does not
-	 * `expose()` at all (LT-158, ADR 0028 sub-design 6). The runtime check
+	 * `expose()` at all (ADR 0007 sub-design 6). The runtime check
 	 * is `!(prop in target)` — weaker, because an inherited `HTMLElement`
 	 * member passes it and then fails the Slot check one line later. The
 	 * compiler asks the stronger and more useful question: `expose()` is
@@ -1258,7 +1258,7 @@ export const diagnostic = {
 
 	/**
 	 * `pass={{ prop }}` naming a prop the target exposes READ-ONLY — ADR
-	 * 0011's own motivating example, and the residual ADR 0028 sub-design 6
+	 * 0011's own motivating example, and the residual ADR 0007 sub-design 6
 	 * asked the registry to close. `pass()` swaps the target's backing
 	 * SIGNAL, so it needs a Slot ([ADR 0004]); `#setAccessor` only builds
 	 * one for a mutable initializer. A computed (`expose({ x: sig.get })`,
@@ -1266,7 +1266,7 @@ export const diagnostic = {
 	 * defined with a plain getter instead, so the swap has nothing to
 	 * attach to.
 	 *
-	 * This is the row that makes containment (LT-155) safe to rely on: the
+	 * This is the row that makes containment () safe to rely on: the
 	 * runtime check still fires and is now contained, so without the
 	 * compiler carrying it the author would learn about a dead binding from
 	 * a console line rather than a build failure.
@@ -1289,7 +1289,7 @@ export const diagnostic = {
 	// --- imports, requestContext, children, ref spellings ---
 	/**
 	 * A plain (non-`.tsrx`) import whose local bindings never appear as a
-	 * free identifier anywhere in setup or the template (LT-034, ADR 0024
+	 * free identifier anywhere in setup or the template (ADR 0005
 	 * sub-design 14) — placement is inferred from usage, so an import with no
 	 * detectable usage would otherwise be silently dropped rather than fail
 	 * loudly.
@@ -1303,20 +1303,20 @@ export const diagnostic = {
 
 	/**
 	 * `requestContext(...)` called with other than exactly two arguments
-	 * (LT-035, ADR 0024 sub-design 15) — `requestContext(context, fallback)`
+	 * (ADR 0005 sub-design 15) — `requestContext(context, fallback)`
 	 * is the only recognized shape; the server needs the second argument as
 	 * the signal's render-time value (there is no ancestor DOM to walk).
 	 */
 	invalidRequestContextCall: (source: string, at: Site, name: string) =>
 		error(
 			'LTC015',
-			`\`${name} = requestContext(...)\` must be called with exactly two arguments: the context key and a fallback value. The fallback is what the server renders (ADR 0024 sub-design 15) — there is no ancestor DOM to walk at render time.`,
+			`\`${name} = requestContext(...)\` must be called with exactly two arguments: the context key and a fallback value. The fallback is what the server renders (ADR 0005 sub-design 15) — there is no ancestor DOM to walk at render time.`,
 			rangeOf(source, at),
 		),
 
 	/**
 	 * `requestContext(context, fallback)`'s fallback argument references a
-	 * name the server cannot resolve (LT-035) — the server substitutes the
+	 * name the server cannot resolve () — the server substitutes the
 	 * fallback for the whole call (`requestContext` itself is a client-only
 	 * ambient), so the fallback must be a literal or an expression over
 	 * server args/setup, the same rule other server-rendered thunks follow.
@@ -1334,7 +1334,7 @@ export const diagnostic = {
 		),
 
 	/**
-	 * A signal crosses an opaque call boundary in a template child (LT-051),
+	 * A signal crosses an opaque call boundary in a template child (),
 	 * so the lift analysis cannot see where — or whether — it is read. Erring
 	 * here rather than emitting a static value is deliberate: a missed lift
 	 * is invisible (the server folds it, the markup is correct, and it never
@@ -1353,7 +1353,7 @@ export const diagnostic = {
 		),
 
 	/**
-	 * The retired `&{expr}` lazy-child sigil (LT-052). The `&` sigil has no
+	 * The retired `&{expr}` lazy-child sigil (). The `&` sigil has no
 	 * template-child meaning — under the 0.2 pin it introduces nothing at all
 	 * (lazy destructuring left the grammar), and reactivity is decided by the
 	 * lift rule (`reactivity.ts`), so the sigil carries no information.
@@ -1367,7 +1367,7 @@ export const diagnostic = {
 
 	/**
 	 * A string literal naming an exposed or managed prop in child position
-	 * (LT-052). This used to mean "watch this prop by name" — but only
+	 * (). This used to mean "watch this prop by name" — but only
 	 * because the `&` sigil disambiguated it from ordinary text. Without the
 	 * sigil `{'label'}` is indistinguishable from the literal string, so the
 	 * prop read must be written explicitly.
@@ -1375,13 +1375,13 @@ export const diagnostic = {
 	stringLiteralPropChild: (source: string, at: Site, prop: string) =>
 		error(
 			'LTC019',
-			`\`{'${prop}'}\` names a prop but reads as the literal string "${prop}" — the \`&\` sigil that used to distinguish them is gone (LT-052). Write the read explicitly: \`{host.${prop}}\`.`,
+			`\`{'${prop}'}\` names a prop but reads as the literal string "${prop}" — the \`&\` sigil that used to distinguish them is gone. Write the read explicitly: \`{host.${prop}}\`.`,
 			rangeOf(source, at),
 		),
 
 	// --- React near-miss idioms ---
 	/**
-	 * `{cond && <jsx/>}` (LT-054): React's short-circuit conditional-render
+	 * `{cond && <jsx/>}` (): React's short-circuit conditional-render
 	 * idiom. TSRX has no implicit "falsy renders nothing" rule — this renders
 	 * literally, stringifying a boolean ANDed with a JSX node — so it must be
 	 * rewritten to `@if`, not merely warned about.
@@ -1399,7 +1399,7 @@ export const diagnostic = {
 		),
 
 	/**
-	 * `{cond ? <a/> : <b/>}` (LT-054): React's ternary conditional-render
+	 * `{cond ? <a/> : <b/>}` (): React's ternary conditional-render
 	 * idiom. Same failure mode as `reactLogicalJsx` — the chosen branch
 	 * stringifies instead of rendering.
 	 */
@@ -1416,7 +1416,7 @@ export const diagnostic = {
 		),
 
 	/**
-	 * `.map()` producing JSX in child position (LT-054): React's list-render
+	 * `.map()` producing JSX in child position (): React's list-render
 	 * idiom. TSRX's loop construct is `@for`; `.map()` over server data
 	 * renders literally (`Array.prototype.toString()` over the JSX nodes).
 	 */
@@ -1434,7 +1434,7 @@ export const diagnostic = {
 		),
 
 	/**
-	 * `return (<>…</>)` in setup position (LT-054): React's component-return
+	 * `return (<>…</>)` in setup position (): React's component-return
 	 * idiom. TSRX's output is the setup block's trailing JSX expression
 	 * itself — there is no `return` in the sanctioned subset.
 	 */
@@ -1447,10 +1447,10 @@ export const diagnostic = {
 
 	// --- first()/all() selectors ---
 	/**
-	 * `first(…)` (LT-055) called with anything other than one or two
+	 * `first(…)` () called with anything other than one or two
 	 * string literals. Two (selector + a human required-reason) is the
 	 * REQUIRED form, verified structurally against the component's own
-	 * template; one (a bare selector) is the OPTIONAL form (LT-123),
+	 * template; one (a bare selector) is the OPTIONAL form (),
 	 * which may match markup the component did not itself render and
 	 * yields `undefined` instead of throwing.
 	 */
@@ -1463,7 +1463,7 @@ export const diagnostic = {
 
 	/**
 	 * `first()`'s selector matches no element in the template, or uses syntax
-	 * outside the structurally-verifiable subset (LT-055): a bare tag plus
+	 * outside the structurally-verifiable subset (): a bare tag plus
 	 * any combination of `.class`, `#id`, `[attr]`/`[attr="value"]`, and
 	 * comma-separated lists. Both cases are reported together — from the
 	 * author's side, "no match" and "can't tell" call for the same fix.
@@ -1482,7 +1482,7 @@ export const diagnostic = {
 
 	/**
 	 * A `first()`/`all()` selector that is not merely unverifiable but
-	 * MALFORMED (LT-157b, ADR 0028 sub-design 5) — the half of
+	 * MALFORMED (ADR 0007 sub-design 5) — the half of
 	 * `InvalidSelectorError` a compiler can decide outright, as opposed to
 	 * `firstSelectorNotFound`'s "matches nothing here, or I cannot tell."
 	 * Shares LTC026 because the author's fix is the same one sentence:
@@ -1511,7 +1511,7 @@ export const diagnostic = {
 
 	/**
 	 * `first()`'s selector matches more than one element that aren't all
-	 * direct branch roots of the same `@if` (LT-055) — the compiler cannot
+	 * direct branch roots of the same `@if` () — the compiler cannot
 	 * tell which one the author means. A selector spanning an `@if`/`@else`
 	 * with different element types per branch (`first('input, textarea',
 	 * …)`) is the one multi-match shape that IS allowed.
@@ -1532,7 +1532,7 @@ export const diagnostic = {
 
 	/**
 	 * A `first()`/`all()` selector that can only resolve inside the content
-	 * a parent passes as `children` (ADR 0048 s2, LT-474): it matches
+	 * a parent passes as `children` (ADR 0026 s2): it matches
 	 * nothing in the component's own template, the template inserts
 	 * `{children}`, and its subject compound — the part the query matches —
 	 * names no role class declared on the `children` prop's `Children<…>`
@@ -1547,8 +1547,8 @@ export const diagnostic = {
 	 * (unparsable) stays with the existing handling: the rule speaks only
 	 * where it can name the subject.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages);
-	 * first draft (LT-474), unreadable variant from the review: when the
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages);
+	 * first draft (), unreadable variant from the review: when the
 	 * roles declaration is present but unreadable (an imported name or
 	 * another shape the compiler cannot see through, `ChildrenContractIR`'s
 	 * `unreadable`), the fix copy cannot say "declare a role" — the author
@@ -1566,23 +1566,23 @@ export const diagnostic = {
 		error(
 			'LTC083',
 			unreadable
-				? `\`${helper}('${selector}', …)\` (bound to \`${name}\`) matches no element in this component's template, and the template inserts children — a selector like this can only resolve inside the content a parent passes, which belongs to the parent (ADR 0048). The roles on the \`children\` prop's type are declared in a shape this compiler cannot read — it reads only an inline type literal or a same-file alias: \`Children<{ … }>\`, or a \`type Roles = { … }\` in this file. Write the roles that way so the compiler can check the selector against them, or address an element the template renders.`
-				: `\`${helper}('${selector}', …)\` (bound to \`${name}\`) matches no element in this component's template, and the template inserts children — a selector like this can only resolve inside the content a parent passes, which belongs to the parent (ADR 0048). Declare a role for it on the \`children\` prop's type — \`Children<{ … }>\` — and give the passed element the role's class, or address an element the template renders.`,
+				? `\`${helper}('${selector}', …)\` (bound to \`${name}\`) matches no element in this component's template, and the template inserts children — a selector like this can only resolve inside the content a parent passes, which belongs to the parent (ADR 0026). The roles on the \`children\` prop's type are declared in a shape this compiler cannot read — it reads only an inline type literal or a same-file alias: \`Children<{ … }>\`, or a \`type Roles = { … }\` in this file. Write the roles that way so the compiler can check the selector against them, or address an element the template renders.`
+				: `\`${helper}('${selector}', …)\` (bound to \`${name}\`) matches no element in this component's template, and the template inserts children — a selector like this can only resolve inside the content a parent passes, which belongs to the parent (ADR 0026). Declare a role for it on the \`children\` prop's type — \`Children<{ … }>\` — and give the passed element the role's class, or address an element the template renders.`,
 			rangeOf(source, at),
 		),
 
 	/**
 	 * A compose site of a child whose `children` contract declares
-	 * `'non-interactive'` passes interactive content (ADR 0048 s4,
-	 * LT-477): a literal element among the site's children, or a composed
+	 * `'non-interactive'` passes interactive content (ADR 0026 s4,
+	 * ): a literal element among the site's children, or a composed
 	 * child whose own template renders one, transitively through the
 	 * registry. The content model is the child's declaration and the
 	 * parent's content to honor — the message names the offending element
 	 * or component and the child's declaration, and the fix is the
 	 * author's decision: drop the content, or relax the declaration.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages);
-	 * first draft (LT-477). Page-authored HTML is unchecked (the compiler
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages);
+	 * first draft (). Page-authored HTML is unchecked (the compiler
 	 * sees only compiled compose sites), and TypeScript cannot carry the
 	 * check (JSX element types are opaque) — HOST_PROFILE says so where the
 	 * roles contract is documented.
@@ -1596,8 +1596,8 @@ export const diagnostic = {
 		error(
 			'LTC085',
 			finding.kind === 'element'
-				? `\`<${childTag}>\` declares its children \`Children<…, 'non-interactive'>\`, but this compose site passes \`${finding.describe}\` — interactive content (ADR 0048). Remove the \`${finding.describe}\` from the passed content, or drop the \`'non-interactive'\` model argument from \`<${childTag}>\`'s \`Children<…>\` type if the content may be interactive.`
-				: `\`<${childTag}>\` declares its children \`Children<…, 'non-interactive'>\`, but this compose site passes \`<${finding.tag}>\`, whose template renders interactive content (ADR 0048). Remove \`<${finding.tag}>\` from the passed content, or drop the \`'non-interactive'\` model argument from \`<${childTag}>\`'s \`Children<…>\` type if the content may be interactive.`,
+				? `\`<${childTag}>\` declares its children \`Children<…, 'non-interactive'>\`, but this compose site passes \`${finding.describe}\` — interactive content (ADR 0026). Remove the \`${finding.describe}\` from the passed content, or drop the \`'non-interactive'\` model argument from \`<${childTag}>\`'s \`Children<…>\` type if the content may be interactive.`
+				: `\`<${childTag}>\` declares its children \`Children<…, 'non-interactive'>\`, but this compose site passes \`<${finding.tag}>\`, whose template renders interactive content (ADR 0026). Remove \`<${finding.tag}>\` from the passed content, or drop the \`'non-interactive'\` model argument from \`<${childTag}>\`'s \`Children<…>\` type if the content may be interactive.`,
 			rangeOf(source, at),
 		),
 
@@ -1605,7 +1605,7 @@ export const diagnostic = {
 	 * A parent `watch` binding writes the same property, attribute, class
 	 * token, style property or text on an element of its passed content that
 	 * the child's client writes through its role-targeted `watch` bindings
-	 * (ADR 0048 s3, LT-476): two runtime writers on one property of one
+	 * (ADR 0026 s3): two runtime writers on one property of one
 	 * element — the child's binding fires on its signals, the parent's on
 	 * its own, and neither can win. The registry records, per child, the
 	 * role properties its client writes (`RegistryEntry.roleWrites`,
@@ -1613,15 +1613,15 @@ export const diagnostic = {
 	 * where the parent's compose site can read the child's entry, and
 	 * reports at the parent's binding, naming both writers.
 	 *
-	 * Channel: compiler. Tier: Prevented (ADR 0028 s1) — statically
+	 * Channel: compiler. Tier: Prevented (ADR 0007 s1) — statically
 	 * decidable on both sides; the registry carries the child's half, the
 	 * parent's authored `watch` statements carry the other. No runtime half:
 	 * a hand-authored (no-build) pairing has no registry to read and stays
 	 * with the DOM's last-write-wins, which is [M15]'s posture for foreign
 	 * markup.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages);
-	 * first draft (LT-476).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages);
+	 * first draft ().
 	 */
 	roleWriterConflict: (
 		source: string,
@@ -1672,21 +1672,21 @@ export const diagnostic = {
 				: `Bind a different ${noun} on the passed element, or change the child's role binding to leave it to the parent.`
 		return error(
 			'LTC084',
-			`\`watch(…, ${parentSpell})\` writes ${parentWrites} on an element passed to \`<${childTag}>\` that carries the \`.${role}\` role class — and \`<${childTag}>\` writes ${childWrites} on \`.${role}\` elements${too}, through its \`${childSpell}\` role binding (ADR 0048): two writers would fight over the same ${noun}. The passed content is yours to bind, and the child acts on it only through the roles it declares. ${fix}`,
+			`\`watch(…, ${parentSpell})\` writes ${parentWrites} on an element passed to \`<${childTag}>\` that carries the \`.${role}\` role class — and \`<${childTag}>\` writes ${childWrites} on \`.${role}\` elements${too}, through its \`${childSpell}\` role binding (ADR 0026): two writers would fight over the same ${noun}. The passed content is yours to bind, and the child acts on it only through the roles it declares. ${fix}`,
 			rangeOf(source, at),
 		)
 	},
 
 	// --- formAssociated surface ---
 	/**
-	 * `expose()` names a reserved word or `Object` builtin (LT-157a, ADR
+	 * `expose()` names a reserved word or `Object` builtin (ADR
 	 * 0028 sub-design 5) — `src/types.ts`'s `RESERVED_WORDS_LIST`. The
 	 * runtime throws `InvalidPropertyNameError` for these, and the throw is
 	 * deliberately ordered BEFORE `#initSignals`'s `prop in this` guard:
 	 * every reserved name is an inherited own-property of `Object`, so the
 	 * guard would otherwise skip the colliding initializer silently. That
 	 * ordering is what protects the prototype chain — not the throw
-	 * escaping — which is why containing the throw (LT-155) costs nothing
+	 * escaping — which is why containing the throw () costs nothing
 	 * and why this rule is the one that has to carry the signal.
 	 *
 	 * Shares LTC028 with `managedFormMemberShadowed`: both say "this
@@ -1702,7 +1702,7 @@ export const diagnostic = {
 
 	/**
 	 * `expose()` names a member `formAssociated()`/`formAssociatedCheckbox()`
-	 * installs on the prototype (LT-058, extending the LTC010 managed-prop
+	 * installs on the prototype (extending the LTC010 managed-prop
 	 * family): silently shadows the managed member at the JS level — the
 	 * runtime already throws `InvalidPropertyNameError` for it
 	 * (`component.ts`'s `reservedMembers` check), but only once the
@@ -1723,7 +1723,7 @@ export const diagnostic = {
 
 	/**
 	 * A form-associated component's inner native control carries a `name`
-	 * (LT-059): the control stays out of native form submission only
+	 * (): the control stays out of native form submission only
 	 * because it is unnamed — the host submits via `setFormValue` instead.
 	 * A named inner control submits the field TWICE: once via
 	 * `setFormValue`, once natively. The markup looks entirely reasonable
@@ -1777,7 +1777,7 @@ export const diagnostic = {
 	 * this out as the worst outcome ("folding to the build machine's
 	 * reading"). The REACTIVE counterpart omits the expression instead and
 	 * stays silent (LT-165 step 5): there the client's first binding pass
-	 * corrects it, so it is unresolvability (ADR 0029 s1 limb b), not an
+	 * corrects it, so it is unresolvability (ADR 0008 s1 limb b), not an
 	 * author error — while a static child has no correction at all.
 	 */
 	impureStaticChild: (source: string, at: Site) =>
@@ -1788,7 +1788,7 @@ export const diagnostic = {
 		),
 
 	/**
-	 * The attribute counterpart of {@link impureStaticChild} (LT-075). A
+	 * The attribute counterpart of {@link impureStaticChild} (). A
 	 * `kind: 'server'` attribute (`<div title={Date.now()}>`) is rendered
 	 * once into the initial HTML and never bound client-side, so it carries
 	 * exactly the hazard the child form does — CHECKLIST §4's worst outcome,
@@ -1805,14 +1805,14 @@ export const diagnostic = {
 		),
 
 	/**
-	 * The loop counterpart of {@link impureStaticChild} (LT-326). A
+	 * The loop counterpart of {@link impureStaticChild} (). A
 	 * server-data loop's iterable is evaluated once, server-side, at build
 	 * time, and the rendered items are never re-derived on the client — so
 	 * `[...items].sort(() => Math.random() - 0.5)` bakes one build-time
 	 * shuffle into the page for good. Always the error form: unlike a
 	 * reactive child, there is no omit-and-correct path for a loop's items.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
 	 * (reviewed 2026-09-25).
 	 */
 	impureLoopItems: (source: string, at: Site) =>
@@ -1831,17 +1831,17 @@ export const diagnostic = {
 	 * enabled-and-submittable/unchecked/deselected/collapsed, the more
 	 * dangerous of each pair, regardless of what the author meant.
 	 *
-	 * Reclassified by LT-165 step 5 (ADR 0029 s5): the general case left the
+	 * Reclassified by  step 5 (ADR 0008 s5): the general case left the
 	 * diagnostic channel for the tier census — an unresolvable site is a
 	 * routing fact about the harness, not an author error. What SURVIVES is
-	 * the severe form (LT-062/LT-085): `disabled`/`checked` on a real
+	 * the severe form : `disabled`/`checked` on a real
 	 * submittable form control (`input`/`select`/`textarea`/`button` inside a
 	 * `formAssociated`/`formAssociatedCheckbox` component), where "enabled
 	 * and submittable" or "unchecked" regardless of author intent is a
 	 * correctness bug (the control can submit, or fail to, against the
 	 * author's actual intent), not just a cosmetic pre-hydration flash.
 	 *
-	 * Scoped per-EXPRESSION, not per-component (LT-184, refining ADR 0029
+	 * Scoped per-EXPRESSION, not per-component (refining ADR 0008
 	 * s5): the caller (`analysis/construct-effects.ts`) pushes it only for a severe
 	 * site whose OWN resolution is `none` — unresolvable in every tier, so
 	 * the value is omitted no matter how the component routes. A severe site
@@ -1871,7 +1871,7 @@ export const diagnostic = {
 	/**
 	 * A real `@zeix/le-truc` export (`createCell`, `deriveCell`, a parser,
 	 * `defineMethod`, …) is used in authored code without a matching
-	 * `import { … } from '@zeix/le-truc'` (ADR 0024 sub-design 16). Real
+	 * `import { … } from '@zeix/le-truc'` (ADR 0005 sub-design 16). Real
 	 * exports are true module exports — authored sources stay valid
 	 * TypeScript by construction, which is exactly what the import line
 	 * declares. FactoryContext vocabulary (`expose`, `host`, `first`, …) is
@@ -1902,7 +1902,7 @@ export const diagnostic = {
 
 	/**
 	 * The same static `id` appears on more than one composed element
-	 * (LT-090). A compose site's `id` materializes on that instance's host
+	 * (). A compose site's `id` materializes on that instance's host
 	 * element in the initial HTML (`composeHostAttrs`) — duplicated, that is
 	 * two elements sharing an id in the SAME document: invalid HTML, and
 	 * id-based addressing (`first('#x')`, label `for`) resolves to at most
@@ -1917,7 +1917,7 @@ export const diagnostic = {
 
 	/**
 	 * A prop that is Parser-exposed AND rendered into the component's
-	 * own markup from a same-named server arg (LT-122). Two seeding
+	 * own markup from a same-named server arg (). Two seeding
 	 * stories for one value: the Parser reads the HOST ATTRIBUTE at
 	 * connect, the site carries the same value as CONTENT. The page
 	 * therefore has to carry it twice, and if the host attribute is
@@ -1929,7 +1929,7 @@ export const diagnostic = {
 	 * attribute-driven prop whose site merely displays it is a
 	 * legitimate shape the corpus has not yet argued either way.
 	 *
-	 * `formManaged` (LT-141) branches the fix-it for `value`/`checked` on a
+	 * `formManaged` () branches the fix-it for `value`/`checked` on a
 	 * `formAssociated()`/`formAssociatedCheckbox()` host that renders the
 	 * prop into an owned site but does NOT carry the corresponding host
 	 * attribute: there, the ordinary advice ("drop the attribute") is
@@ -1957,7 +1957,7 @@ export const diagnostic = {
 	// --- reference identity and per-instance ids ---
 	/**
 	 * A REQUIRED `first(selector, reason)` whose only match sits
-	 * inside a branch that may not render (LT-123) — the reason
+	 * inside a branch that may not render () — the reason
 	 * can never be thrown, because the analysis addresses such an
 	 * element with a non-throwing query under a presence guard.
 	 */
@@ -1974,7 +1974,7 @@ export const diagnostic = {
 		),
 
 	/**
-	 * Two `first()` declarations resolve to the SAME element (LT-132).
+	 * Two `first()` declarations resolve to the SAME element ().
 	 * Silent until now: the ref IR is a list, but every consumer reads it
 	 * with `.find(a => a.kind === 'ref')`, so only the first name ever
 	 * became a query — the generated client then declared one const and
@@ -1990,7 +1990,7 @@ export const diagnostic = {
 		name: string,
 		selector: string,
 		existing: string,
-		/** The `first()` declaration of `existing`, related (ADR 0044 s1). */
+		/** The `first()` declaration of `existing`, related (ADR 0022 s1). */
 		existingAt?: Site,
 	): LocalDiagnostic => {
 		const reported = error(
@@ -2004,7 +2004,7 @@ export const diagnostic = {
 	},
 
 	/**
-	 * A STATIC `id` attribute in a template (LT-131). An `id` is unique per
+	 * A STATIC `id` attribute in a template (). An `id` is unique per
 	 * DOCUMENT, but a template is a per-INSTANCE thing: the moment a page
 	 * places the component twice, the constant renders twice and every
 	 * `aria-labelledby`/`aria-describedby`/`<label for>` pointing at it
@@ -2031,12 +2031,12 @@ export const diagnostic = {
 	 * constructor calls (`cond ? deriveCell(...) : createCell(...)`) — the
 	 * initializer must be a SINGLE, unconditional call to a recognized
 	 * constructor; conditional logic belongs inside the callback, not as a
-	 * choice between constructors (ADR 0024 sub-design 12).
+	 * choice between constructors (ADR 0005 sub-design 12).
 	 *
-	 * Own code since LT-165 (was `LTC013`). It is a FORMAT rule, not a
+	 * Own code since  (was `LTC013`). It is a FORMAT rule, not a
 	 * server-evaluation guard: harvest planning needs one shape to plan for,
 	 * and no tier supersedes that — so unlike its former code-mates it stays
-	 * an error rather than becoming a routing signal (ADR 0029 s5).
+	 * an error rather than becoming a routing signal (ADR 0008 s5).
 	 */
 	conditionalSignalConstructor: (source: string, at: Site, name: string) =>
 		error(
@@ -2048,7 +2048,7 @@ export const diagnostic = {
 	/**
 	 * A collector-requiring helper (`watch`/`on`/`pass`/`provideContexts`/
 	 * `each`/`reconcile`) called from inside a nested function in a
-	 * client-only setup statement (LT-157d, ADR 0028 sub-design 5). Those
+	 * client-only setup statement (ADR 0007 sub-design 5). Those
 	 * helpers do not create their effect — they push a descriptor into the
 	 * ambient collector (`src/internal.ts`'s `pushDescriptor`), which is
 	 * active only while the factory itself is running (ADR 0018). A call
@@ -2058,22 +2058,22 @@ export const diagnostic = {
 	 * The compiler cannot EMIT this shape — every generated `watch`/`on`/
 	 * `pass` call sits at the top level of the factory — so the whole rule
 	 * exists for hand-authored client-setup statements, which are exactly
-	 * the half ADR 0028 says the compiler owes ([M15] keeps the runtime
+	 * the half ADR 0007 says the compiler owes ([M15] keeps the runtime
 	 * check as the backstop for no-build components it never sees).
 	 *
 	 * Deliberately silent on a call nested inside `reconcile()`/`each()`'s
 	 * own `bindItem` callback: that one runs INSIDE a per-item collector,
 	 * which is the whole point of those helpers.
 	 *
-	 * Own code since LT-165 (was `LTC013`). It is a CLIENT-side bug —
+	 * Own code since  (was `LTC013`). It is a CLIENT-side bug —
 	 * `NoActiveCollectorError` at connect — so it is tier-independent and
 	 * stays an error; retiring it with the server-evaluation guards would
-	 * have deleted a real check (ADR 0029 s5).
+	 * have deleted a real check (ADR 0008 s5).
 	 */
 	deferredCollectorCall: (source: string, at: Site, helper: string) =>
 		error(
 			'LTC045',
-			`\`${helper}(…)\` is called from inside a callback — it collects an effect descriptor into the factory's ambient collector, which is gone by the time a deferred callback runs, so this throws NoActiveCollectorError at connect (contained per ADR 0028, so the effect silently never activates). Call \`${helper}(…)\` directly in setup and make the callback's condition part of the effect instead (e.g. \`watch(() => cond ? … : …, sink)\`).`,
+			`\`${helper}(…)\` is called from inside a callback — it collects an effect descriptor into the factory's ambient collector, which is gone by the time a deferred callback runs, so this throws NoActiveCollectorError at connect (contained per ADR 0007, so the effect silently never activates). Call \`${helper}(…)\` directly in setup and make the callback's condition part of the effect instead (e.g. \`watch(() => cond ? … : …, sink)\`).`,
 			rangeOf(source, at),
 		),
 
@@ -2096,7 +2096,7 @@ export const diagnostic = {
 	 * evaluate — and a const reached only INDIRECTLY (this const's
 	 * initializer reads another const that reads a ref) is not caught either;
 	 * both surface as a source-mapped tsc failure on the generated module
-	 * instead (the LT-136 posture, tracked with LT-093/LT-135).
+	 * instead (the  posture, tracked with ).
 	 */
 	renderedClientOnlyConst: (
 		source: string,
@@ -2113,19 +2113,19 @@ export const diagnostic = {
 	// --- i18n and the tier-1 prevented surface ---
 	/**
 	 * Literal prose inside a component that declares `export const i18n`
-	 * (LT-173 step 5, ADR 0030 sub-design 4).
+	 * (LT-173 step 5, ADR 0009 sub-design 4).
 	 *
 	 * A warning, and a genuine one: unlike a missing translation (the
 	 * translator's work, reported in the build's translation census) an
 	 * untranslated literal is author-fixable, so it belongs in the
-	 * compile-warning channel and must converge to zero (ADR 0029
+	 * compile-warning channel and must converge to zero (ADR 0008
 	 * sub-design 6's baseline). Fires on template text nodes containing two
 	 * or more adjacent letters — a single-letter fragment (a unit symbol, a
-	 * separator) is page data, not prose. Per ADR 0028 this is Tier 1
+	 * separator) is page data, not prose. Per ADR 0007 this is Tier 1
 	 * (Prevented): the string ships untranslatable unless the author routes
 	 * it through the catalog.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
 	 * (reviewed 2026-10-01).
 	 */
 	untranslatedLiteral: (source: string, at: Site, sample: string) =>
@@ -2137,13 +2137,13 @@ export const diagnostic = {
 
 	/**
 	 * An `export const i18n` value that is not a supported ICU MessageFormat
-	 * 1 pattern (LT-250, ADR 0030 s4). The source locale is the fallback
+	 * 1 pattern (ADR 0009 s4). The source locale is the fallback
 	 * every other locale resolves against, so it has nothing to fall back
 	 * to — unlike a translation, whose parse failure falls back to this
 	 * pattern and is a census record. `reason` is the parser's own account
 	 * (a syntax error with line/column, or an unsupported formatter).
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
 	 * (reviewed 2026-10-01).
 	 */
 	unparseableMessage: (source: string, at: Site, key: string, reason: string) =>
@@ -2155,7 +2155,7 @@ export const diagnostic = {
 
 	/**
 	 * A `t.<key>` site that disagrees with the key's parsed source pattern
-	 * (LT-250, ADR 0030 s4): the call's argument record is missing an
+	 * (ADR 0009 s4): the call's argument record is missing an
 	 * argument the pattern reads, passes one it never reads, is not an
 	 * object literal the build can check, or the site calls an
 	 * argument-less message / reads an argument message without calling
@@ -2163,7 +2163,7 @@ export const diagnostic = {
 	 * the imperative sentence, with a call spelled from the pattern's own
 	 * arguments (`i18n.ts`'s `reportMessageCallSites`).
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
 	 * (reviewed 2026-10-01).
 	 */
 	messageArgumentMismatch: (
@@ -2176,23 +2176,23 @@ export const diagnostic = {
 
 	/**
 	 * One component tag declared by MULTIPLE corpus sources that are not a
-	 * folder-local variant set (LT-202, ADR 0032 sub-design 6; narrowed by
-	 * ADR 0039 / LT-283): the corpus scan globs `.tsrx` AND `.tsx` into one
+	 * folder-local variant set (ADR 0010 sub-design 6; narrowed by
+	 * ADR 0017 ): the corpus scan globs `.tsrx` AND `.tsx` into one
 	 * registry, and a tag with two authored owners would make the registry,
 	 * the generated module names, and every `pass()`/compose resolution
 	 * ambiguous. A corpus folder MAY carry a variant set — at most one
 	 * authored source per surface sharing one base name in one directory —
 	 * which compiles every member and serves the selected surface; any other
 	 * collision (two same-surface sources, or same-tag sources in different
-	 * folders) still fails. ADR 0028 tier 1 (Prevented) — statically
+	 * folders) still fails. ADR 0007 tier 1 (Prevented) — statically
 	 * decidable at corpus-compile time from the tag map alone, no runtime
 	 * half exists. Error severity: the build fails naming every declaring
 	 * file, and all files are dropped from the generated output.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
 	 * (reviewed 2026-10-01). Corpus-level: fires once per involved file,
 	 * located at that whole file, with every other declaring file related
-	 * (ADR 0044 s1).
+	 * (ADR 0022 s1).
 	 */
 	duplicateTag: (
 		tag: string,
@@ -2208,24 +2208,24 @@ export const diagnostic = {
 		),
 
 	/**
-	 * The compiled members of a variant set disagree on CSS (ADR 0039,
-	 * LT-283). A variant set serves ONE surface's stylesheet under the
+	 * The compiled members of a variant set disagree on CSS (ADR 0017,
+	 * ). A variant set serves ONE surface's stylesheet under the
 	 * canonical name, so a drift means the unserved member renders with CSS
 	 * that was never compiled for it — the parity contract (byte-identical
 	 * CSS across surfaces) is what makes the set one component rather than
-	 * two. ADR 0028 tier 1 (Prevented) — a byte comparison over the members'
+	 * two. ADR 0007 tier 1 (Prevented) — a byte comparison over the members'
 	 * compiled CSS, statically decidable, no runtime half. Error severity:
 	 * the build fails naming every member, and none of the set's artifacts
 	 * are written (mirroring LTC048's both-dropped semantics).
 	 *
-	 * One face (ADR 0033 s10, LT-501): the authored sheets differ. The
+	 * One face (ADR 0011 s10): the authored sheets differ. The
 	 * comparison reads authored sheets only — the emission adds no boundaries
 	 * of its own, so nothing else can drift.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
-	 * (reviewed 2026-10-02, LT-402). Corpus-level: fires once per involved
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
+	 * (reviewed 2026-10-02). Corpus-level: fires once per involved
 	 * file, located at that whole file, with every other member related
-	 * (ADR 0044 s1).
+	 * (ADR 0022 s1).
 	 */
 	variantCssDrift: (
 		tag: string,
@@ -2242,15 +2242,15 @@ export const diagnostic = {
 
 	/**
 	 * The authored second (factory-context) parameter is not a destructured
-	 * object of FactoryContext vocabulary (LT-209). The generated client
+	 * object of FactoryContext vocabulary (). The generated client
 	 * destructures the same names from ITS factory parameter, so a name the
 	 * context does not carry would be a "Cannot find name" in the generated
 	 * module — and a silent `any` anywhere the ambient stood in before.
-	 * ADR 0028 tier 1 (Prevented): statically decidable from the parameter
+	 * ADR 0007 tier 1 (Prevented): statically decidable from the parameter
 	 * list alone, no runtime half exists. Error severity: the shape cannot
 	 * be lowered honestly.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
 	 * (reviewed 2026-10-01).
 	 */
 	badFactoryContextParam: (
@@ -2266,17 +2266,17 @@ export const diagnostic = {
 
 	/**
 	 * The factory-context annotation's surface disagrees with the
-	 * component's own `config.formAssociated` (LT-209): a form-associated
+	 * component's own `config.formAssociated` (): a form-associated
 	 * component annotating plain `FactoryContext` types `host` without the
 	 * managed form members it really has (`setCustomValidity(…)` would not
 	 * type-check), and a plain component annotating `FormFactoryContext`
-	 * claims members the element does not carry. ADR 0028 tier 1
+	 * claims members the element does not carry. ADR 0007 tier 1
 	 * (Prevented): both facts are AST-visible, no runtime half exists.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
 	 * (reviewed 2026-10-01). The report covers the written type, not the
-	 * whole parameter (LT-358b). Neither face carries a fix (ADR 0044 s1,
-	 * LT-371): the plain face names two repairs, and renaming the written
+	 * whole parameter (). Neither face carries a fix (ADR 0022 s1,
+	 * ): the plain face names two repairs, and renaming the written
 	 * type on the form-associated face leaves `FormFactoryContext`
 	 * unimported — the `import type` that would need the same edit is
 	 * one the import scan skips.
@@ -2294,17 +2294,17 @@ export const diagnostic = {
 			rangeOf(source, annotation),
 		),
 
-	// --- Stylesheet grammar (ADR 0033 s9, LT-268) ---
+	// --- Stylesheet grammar (ADR 0011 s9) ---
 
 	/**
-	 * The component's stylesheet does not parse (ADR 0033 s9, LT-268). The
+	 * The component's stylesheet does not parse (ADR 0011 s9). The
 	 * sheet is emitted as authored, so a malformed sheet would ship its
-	 * own breakage; there is no compiled form to fall back to. ADR 0028
+	 * own breakage; there is no compiled form to fall back to. ADR 0007
 	 * tier 1 (Prevented): the parser's refusal is the decision, no runtime
 	 * half exists.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
-	 * (final copy 2026-10-02, LT-395).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
+	 * (final copy 2026-10-02).
 	 */
 	malformedStyleSheet: (source: string, at: Site, detail: string) =>
 		error(
@@ -2315,15 +2315,15 @@ export const diagnostic = {
 
 	/**
 	 * A declaration in the component's stylesheet names a property the CSS
-	 * grammar does not define (ADR 0033 s9, LT-268). Browsers drop unknown
+	 * grammar does not define (ADR 0011 s9). Browsers drop unknown
 	 * declarations, so the authored rule would silently do nothing —
 	 * usually a typo'd name. css-tree's dictionary arbitrates; vendor and
-	 * hack prefixes resolve inside it. ADR 0028 tier 2 (Contained, LT-394):
+	 * hack prefixes resolve inside it. ADR 0007 tier 2 (Contained):
 	 * the dictionary lags the platform, so a property newer than it reports
 	 * too — a warning, and the declaration ships as authored.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
-	 * (final copy 2026-10-02, LT-395).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
+	 * (final copy 2026-10-02).
 	 */
 	unknownCssProperty: (source: string, at: Site, property: string) =>
 		warning(
@@ -2334,17 +2334,17 @@ export const diagnostic = {
 
 	/**
 	 * A declaration in the component's stylesheet carries a value outside
-	 * its property's grammar (ADR 0033 s9, LT-268) — an unknown unit, a
+	 * its property's grammar (ADR 0011 s9) — an unknown unit, a
 	 * malformed value. The sheet ships as authored, so the dead declaration
 	 * would ship too. Custom properties and `var()`/`env()` references are
 	 * exempt (any value is valid for them); at-rule descriptors are not
-	 * properties and are never matched. ADR 0028 tier 2 (Contained,
-	 * LT-394): the dictionary lags the platform (`container-type:
+	 * properties and are never matched. ADR 0007 tier 2 (Contained,
+	 * ): the dictionary lags the platform (`container-type:
 	 * scroll-state`, `calc-size()`), so a newer value reports too — a
 	 * warning, and the declaration ships as authored.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
-	 * (final copy 2026-10-02, LT-395).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
+	 * (final copy 2026-10-02).
 	 */
 	invalidCssValue: (
 		source: string,
@@ -2358,18 +2358,18 @@ export const diagnostic = {
 			rangeOf(source, at),
 		),
 
-	// --- Platform-CSS stylesheet contract (ADR 0033 s6, LT-501) ---
+	// --- Platform-CSS stylesheet contract (ADR 0011 s6) ---
 
 	/**
 	 * A rule inside the component's `@scope` is led by the component's own
-	 * tag (ADR 0033 s6, LT-501). A rule in `@scope` already starts at the
+	 * tag (ADR 0011 s6). A rule in `@scope` already starts at the
 	 * host's descendants, so the tag addresses only a nested instance of the
 	 * component — never the host. The host is `:where(:scope)`. A tag-led rule at
-	 * the sheet's top level is the 2.x form and stays legal. ADR 0028 tier 1
+	 * the sheet's top level is the 2.x form and stays legal. ADR 0007 tier 1
 	 * (Prevented): statically decidable, no runtime half.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages) (reviewed
-	 * 2026-10-08, LT-503).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages) (reviewed
+	 * 2026-10-08).
 	 */
 	ownTagLedRule: (source: string, at: Site, tag: string) =>
 		error(
@@ -2379,14 +2379,14 @@ export const diagnostic = {
 		),
 
 	/**
-	 * `:host` in a component stylesheet (ADR 0033 s6, LT-501). `:host`
+	 * `:host` in a component stylesheet (ADR 0011 s6). `:host`
 	 * addresses the root of a shadow tree and matches nothing in light DOM.
 	 * The host is `:where(:scope)` inside `@scope`, the idiom that keeps a
 	 * parent's rule on the host winning (s1); `:host(X)` is `:where(:scope)X`.
-	 * ADR 0028 tier 1 (Prevented): statically decidable, no runtime half.
+	 * ADR 0007 tier 1 (Prevented): statically decidable, no runtime half.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages) (reviewed
-	 * 2026-10-08, LT-503).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages) (reviewed
+	 * 2026-10-08).
 	 */
 	hostSelector: (source: string, at: Site) =>
 		error(
@@ -2396,15 +2396,15 @@ export const diagnostic = {
 		),
 
 	/**
-	 * `::slotted()` in a component stylesheet (ADR 0033 s6, LT-304). Slotted
+	 * `::slotted()` in a component stylesheet (ADR 0011 s6). Slotted
 	 * content exists only in a shadow root; a compiled component renders
 	 * light DOM, where the composed child's markup is real children, not
 	 * slotted nodes — the rule could never match. Shadow-mode emission
-	 * (ADR 0033 s8) is not the compiled contract. ADR 0028 tier 1
+	 * (ADR 0011 s8) is not the compiled contract. ADR 0007 tier 1
 	 * (Prevented): statically decidable, no runtime half.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
-	 * (reviewed 2026-10-02, LT-402 — the LT-304 first draft, finalized).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
+	 * (reviewed 2026-10-02 — the  first draft, finalized).
 	 */
 	slottedInLightDom: (source: string, at: Site) =>
 		error(
@@ -2414,15 +2414,15 @@ export const diagnostic = {
 		),
 
 	/**
-	 * `:host-context()` in a component stylesheet (ADR 0033 s6, LT-304).
+	 * `:host-context()` in a component stylesheet (ADR 0011 s6).
 	 * Removed from the CSS spec and matched by no browser — in a shadow root
 	 * it would style the host by its ancestors, and the light-DOM scoping
 	 * has no equivalent that keeps the page's own rules winning over the
-	 * host's. ADR 0028 tier 1 (Prevented): statically decidable, no runtime
+	 * host's. ADR 0007 tier 1 (Prevented): statically decidable, no runtime
 	 * half.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages)
-	 * (reviewed 2026-10-02, LT-402 — the LT-304 first draft, finalized).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages)
+	 * (reviewed 2026-10-02 — the  first draft, finalized).
 	 */
 	hostContextSelector: (source: string, at: Site) =>
 		error(
@@ -2433,14 +2433,14 @@ export const diagnostic = {
 
 	/**
 	 * A selector inside a `@scope` block descends past a compound that one of
-	 * the block's own `to (…)` limits excludes (ADR 0033 s6, LT-501). The
+	 * the block's own `to (…)` limits excludes (ADR 0011 s6). The
 	 * limit always excludes the subject, so the rule matches nothing.
 	 * Sibling combinators stay legal, and so does styling the limit's own
-	 * element. ADR 0028 tier 1 (Prevented): statically decidable, no runtime
+	 * element. ADR 0007 tier 1 (Prevented): statically decidable, no runtime
 	 * half.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages) (reviewed
-	 * 2026-10-08, LT-503).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages) (reviewed
+	 * 2026-10-08).
 	 */
 	deadByLimit: (source: string, at: Site, selector: string, limit: string) =>
 		error(
@@ -2450,13 +2450,13 @@ export const diagnostic = {
 		),
 
 	/**
-	 * `:global` in a component stylesheet (ADR 0033 s6, LT-501). A rule
+	 * `:global` in a component stylesheet (ADR 0011 s6). A rule
 	 * outside `@scope` already applies page-wide, so the wrapper has no
-	 * meaning. ADR 0028 tier 1 (Prevented): statically decidable, no
+	 * meaning. ADR 0007 tier 1 (Prevented): statically decidable, no
 	 * runtime half.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages) (reviewed
-	 * 2026-10-08, LT-503).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages) (reviewed
+	 * 2026-10-08).
 	 */
 	globalSelector: (source: string, at: Site) =>
 		error(
@@ -2469,14 +2469,14 @@ export const diagnostic = {
 	 * A rule in the component's `@scope` block can match an element that a
 	 * composed child renders in its own template, directly or through the
 	 * child's own composed children, and no authored limit excludes the
-	 * child (ADR 0033 s5, LT-502). The fix-it limit `<child> > *` stops the
+	 * child (ADR 0011 s5). The fix-it limit `<child> > *` stops the
 	 * rule below the child's host, so the host stays stylable. Content the
 	 * component passes as `children` is its own markup and never counts
-	 * (ADR 0048 s5). ADR 0028 tier 2 (Contained): a warning, the CSS ships
+	 * (ADR 0026 s5). ADR 0007 tier 2 (Contained): a warning, the CSS ships
 	 * as authored — a rule may reach in on purpose.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages) (reviewed
-	 * 2026-10-08, LT-503).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages) (reviewed
+	 * 2026-10-08).
 	 */
 	downwardLeak: (
 		source: string,
@@ -2499,14 +2499,14 @@ export const diagnostic = {
 
 	/**
 	 * A top-level rule in a component stylesheet that is neither inside
-	 * `@scope` nor led by the component's own tag (ADR 0033 s1/s5, LT-502).
+	 * `@scope` nor led by the component's own tag (ADR 0011 s1/s5).
 	 * It applies page-wide, as a top-level rule in any `<style>` does.
 	 * `@keyframes`, `@font-face` and `@property` hold no style rules and
-	 * never fire. ADR 0028 tier 2 (Contained): a warning, the CSS ships as
+	 * never fire. ADR 0007 tier 2 (Contained): a warning, the CSS ships as
 	 * authored.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages) (reviewed
-	 * 2026-10-08, LT-503).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages) (reviewed
+	 * 2026-10-08).
 	 */
 	unscopedRule: (source: string, at: Site, selector: string, tag: string) =>
 		warning(
@@ -2516,14 +2516,14 @@ export const diagnostic = {
 		),
 
 	/**
-	 * A `@scope` form the flat-selector lowering cannot express (ADR 0033
-	 * s4, LT-501). Only a CSS target without native `@scope` fails; a native
+	 * A `@scope` form the flat-selector lowering cannot express (ADR 0011
+	 * s4). Only a CSS target without native `@scope` fails; a native
 	 * target ships the same sheet. The message names the configured target.
-	 * ADR 0028 tier 1 (Prevented): statically decidable from the sheet and
+	 * ADR 0007 tier 1 (Prevented): statically decidable from the sheet and
 	 * the configuration, no runtime half.
 	 *
-	 * Message copy follows ADR 0028's lifecycle (`writer` → error-messages) (reviewed
-	 * 2026-10-08, LT-503).
+	 * Message copy follows ADR 0007's lifecycle (`writer` → error-messages) (reviewed
+	 * 2026-10-08).
 	 */
 	scopeNotLowerable: (
 		source: string,

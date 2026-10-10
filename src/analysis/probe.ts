@@ -1,13 +1,13 @@
 /**
- * The materialized-probe selector engine (LT-379, [ADR
- * 0045](../../../adr/0045-structural-uniqueness-proof-runs-on-a-materialized-probe.md);
- * promoted from the LT-245 spike). The structural-uniqueness proof does not
+ * The materialized-probe selector engine ([ADR
+ * 0045](../adr/0023-the-structural-uniqueness-proof-runs-on-a-materialized-probe.md);
+ * promoted from the  spike). The structural-uniqueness proof does not
  * walk the template IR by hand — it serializes the template the compiler
  * renders to HTML, parses that with parse5, and answers matching, counting,
  * and match-existence with [css-select](https://github.com/fb55/css-select)
  * over one aggregation walk. The premise is unchanged: the compiler wrote
  * this HTML, so counting matches in the probe is counting matches in the
- * DOM — and per ADR 0045 Decision 2 the probe is BROWSER-FAITHFUL: it
+ * DOM — and per ADR 0023 Decision 2 the probe is BROWSER-FAITHFUL: it
  * counts what a browser's parse of the emitted markup builds, not what the
  * authored nesting says. Valid authoring never diverges; the one divergence
  * class (content-model-violating nesting, e.g. `<p><div>…</div></p>`) is
@@ -15,15 +15,15 @@
  * probe-differential.test.ts`.
  *
  * The serialization encodes the branch-exclusivity arithmetic in an
- * ATTRIBUTE on every element, not in wrapper elements (LT-382, ADR 0045
+ * ATTRIBUTE on every element, not in wrapper elements (ADR 0023
  * rider). Each element carries `data-lt-probe-arm`, the path of the
  * mutually exclusive arms it sits in (`<group>:<arm>` segments joined by
  * `/`, outermost first; absent at top level). An `@if`, an `@switch` and a
  * `@try` without `@pending` open a group; a `@try` WITH `@pending` opens
- * none — its arms coexist and sum, as the DOM does (LT-230's recorded
+ * none — its arms coexist and sum, as the DOM does (the ticket's recorded
  * `@pending` policy). A count aggregates the matched elements' paths: sum
  * within an arm, MAX over the arms of a group. Wrapper elements were the
- * first design (LT-379) and HTML tree correction defeated them: parse5
+ * first design () and HTML tree correction defeated them: parse5
  * foster-parents an unknown element out of table context and drops it
  * inside `<select>`, so the arms lost their group and summed. An attribute
  * travels with its element through every tree-correction move, so the
@@ -51,7 +51,7 @@
  * `getAttributeValue` returns `undefined`, not `null`; `isTag` must be a
  * TS type predicate; traversal skips non-tag roots (queries run against the
  * fragment's element children) and — in HTML mode — ignores the CONTENTS
- * of `<template>` elements. An authored `<template>` is LTC061 (LT-383),
+ * of `<template>` elements. An authored `<template>` is LTC061 (),
  * raised in lowering on both surfaces, so a component carrying one never
  * compiles; the analysis still runs to collect further diagnostics, so the
  * materializer serializes the template's CONTENT in place (no `<template>`
@@ -179,7 +179,7 @@ type Serializer = {
 	/**
 	 * Serialize each compose site's content in place: the content is the
 	 * composing component's markup, rendered into the child's Children
-	 * Region (ADR 0048 s1).
+	 * Region (ADR 0026 s1).
 	 */
 	regions: boolean
 }
@@ -242,12 +242,12 @@ const serializeNodes = (
 				break
 			case 'conditional':
 				// One arm renders, in either mode: a reactive conditional's
-				// other arms are inert template content (ADR 0037).
+				// other arms are inert template content (ADR 0015).
 				exclusive(node.arms.map(arm => arm.children))
 				break
 			case 'try':
 				// One arm renders: body XOR catch, and an async boundary's
-				// other arms are inert template content (ADR 0037 s4).
+				// other arms are inert template content (ADR 0015 s4).
 				exclusive([
 					node.children,
 					node.catchChildren,
@@ -361,7 +361,7 @@ const queryCache = new Map<string, CompiledQuery | null>()
  * A compiled query, or `null` when css-what cannot parse the selector. A
  * querySelector would THROW on such a string, so it matches nothing in any
  * valid DOM — `null` counts as zero matches / no existence, the same answer
- * the hand grammar's "unparsed" path gave before LT-379.
+ * the hand grammar's "unparsed" path gave before .
  */
 const queryOf = (selector: string): CompiledQuery | null => {
 	if (!queryCache.has(selector)) {
@@ -405,7 +405,7 @@ export const probeCount = (root: TemplateNode, selector: string): number => {
 /**
  * `probeCount` over the probe that also materializes every compose site's
  * content — the count for an element inside a Children Region, whose query
- * re-includes the composing component's regions (ADR 0048 s1).
+ * re-includes the composing component's regions (ADR 0026 s1).
  */
 export const probeCountWithRegions = (
 	root: TemplateNode,

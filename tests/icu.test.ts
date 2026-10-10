@@ -1,8 +1,8 @@
 /**
- * The ICU MessageFormat 1 build half (LT-250, ADR 0030 s4): our parser
+ * The ICU MessageFormat 1 build half (ADR 0009 s4): our parser
  * adapter (`icu/parse.ts`) and our evaluator (`icu/evaluate.ts`), checked
  * differentially against `@messageformat/core` — the oracle, and the only
- * place core is imported. The server fold and LT-218's inlined client copy
+ * place core is imported. The server fold and the ticket's inlined client copy
  * run this one evaluator, so agreement here is agreement on both sides.
  */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
@@ -17,7 +17,7 @@ const ROOT = path.resolve(import.meta.dir, '..')
 
 // Core formats MF1's named date/time styles with `toLocaleDateString(lc, o)`
 // and no `timeZone`, i.e. in the process's zone; ours applies the record's
-// `timeZone` (ADR 0030 s2). Pin the process to UTC for the comparison and
+// `timeZone` (ADR 0009 s2). Pin the process to UTC for the comparison and
 // restore it afterward — `bun test` shares one process across files.
 const previousTZ = process.env.TZ
 beforeAll(() => {
@@ -251,7 +251,7 @@ describe('argument signatures', () => {
 	})
 })
 
-/* === The dependency boundary (ADR 0030 s8) === */
+/* === The dependency boundary (ADR 0009 s8) === */
 
 describe('dependency boundary', () => {
 	const compilerFiles = (dir: string): string[] =>

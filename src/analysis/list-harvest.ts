@@ -1,6 +1,6 @@
 /**
- * Per-field harvest of a list seeded from server args (ADR 0046 s7,
- * LT-429): Pass 3's plan for how the client rebuilds each adopted item
+ * Per-field harvest of a list seeded from server args (ADR 0024 s7,
+ * ): Pass 3's plan for how the client rebuilds each adopted item
  * field by field from the item's markup.
  *
  * Each field is read from its canonical site in the item — `data-key` for
@@ -97,7 +97,7 @@ const fieldAccessOf = (node: unknown, item: string): string | null => {
 /**
  * The field an expression reads exactly and unformatted, or null: the
  * field access itself, inside a parameterless arrow, optionally through
- * `String()` (the server serializes a value the same way, ADR 0046 s7).
+ * `String()` (the server serializes a value the same way, ADR 0024 s7).
  */
 const exactFieldOf = (expr: AstNode, item: string): string | null => {
 	let node: unknown = expr
@@ -393,7 +393,7 @@ export const planListFieldHarvest = (
 
 /**
  * Plan the harvest of a host-level arg-seeded list through its key alias
- * (ADR 0047, LT-453), or report why it cannot be planned and return null.
+ * (ADR 0025), or report why it cannot be planned and return null.
  * Undefined when nothing in any item setup reads the list by key: the list
  * is not alias-harvested, and the caller plans it as any other signal.
  *

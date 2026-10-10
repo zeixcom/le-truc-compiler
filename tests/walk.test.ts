@@ -1,8 +1,8 @@
 /**
- * Unit tests for the one structural `TemplateNode` visitor (LT-042,
+ * Unit tests for the one structural `TemplateNode` visitor (
  * walk.ts): visit order over every node kind, parent pairing, the one
  * traversal rule that varies by consumer (`intoCompose`), and the
- * always-enter `@pending` policy (LT-230).
+ * always-enter `@pending` policy ().
  * The tree is hand-built IR — no compiler front end needed, which is the
  * point of extracting the visitor.
  */

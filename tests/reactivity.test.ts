@@ -1,5 +1,5 @@
 /**
- * Direct unit test for `reactivity.ts` (LT-051): the reactive-lift rule that
+ * Direct unit test for `reactivity.ts` (): the reactive-lift rule that
  * decides WHETHER A TEMPLATE CHILD IS REACTIVE. The line is *lexically
  * visible reactive read* vs. *read behind an opaque call boundary* — not
  * *single read* vs. *compound expression*.
@@ -8,7 +8,7 @@
  * modes are silent in a golden: an under-lift renders correct HTML that
  * never updates, and an over-lift renders correct HTML that updates
  * redundantly. Only the recorded `reactivity` class distinguishes them.
- * The dependency closure recorded beside it (ADR 0040 s7, LT-373) is pinned
+ * The dependency closure recorded beside it (ADR 0018 s7) is pinned
  * here too: no golden reads it yet.
  */
 import { describe, expect, test } from 'bun:test'
@@ -145,7 +145,7 @@ describe('lowerChildren — lift applied to template children', () => {
 	})
 })
 
-describe('the recorded class and dependency closure (ADR 0040 s7, LT-373)', () => {
+describe('the recorded class and dependency closure (ADR 0018 s7, LT-373)', () => {
 	test('a text child records the signals and server args it reads', () => {
 		const { child } = childOf('{label + count.get()}')
 		if (child?.kind !== 'expr') throw new Error('expected expr child')
@@ -260,7 +260,7 @@ describe('the recorded class and dependency closure (ADR 0040 s7, LT-373)', () =
 	})
 })
 
-describe('the retired &{} sigil (LT-052)', () => {
+describe('the retired &{} sigil', () => {
 	test('&{expr} is TSRX018 with a drop-the-sigil fix-it', () => {
 		const { diagnostics } = childOf('&{count}')
 		expect(diagnostics.map(d => d.code)).toContain('TSRX018')
@@ -289,7 +289,7 @@ describe('the retired &{} sigil (LT-052)', () => {
 	})
 })
 
-describe('lazy destructuring in binding position (LT-052, retired at the 0.2 pin)', () => {
+describe('lazy destructuring in binding position', () => {
 	const compile = (setup: string) =>
 		compileSource(
 			`export function C({}: {})
@@ -309,7 +309,7 @@ describe('lazy destructuring in binding position (LT-052, retired at the 0.2 pin
 
 	// @tsrx/core 0.2 dropped lazy destructuring from the grammar entirely, so
 	// `&{ … }`/`&[ … ]` no longer parse — the dedicated TSRX020 scan retired
-	// with the LT-210 pin bump and the rejection is the parser's own syntax
+	// with the  pin bump and the rejection is the parser's own syntax
 	// error, surfaced as LTC008. Same tier-1 guarantee, one link earlier.
 	test('&{ … } object pattern is a parse error (LTC008)', () => {
 		const d = compile('const obj = { a: 1 }\n\t\t\t\tconst &{ a } = obj')

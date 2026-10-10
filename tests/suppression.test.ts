@@ -1,6 +1,6 @@
 /**
- * Realm-side suppression for unresolvable expressions (ADR 0029 sub-design
- * 1's implementation constraint, LT-165 step 7).
+ * Realm-side suppression for unresolvable expressions (ADR 0008 sub-design
+ * 1's implementation constraint step 7).
  *
  * The generated client module is the shipped artifact and the realm replays
  * it: for a Simulated-tier component the connect installs EVERY binding,
@@ -43,7 +43,7 @@ import { createGeneratedDir } from './helpers/generated-corpus'
  * Simulated-tier fixture with all three record forms: an impure reactive
  * ATTRIBUTE (`title`, attribute dispatch), an impure lazy TEXT CHILD
  * (`p`'s sole content — whole-textContent by the emission gate), and an
- * impure DIRTY-FLAG attribute (`value` on an `<input>`, LT-116 property
+ * impure DIRTY-FLAG attribute (`value` on an `<input>` property
  * dispatch). The unharvested `seed` is the routing signal that makes the
  * component Simulated (resolution `realm`); its literal initializer keeps
  * the client module realm-executable (an initializer naming a server param
@@ -115,10 +115,10 @@ export function C({}: {})
 
 /**
  * Simulated-tier fixture with three reactive conditions whose tests no tier
- * answers (LT-391): an `@if` and a `@switch` in nested containers, and an
+ * answers (): an `@if` and a `@switch` in nested containers, and an
  * `@if` at the component root (the `'host'` sentinel). The `@if` tests read
  * the RNG, the `@switch` reads the wall clock — limb (b)'s two sources. No
- * tier picks a winner (ADR 0037 s5), so the server renders only the arm
+ * tier picks a winner (ADR 0015 s5), so the server renders only the arm
  * templates — but the replayed client's `reconcile()` clones an arm at
  * connect, which the driver must strip. The root test always holds and the
  * switch has a `@default`, so the unwired control can pin that their arms
@@ -143,7 +143,7 @@ export function C({ name }: { name: string })
 }`
 
 /**
- * The `.tsx` twin of `simulatedArmsFixture` (LT-391): the ternary, the
+ * The `.tsx` twin of `simulatedArmsFixture` (): the ternary, the
  * switch IIFE and `&&` faces of the same three arm sets, under its own tag
  * so one realm serves both surfaces.
  */
@@ -236,7 +236,7 @@ describe('the compile-time suppression record', () => {
 	test('each unresolvable site is recorded with its realm address', () => {
 		// Three forms: attribute dispatch, whole-textContent child, and the
 		// dirty-flag attribute whose `prop` names the IDL property the
-		// binding writes instead of the attribute (LT-116).
+		// binding writes instead of the attribute ().
 		expect(simulated.component?.entry.tier).toBe('simulated')
 		expect(simulated.component?.entry.suppressedSites).toEqual([
 			{ kind: 'attr', selector: 'span', attr: 'title' },
@@ -246,7 +246,7 @@ describe('the compile-time suppression record', () => {
 		expect(simulatedRoot.component?.entry.suppressedSites).toEqual([
 			{ kind: 'text', selector: 'host' },
 		])
-		// LT-391: an arm set whose test no tier answers is recorded by its
+		//: an arm set whose test no tier answers is recorded by its
 		// container and `data-arms` index.
 		// Both surfaces record the same three sets: `@if`/ternary in `div`,
 		// `@switch`/switch IIFE (the wall-clock test) in `section`, and
@@ -287,7 +287,7 @@ describe('the compile-time suppression record', () => {
 	})
 
 	test('the shipped client still binds every suppressed site', () => {
-		// The realm cannot decline to install a binding (ADR 0029 s1's
+		// The realm cannot decline to install a binding (ADR 0008 s1's
 		// implementation constraint): the generated client is the shipped
 		// artifact and stays byte-honest — suppression is realm-side.
 		const client = simulated.component?.clientCode ?? ''
@@ -302,7 +302,7 @@ describe('the compile-time suppression record', () => {
 /* === The realm-side revert === */
 
 describe('the realm reverts suppressed sites before serializing', () => {
-	// One realm for both Simulated fixtures (ADR 0027 sub-design 2/10).
+	// One realm for both Simulated fixtures (ADR 0006 sub-design 2/10).
 	const realm = createSimulationRealm({
 		suppressedSites: tag =>
 			tag === 'c-el'
@@ -338,7 +338,7 @@ describe('the realm reverts suppressed sites before serializing', () => {
 		async (_, tag) => {
 			const render = await serverRenderOf(`${tag}.server.ts`)
 			const markup = render({ name: 'x' })
-			// The server renders no live arm (ADR 0037 s5) — templates only.
+			// The server renders no live arm (ADR 0015 s5) — templates only.
 			expect(markup).not.toMatch(/<(b|i|s|u|q|em) [^>]*data-key/)
 			const { html } = await realm.render({ markup, component: tag })
 			// The connect cloned an arm into each set (the unwired control
@@ -468,7 +468,7 @@ describe('the realm reverts suppressed sites before serializing', () => {
 				expect((input as unknown as { value: string }).value).toMatch(
 					/^\d{13}$/,
 				)
-				// LT-391: unwired, the client's `reconcile()` clones an arm
+				//: unwired, the client's `reconcile()` clones an arm
 				// into each arm set on both surfaces, and it ships.
 				for (const tag of ['a-el', 'x-el']) {
 					await realm2.load(
@@ -494,7 +494,7 @@ describe('the realm reverts suppressed sites before serializing', () => {
 				// LIFO against the file-level realm (its restores re-install
 				// the outer realm's patches) — disposed before this file's
 				// afterAll runs. Awaited: the restores follow the final settle
-				// (LT-411), so an un-awaited dispose would race the afterAll's.
+				// (), so an un-awaited dispose would race the afterAll's.
 				await realm2.dispose()
 			}
 		} finally {

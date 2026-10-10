@@ -1,5 +1,5 @@
 /**
- * Tests for the Web Components Community Protocol in `.tsrx` (LT-035, ADR
+ * Tests for the Web Components Community Protocol in `.tsrx` (ADR
  * 0024 sub-design 15): `requestContext()` on the consumer side,
  * `provideContexts()` on the provider side.
  */
@@ -125,7 +125,7 @@ describe('requestContext() — misuse diagnostics', () => {
 	})
 
 	test('requestContext nested inside a plain setup const is a routing signal (LT-165 step 5)', () => {
-		// ADR 0029 s5: a setup const the harness cannot evaluate routes the
+		// ADR 0008 s5: a setup const the harness cannot evaluate routes the
 		// component Simulated instead of erroring — the realm runs the client
 		// module, where `requestContext` resolves for real.
 		const source = `export function C({}: {})

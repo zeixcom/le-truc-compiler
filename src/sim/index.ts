@@ -1,6 +1,6 @@
 /**
- * The jsdom simulation driver, as the seam sees it (ADR 0027, LT-151;
- * report channel LT-163; seam LT-263).
+ * The jsdom simulation driver, as the seam sees it (ADR 0006;
+ * report channel ; seam ).
  *
  * This module is the driver's whole published surface. `patch-table.ts`
  * holds the per-runtime applier data, `realm.ts` applies it, `boundary.ts`
@@ -12,7 +12,7 @@
  * is for the driver's own tests and the cross-runtime portability probe,
  * which legitimately know jsdom.
  *
- * ADR 0035 sub-design 4 keeps this inside `@zeix/le-truc-compiler` for 3.0
+ * ADR 0013 sub-design 4 keeps this inside `@zeix/le-truc-compiler` for 3.0
  * and designs the boundary so the later `@zeix/le-truc-simulation` split is
  * a resolver-specifier change, not a breaking one. The realm's PUBLIC type
  * is now `SimulationRealm` from the contract and names no jsdom type; the

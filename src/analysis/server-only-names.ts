@@ -17,7 +17,7 @@ import { MANAGED_TEXT_PROPS } from '../vocabulary'
 import { renderOnlyBindings } from './naming'
 
 /**
- * The managed form prop a reactive child reads, or null. Since LT-052 that
+ * The managed form prop a reactive child reads, or null. Since  that
  * is a `host.<prop>` member read; the retired `{'<prop>'}` string-literal
  * spelling is still recognised so a stale source reports the managed-prop
  * message instead of a downstream type error.
@@ -53,13 +53,13 @@ type ServerOnlyNamesContext = {
 /**
  * LTC005's server-only face: the generated client binds no server name — a
  * parameter (`t` included), a module-level declaration, a server-data loop
- * binding (`badFreeNames`, LT-348) — so any client-emitted position reading
+ * binding (`badFreeNames`) — so any client-emitted position reading
  * one is a ReferenceError at connect. One check and one wording for every
  * such position (LT-347 audited them: reactive attributes, lazy text
  * children, class/style maps, event handlers, `truc:html`, pass entries,
  * `expose()` entries, client-needed setup consts and harvest-less signal
  * initializers; `loops.ts` routes list bodies here through
- * `badListBodyNames`, LT-349). `subject` opens
+ * `badListBodyNames`). `subject` opens
  * the sentence.
  */
 export const reportServerOnlyNames = (
@@ -68,13 +68,13 @@ export const reportServerOnlyNames = (
 	subject: string,
 	allBad: string[] = ctx.badFreeNames(node),
 ): void => {
-	// A handler arg read is LTC081's (LT-461), not a second error here.
+	// A handler arg read is LTC081's (), not a second error here.
 	const bad = allBad.filter(name => !ctx.component.handlerArgs?.has(name))
 	if (bad.length === 0) return
 	const { component } = ctx
 	// Split by binding class — each has its own fix. A name the server
 	// binds takes precedence: a list body's setup-const class is only the
-	// residue `badListBodyNames` adds (LT-349).
+	// residue `badListBodyNames` adds ().
 	const moduleNames = new Set(component.moduleBindings ?? [])
 	const serverNames = renderOnlyBindings(component)
 	const module = bad.filter(name => moduleNames.has(name))
@@ -84,13 +84,13 @@ export const reportServerOnlyNames = (
 	const listBody = bad.filter(
 		name => !moduleNames.has(name) && !serverNames.has(name),
 	)
-	// `lang` stays server-only under the client message channel (ADR 0030
+	// `lang` stays server-only under the client message channel (ADR 0009
 	// s9): the locale reaches the client through the root attribute.
 	const lang = component.langBinding
-	// LT-358c: a record-spelled read (`i18n.t.<key>`) flags the RECORD
+	//: a record-spelled read (`i18n.t.<key>`) flags the RECORD
 	// binding, not a `messageTBindings` entry, so the plain find misses it
 	// and the report got the generic exposed-prop fix. The record spelling
-	// stays server-only (ADR 0030 s9), so the fix is the same literal-key
+	// stays server-only (ADR 0009 s9), so the fix is the same literal-key
 	// sentence — spelled with the component's own `t` binding when it
 	// declares one, else the canonical `t` the destructure binds. The
 	// channel set keeps every message-channel name (t bindings + record

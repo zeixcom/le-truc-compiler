@@ -1,5 +1,5 @@
 /**
- * Mount Scopes (ADR 0046 s1, LT-424; 2026-10-10 split): an arm of an arm
+ * Mount Scopes (ADR 0024 s1; 2026-10-10 split): an arm of an arm
  * set or a reactive-list item — an element subtree with its own mount and
  * its own `first` — addressed through `mountScope` and planned by
  * `planReconcileItem`, with the nested-scope planning (`planNested`), the
@@ -67,7 +67,7 @@ import {
  * The context scope planning reads — its own fields plus everything the
  * forwarded calls need (the branch handlers `planNested` re-runs,
  * `emitConstructEffects`, the compose planners). The full pass context
- * satisfies it structurally (ADR 0040 s5).
+ * satisfies it structurally (ADR 0018 s5).
  */
 type MountScopesContext = Pick<
 	EffectsContext,
@@ -100,7 +100,7 @@ type MountScopesContext = Pick<
 >
 
 /**
- * A Mount Scope other than the host (ADR 0046 s1): an arm of an arm set or a
+ * A Mount Scope other than the host (ADR 0024 s1): an arm of an arm set or a
  * reactive-list item — an element subtree with its own mount and its own
  * `first`, bound to its root. Every construct inside it emits into its sink
  * through its locals (LT-424: recursive emission), and a construct that is a
@@ -125,7 +125,7 @@ export type MountScope = {
 	isOptional: (name: string) => boolean
 	/** The scope's effects, in document order. */
 	sink: TopEffectPlan[]
-	/** The scope's key-derived attributes (ADR 0046 s1). */
+	/** The scope's key-derived attributes (ADR 0024 s1). */
 	keyAttrs: KeyAttrPlan[]
 	/** How diagnostics name the scope root (`the arm root <section>`). */
 	label: string
@@ -221,12 +221,12 @@ const holderOf = (
 
 /**
  * A construct that is a Mount Scope of its own, or a loop, met while
- * planning `scope` (LT-424): plan it into the scope's sink through the
+ * planning `scope` (): plan it into the scope's sink through the
  * scope's locals and report true, so the caller does not descend. False for
  * everything else. `inBranch`: `node` sits in a server-rendered conditional
  * branch of the scope (an item's walk descends there; a reactive conditional
  * or boundary below one is refused), so a nested list's container may be
- * absent from the rendered markup (LT-455).
+ * absent from the rendered markup ().
  */
 export const planNested = (
 	fx: MountScopesContext,
@@ -251,12 +251,12 @@ export const planNested = (
 }
 
 /**
- * A reactive list nested in a Mount Scope (ADR 0046 s1–s2): its container
+ * A reactive list nested in a Mount Scope (ADR 0024 s1–s2): its container
  * and its `@empty` roots are the scope's locals, and its item is a Mount
  * Scope of its own. The container may be the scope root itself: the
  * extracted template sits at the host's end and is queried from the host.
  * `inBranch`: the container sits in a server-rendered branch of the scope
- * (LT-455) — the branch folds per render call, the same for every clone,
+ * () — the branch folds per render call, the same for every clone,
  * but may leave the list out, so the container and `@empty` locals are
  * non-throwing queries and the mount binds under an `if` on the container.
  */
@@ -283,7 +283,7 @@ const planNestedList = (
 }
 
 /**
- * A server-data loop nested in a Mount Scope (ADR 0046 s2, LT-424): its items
+ * A server-data loop nested in a Mount Scope (ADR 0024 s2): its items
  * are fixed for the life of the clone, so it lowers to a static query
  * against the scope root — no `all()`, no MutationObserver.
  */
@@ -299,7 +299,7 @@ const planNestedEach = (
 }
 
 /**
- * Key-derived attributes on `el` (ADR 0046 s1): `server` attributes reading
+ * Key-derived attributes on `el` (ADR 0024 s1): `server` attributes reading
  * the enclosing items' key bindings alone. `validateListBody` refused every
  * other item or key read in a server attribute, so each survivor is
  * mount-time evaluable against the key parameters in scope.
@@ -367,9 +367,9 @@ export const collectBranchKeyAttrs = (
 
 /**
  * Why a node inside a reactive conditional's arm has no lowering in the
- * arm's mount (ADR 0037 s3), or null when it has one. The mount binds the
+ * arm's mount (ADR 0015 s3), or null when it has one. The mount binds the
  * arm root and its descendants, and plans nested arm sets and loops into
- * their own scopes (ADR 0046 s1, LT-424); client constructs in a nested
+ * their own scopes (ADR 0024 s1); client constructs in a nested
  * server-rendered branch and composed references keep their host-level
  * addressing, which an arm cloned after connect would escape.
  */
@@ -401,9 +401,9 @@ const isReconcileContainer = (
 	)
 
 /**
- * The container a node's arms switch in (ADR 0037): the element that holds
+ * The container a node's arms switch in (ADR 0015): the element that holds
  * it — a host query, or `'host'` at the component root; inside a Mount
- * Scope (LT-424), the scope's local, or the scope root's own. Null, after
+ * Scope (), the scope's local, or the scope root's own. Null, after
  * the diagnostic, when that element is a reactive list's container, which
  * removes every child it did not place (LTC063), or has no unique selector.
  * Placement elsewhere is `validateArmSetPlacement`'s; `noun` names the
@@ -458,13 +458,13 @@ export const armContainer = (
 }
 
 /**
- * A reactive-list item is a Mount Scope (ADR 0046 s1): its content plans
+ * A reactive-list item is a Mount Scope (ADR 0024 s1): its content plans
  * through the same construct emission an arm's does (`emitConstructEffects`,
  * the compose pass-entry path), addressed through the item's own `first` —
  * the item root by `bindItem`'s element parameter (declared as a typed local
  * only when something binds it), descendants by selectors proved within the
  * item's own subtree and queried once per entering item. Item reads keep
- * the signal meaning (ADR 0046 s3): the bare `{item}` child is the signal
+ * the signal meaning (ADR 0024 s3): the bare `{item}` child is the signal
  * shorthand — its watch source IS the item signal — and every other read is
  * the authored arrow over `.get()`. A `server` attribute over the key
  * bindings alone is a key-derived attribute (`keyAttrs`): set once at clone,
@@ -472,11 +472,11 @@ export const armContainer = (
  * sites are per-item state in every tier — `fx.itemNames` makes the LTC034
  * router and the limb-(b) suppression skip them, and `badListBodyNames`
  * reports the server-only face whose setup-const class no client-need walk
- * reaches (LT-349). A composed child in the item renders into the template;
+ * reaches (). A composed child in the item renders into the template;
  * its `truc:pass` entries bind against a scoped local, resolved within the
  * item the way `emitComposeEffects` resolves within the template (the
- * child's own `lang`/`i18n` are LT-355's). Nested arm sets and loops plan
- * into the item's mount as scopes of their own (LT-424); the enclosing
+ * child's own `lang`/`i18n` are the's). Nested arm sets and loops plan
+ * into the item's mount as scopes of their own (); the enclosing
  * items' bindings stay in scope there.
  */
 export const planReconcileItem = (
@@ -492,7 +492,7 @@ export const planReconcileItem = (
 		keyNames: fx.keyNames,
 		scopeBadNames: fx.scopeBadNames,
 	}
-	// The item's setup names are per-item too (ADR 0046 s5), and its consts
+	// The item's setup names are per-item too (ADR 0024 s5), and its consts
 	// are clone-time values like the key: an attribute over them is set
 	// once at mount.
 	const setupNames = loop.setup.flatMap(stmt =>
@@ -567,12 +567,12 @@ export const planReconcileItem = (
 
 		// Descendants with constructs of their own, document order. A
 		// construct in a server-rendered conditional branch — the branch
-		// roots included — is refused (LT-468): the fold is fixed per render
+		// roots included — is refused (): the fold is fixed per render
 		// and per clone, so the construct's required query would throw in
 		// every item mount whenever the branch folded off — the same trap
 		// the host and arm walks refuse. Nested arm sets and loops plan into
 		// the item's mount as their own scopes, a loop below a branch knowing
-		// its container may be absent (LT-455).
+		// its container may be absent ().
 		const visitElements = (node: TemplateNode, inBranch = false): void => {
 			if (node !== output && planNested(fx, scope, node, inBranch)) return
 			if (isElement(node)) {
@@ -612,12 +612,12 @@ export const planReconcileItem = (
 		// `emitComposeEffects` resolves within the template. The same
 		// registry-discovery tolerance applies: that pass runs with no
 		// `composeRegistry` and needs only this component's own entry, so a
-		// site it cannot resolve says nothing (the LT-015 tolerance).
+		// site it cannot resolve says nothing (the  tolerance).
 		// `inBranch`: a `truc:pass`-carrying compose in a server-rendered
-		// branch of the item is refused before any local is minted (LT-470) —
+		// branch of the item is refused before any local is minted () —
 		// the fold is fixed per render and per clone, so the required local
 		// would throw in every item mount whenever the branch folded off, the
-		// construct trap LT-468 refuses one scope down. A pass-less compose
+		// construct trap  refuses one scope down. A pass-less compose
 		// stays legal: it is server-rendered markup the client never
 		// addresses.
 		function collectCompose(node: ComposeNode, inBranch = false): void {
@@ -666,7 +666,7 @@ export const planReconcileItem = (
 				return
 			}
 			const { selector } = site
-			// Handler args (LT-461): one item-scoped local per placement, under
+			// Handler args (): one item-scoped local per placement, under
 			// the item's own `first`. A site in a server-rendered branch of the
 			// item, or a placement in one of the child's, may be absent from
 			// the clone: its local does not throw, and `on()` skips it.

@@ -3,8 +3,8 @@
  * BOTH mechanisms — the value harness (`render<Name>(args)`) and the
  * simulation realm — plus the tag→render-fn name mapping they both need.
  *
- * One copy is the equivalence audit's validity condition (ADR 0029 s7,
- * LT-165 step 8): phase 1 and phase 2 must run under IDENTICAL inputs, or
+ * One copy is the equivalence audit's validity condition (ADR 0008 s7,
+ *  step 8): phase 1 and phase 2 must run under IDENTICAL inputs, or
  * the byte-identity it asserts proves nothing. `sim-driver.test.ts` (fixture
  * pins, fixed-point gate, two-order hermeticity) and
  * `equivalence-audit.test.ts` import the same table rather than keeping
@@ -23,7 +23,7 @@ export const renderName = (tag: string): string =>
 		.join('')}`
 
 /**
- * An argument message as `i18nRecord` builds it (LT-250, LT-218): a closure
+ * An argument message as `i18nRecord` builds it (): a closure
  * over the shared evaluator, tagged with its AST and env so a
  * client-referenced key serializes into the root `i18n` attribute. `lang`
  * is the render locale the env bakes in (its plural rules).
@@ -40,13 +40,13 @@ export const argMessage = (pattern: string, lang = 'en') => {
 }
 
 /**
- * An inline reserved-`i18n` record for the fixture args (ADR 0030, LT-173).
+ * An inline reserved-`i18n` record for the fixture args (ADR 0009).
  * The compiler supplies the real record at every render boundary; a fixture
  * builds its own so the args tables stay dependency-free (they are shared
  * by tests that compile into per-run temp directories). Values mirror the
  * `en` source record of the `c-plural` compiler fixture
  * (`fixtures/plural/c-plural.tsrx`, the retired basic-pluralize kept for its
- * coverage, LT-467) — since LT-252 the plural morphology is one ICU pattern
+ * coverage) — since  the plural morphology is one ICU pattern
  * (`tasks`), a client-referenced message, so it is an {@link argMessage}.
  */
 export const C_PLURAL_TASKS =
@@ -80,7 +80,7 @@ export const inlineI18n = (t: Record<string, unknown>) => ({
 })
 
 /**
- * module-todo's record (LT-467): its labels, and the `remaining` count as an
+ * module-todo's record (): its labels, and the `remaining` count as an
  * {@link argMessage} — the pattern is client-referenced (`activeCount` is a
  * client memo), so the render serializes it when it differs from the source.
  */
@@ -101,12 +101,12 @@ export const MODULE_TODO_I18N = inlineI18n({
 /**
  * Same posture as `server-render-smoke.test.ts`: components whose args are
  * genuinely required get a value, everything else renders from `{}`.
- * Diverges from the smoke test's copy in two entries (LT-167): title/href
+ * Diverges from the smoke test's copy in two entries (): title/href
  * (card-blogpost) / title (card-callout) where the cards' prop is
  * `children` — copied verbatim, those rendered literal `undefined` into the
  * goldens; here the authored props are bound so the goldens pin authored
  * behavior. (The third divergence, the smoke's `label` where
- * form-radiogroup's prop was `legend`, ended when LT-514 moved both tables
+ * form-radiogroup's prop was `legend`, ended when  moved both tables
  * to `children`.)
  */
 export const CORPUS_ARGS: Record<string, Record<string, unknown>> = {

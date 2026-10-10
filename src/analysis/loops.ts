@@ -1,5 +1,5 @@
 /**
- * Loop planning (LT-022, regrouping move M5): Pass 1 — server-data `@for`
+ * Loop planning (regrouping move M5): Pass 1 — server-data `@for`
  * → `each()` plans (output selector, collection naming, hoisted-const
  * rebinding, loop-scoped effects); Pass 1b — reactive-list `@for` over a
  * declared `createList` → `reconcile()` plans (container addressing, the
@@ -92,7 +92,7 @@ type EachLoopContext = Pick<
  * One server-data `@for` → its `each()` plan (output selector, collection
  * naming, hoisted-const rebinding, loop-scoped effects), or null when the
  * body binds nothing. `scope` places a loop nested in a Mount Scope (ADR
- * 0046 s2, LT-424): its items are fixed for the life of the clone, so the
+ * 0046 s2): its items are fixed for the life of the clone, so the
  * collection is a static query against the scope root (`root`, the root's
  * local; `tree`, the root element the selector is proved within) — no
  * `all()`, no MutationObserver. A host-level loop (`scope` null) keeps the
@@ -129,7 +129,7 @@ export const planEachLoop = (
 	 * Validate free names of a client construct inside the loop: loop
 	 * variables are the hoist-first error; referenced hoisted consts are
 	 * rebuilt per item; anything else follows the positive server-only
-	 * rule (`badListBodyNames`, LT-349).
+	 * rule (`badListBodyNames`).
 	 */
 	const checkClientNames = (node: AstNode, what: string): void => {
 		collectAmbient(node)
@@ -184,7 +184,7 @@ export const planEachLoop = (
 		for (const attr of el.attrs) {
 			if (attr.kind === 'reactive') {
 				checkClientNames(attr.thunk, `Reactive attribute \`${attr.name}\``)
-				// LT-116's dispatch rule lives in analysis/attr-dispatch.ts.
+				// the ticket's dispatch rule lives in analysis/attr-dispatch.ts.
 				effectsPlan.push({
 					kind: 'watch-attr',
 					attr: attr.name,
@@ -216,7 +216,7 @@ export const planEachLoop = (
 					target,
 				})
 			} else if (isLoopUnloweredConstruct(attr)) {
-				// LT-231: any other client construct used to be dropped
+				//: any other client construct used to be dropped
 				// without a word — compiled clean, never bound.
 				diagnostics.push(
 					diagnostic.unsupported(
@@ -230,7 +230,7 @@ export const planEachLoop = (
 		}
 	}
 	collectAttrs(output, null)
-	// LT-037: descendants of the loop's output root (nested inside its
+	//: descendants of the loop's output root (nested inside its
 	// own subtree — a native <input> inside a wrapping <label>, etc.)
 	// get their reactive attrs/events addressed too, via a selector
 	// resolved WITHIN the output's own subtree (never the whole
@@ -280,12 +280,12 @@ export const planEachLoop = (
 	}
 	gatedLazyChild(loop.output)
 
-	// LT-322: a body with no client constructs needs no `each()` — and no
+	//: a body with no client constructs needs no `each()` — and no
 	// collection query, whose required form would throw on an empty list.
 	if (effectsPlan.length === 0) return null
 	if (scope !== null) {
 		// The scope's static query: proved within the scope root, so it
-		// matches nothing in a nested scope's content (ADR 0046 s2).
+		// matches nothing in a nested scope's content (ADR 0024 s2).
 		const scoped = resolveScopedSelector(
 			scope.tree,
 			output,
@@ -345,7 +345,7 @@ export const planEachLoop = (
 /**
  * Pass 1: server-data `@for` → `each()` plans at host level. A loop nested
  * in a Mount Scope (an arm, a reactive-list item) is planned with its scope
- * in pass 4 (`analysis/mount-scopes.ts`, LT-424).
+ * in pass 4 (`analysis/mount-scopes.ts`).
  */
 const runEachLoops = (shared: PassShared): Map<EachForIR, ForClientPlan> => {
 	const { component } = shared
@@ -360,7 +360,7 @@ const runEachLoops = (shared: PassShared): Map<EachForIR, ForClientPlan> => {
 }
 
 /**
- * The list owns its container's children (ADR 0017) — the sibling checks,
+ * The list owns its container's children (ADR 0004) — the sibling checks,
  * for a host-level list and a nested one alike.
  */
 const checkContainerSiblings = (
@@ -371,11 +371,11 @@ const checkContainerSiblings = (
 	const { source, diagnostics } = shared
 	const wording = wordingOf(shared.component)
 	const output = loop.output
-	// The list owns its container's children (ADR 0017): an authored
+	// The list owns its container's children (ADR 0004): an authored
 	// element beside the loop that carries no `data-unreconciled` is
-	// removed on the list's first run (LT-186, the compiler half of
-	// LT-185's DEV_MODE advisory). An authored `data-key` is no
-	// exemption (LT-431): `reconcile()` removes a key the source lacks
+	// removed on the list's first run (the compiler half of
+	// the ticket's DEV_MODE advisory). An authored `data-key` is no
+	// exemption (): `reconcile()` removes a key the source lacks
 	// and adopts a matching one as that item. A server-mode
 	// conditional renders its taken arm's elements as container
 	// children, so every arm is checked — the winner depends on render
@@ -430,7 +430,7 @@ const checkContainerSiblings = (
 }
 
 /**
- * The item value's DOM site for an arg-seeded List's harvest (ADR 0003): the
+ * The item value's DOM site for an arg-seeded List's harvest (ADR 0001): the
  * scoped selector of the first bare `{item}` hole's parent, or null.
  */
 const holeSelectorOf = (
@@ -439,13 +439,13 @@ const holeSelectorOf = (
 ): string | null => {
 	const output = loop.output
 	// The FIRST bare `{item}` hole's parent element — the item value's
-	// DOM site, used by the arg-seeded List's harvest read (ADR 0003).
+	// DOM site, used by the arg-seeded List's harvest read (ADR 0001).
 	// The item may render through several holes now (each gets its own
 	// watch); the harvest reads the first in document order, the same
 	// canonical-site rule every harvest follows.
 	const findHoleParent = (node: TemplateNode): ElementNode | null => {
 		// A hole may sit inside a server-rendered conditional's arm — the
-		// item text is as per-item there as anywhere (ADR 0046 s1).
+		// item text is as per-item there as anywhere (ADR 0024 s1).
 		if (node.kind === 'conditional' && node.mode === 'server') {
 			for (const arm of node.arms)
 				for (const armChild of arm.children) {
@@ -478,7 +478,7 @@ const holeSelectorOf = (
 /**
  * Pass 1b: reactive-list `@for` over a declared `createList` →
  * `reconcile()` plans (container addressing, the `data-list` stamp, the
- * item hole). The item's OWN effects — its Mount Scope (ADR 0046 s1) — are
+ * item hole). The item's OWN effects — its Mount Scope (ADR 0024 s1) — are
  * planned in pass 4 (`planReconcileItem`, analysis/mount-scopes.ts), which shares
  * the arm machinery; this pass only pins what the plan table and the
  * harvest need before it.
@@ -492,7 +492,7 @@ const runReconcileLoops = (
 	const reconcilePlans = new Map<ReconcileForIR, ReconcilePlan>()
 
 	// The element directly holding `target`, through any control flow above
-	// it (a list nested in an arm, LT-424); null when `target` sits directly
+	// it (a list nested in an arm); null when `target` sits directly
 	// in a control-flow arm rather than in an element.
 	const parentOf = (target: TemplateNode): ElementNode | null => {
 		let found: ElementNode | null = null
@@ -506,7 +506,7 @@ const runReconcileLoops = (
 	for (const loop of component.fors.values()) {
 		if (loop.kind !== 'reconcile') continue
 		const output = loop.output
-		// A list nested in a Mount Scope (an arm, an item; ADR 0046 s1) is
+		// A list nested in a Mount Scope (an arm, an item; ADR 0024 s1) is
 		// addressed in pass 4 through its scope's own `first`
 		// (`analysis/mount-scopes.ts`); here it only gets the plan the harvest and
 		// that pass fill in, and the container checks that need no address.
@@ -536,7 +536,7 @@ const runReconcileLoops = (
 		}
 
 		// An authored <template> would collide with the compiler-extracted
-		// item template; LTC061 refuses it in lowering (LT-383), on every
+		// item template; LTC061 refuses it in lowering (), on every
 		// component, so the loop analysis no longer checks for one.
 
 		// Container: the parent element holding the loop output. The host
@@ -569,7 +569,7 @@ const runReconcileLoops = (
 			'one',
 		)
 
-		// The extracted `<template>` is a direct child of the host (ADR 0046
+		// The extracted `<template>` is a direct child of the host (ADR 0024
 		// s2), queried as `:scope > template[data-list="N"]` — the
 		// direct-child step keeps any other component's markup from
 		// answering, the stamp lifts the one-list-per-component limit.
@@ -577,14 +577,14 @@ const runReconcileLoops = (
 
 		checkContainerSiblings(shared, loop, container)
 
-		// The extracted template is stamped `data-list="N"` (ADR 0046 s2) and
+		// The extracted template is stamped `data-list="N"` (ADR 0024 s2) and
 		// queried from the host inside the generated `reconcile` call — no
 		// factory query for the template itself, and no
 		// one-list-per-component limit: the stamp tells same-container and
 		// sibling lists apart.
 		const listIndex = listIndexOf(component.root, component.fors, loop)
 
-		// The @empty arm's roots (LT-212): server-rendered in the container,
+		// The @empty arm's roots (): server-rendered in the container,
 		// `hidden` toggled by the client — each root needs its own query.
 		const emptyQueries: string[] = []
 		for (const root of loop.emptyArm ?? []) {

@@ -1,11 +1,11 @@
 /**
- * The single home of the server-known evaluability rule (LT-043,
+ * The single home of the server-known evaluability rule (
  * regrouping move M4 of LE_TRUC_COMPILER.md §7): the predicate deciding
  * WHAT THE SERVER RENDERS. A reactive expression renders its initial value
  * server-side only when every name it reads — minus JS/DOM globals — is in
  * the render scope (args + setup consts + signals); otherwise it is omitted
  * and the client's first binding pass corrects it (DOM-is-truth, ADR
- * 0003/0024 s3). Before LT-043 this rule was restated in `analyze.ts`,
+ * 0003/0024 s3). Before  this rule was restated in `analyze.ts`,
  * `emit-server.ts`, and `plain-imports.ts` — a divergence between the
  * copies would be a wrong COMPONENT, not a wrong error message; the server
  * goldens pin the render set byte-for-byte.
@@ -36,9 +36,9 @@ import { walkTemplate } from './walk'
  * impure at the root, with ONE exception (`Date.UTC`, below): the local
  * constructor and the zone-less formatter read the build machine's
  * TIMEZONE, while `Date.UTC(y, m - 1, d)` is a pure function of its
- * arguments (LT-165 step 5's analysis; ADR 0030 s2 resolved the shape this
+ * arguments (LT-165 step 5's analysis; ADR 0009 s2 resolved the shape this
  * way — pair it with a `timeZone: 'UTC'` formatter, which `Intl`'s own
- * locale rule already admits). `Intl` is handled separately below (LT-142).
+ * locale rule already admits). `Intl` is handled separately below ().
  */
 const IMPURE_AMBIENT_ROOTS: ReadonlySet<string> = new Set(['Date'])
 
@@ -46,7 +46,7 @@ const IMPURE_AMBIENT_ROOTS: ReadonlySet<string> = new Set(['Date'])
  * `Intl.PluralRules`/`Intl.NumberFormat`/`Intl.DateTimeFormat` etc. are
  * deterministic GIVEN A LOCALE — unlike `Date`, they read the build
  * machine's own state only when the locale argument is itself unresolved
- * (the runtime default). LT-142 (owner decision 2026-09-02): fold an
+ * (the runtime default).  (owner decision 2026-09-02): fold an
  * `Intl.<Ctor>(locale, ...)` call/construction when `locale` resolves to a
  * server-known value — a string literal, or an identifier already in
  * `scope` (a server arg or a server-known const). Any other shape (a
@@ -54,7 +54,7 @@ const IMPURE_AMBIENT_ROOTS: ReadonlySet<string> = new Set(['Date'])
  * is left impure — conservative, not "guess and hope". Where the folded
  * value and the client's eventual value disagree (the page's actual `lang`
  * differs from the folded arg), the client thunk re-runs at connect and
- * corrects — the same precedent ADR 0024 sub-design 15 set for
+ * corrects — the same precedent ADR 0005 sub-design 15 set for
  * `requestContext` fallbacks, and sub-design 3's documented flash tradeoff.
  */
 const isLocaleResolvable = (
@@ -68,7 +68,7 @@ const isLocaleResolvable = (
 }
 
 /**
- * The random-number sources, by receiver (LT-314): `Math.random()` and the
+ * The random-number sources, by receiver (): `Math.random()` and the
  * Web Crypto generators on `crypto`. Each call reads the RNG, which has no
  * server answer, so a fold would bake one build-time value into the page.
  * The rest of `Math` stays pure (`Math.max`/`Math.min`/etc. are functions
@@ -96,7 +96,7 @@ const IMPURE_AMBIENT_METHODS: ReadonlySet<string> = new Set([
  * instance methods (`x.toLocaleString()`, `x.getTimezoneOffset()`) regardless
  * of receiver, since the ambient input is in the method, not the object it's
  * called on, and `Intl.<Ctor>(...)` calls/constructions whose locale argument
- * does NOT resolve within `scope` (LT-142) — a resolvable-locale `Intl` call
+ * does NOT resolve within `scope` () — a resolvable-locale `Intl` call
  * is deterministic and folds; every other `Intl` read (bare, computed member,
  * unresolvable locale) stays impure.
  */
@@ -110,10 +110,10 @@ export const containsImpureAmbient = (
  * {@link containsImpureAmbient}, which is defined in terms of this one so
  * the two cannot drift.
  *
- * The distinction exists for the tier classifier (ADR 0029 sub-design 5,
- * LT-165). Impurity means "phase 1 must not fold this", which is one
+ * The distinction exists for the tier classifier (ADR 0008 sub-design 5,
+ * ). Impurity means "phase 1 must not fold this", which is one
  * question; "can any server phase answer it" is a different one, and
- * LT-142's `Intl` rule splits three ways along exactly this seam:
+ * the ticket's `Intl` rule splits three ways along exactly this seam:
  *
  * - `intl-server-locale` never appears here — a resolvable locale is not
  *   impure at all, and the call folds.
@@ -186,14 +186,14 @@ export const impureAmbientCauses = (
 			) {
 				// The one pure `Date` form: `Date.UTC(...)` converts fixed
 				// arguments to a timestamp with no clock and no timezone read,
-				// so it folds (LT-165 step 5). Still walk the arguments — a
+				// so it folds ( step 5). Still walk the arguments — a
 				// nested `Date.now()` inside them stays flagged — but skip the
 				// callee, whose `Date` identifier would otherwise trip the
 				// generic root check. The LOCAL constructor (`new Date(y, m,
 				// d)`) gets no such admission: it interprets its arguments in
 				// the build machine's timezone, which is limb (b) ambient state
 				// even though it reads no viewing-moment fact (the day must not
-				// depend on where the build ran — ADR 0030 s2 prescribes the
+				// depend on where the build ran — ADR 0009 s2 prescribes the
 				// `Date.UTC` + `timeZone: 'UTC'` shape instead).
 				const utcArgs = Array.isArray(current.arguments)
 					? current.arguments
@@ -228,7 +228,7 @@ export const impureAmbientCauses = (
 				if (!isLocaleResolvable(args[0], scope)) {
 					// Absent locale → the runtime default, the build machine's own
 					// setting, unresolvable. Present but not server-known → a DOM
-					// read the realm can execute for real (LT-142's middle case).
+					// read the realm can execute for real (the ticket's middle case).
 					flag(
 						args[0] === undefined ? 'intl-default-locale' : 'intl-dom-locale',
 					)
@@ -267,7 +267,7 @@ export const dependenciesOf = (node: AstNode): Set<string> => {
  * non-global free name it reads is server-known. The one gate behind
  * reactive-attribute rendering, class/style maps, `html`, lazy children
  * (emit-server), server-rendered-thunk import placement (plain-imports),
- * and the root's initial class/style (LT-028/LT-032 exemptions).
+ * and the root's initial class/style.
  */
 export const isServerEvaluable = (
 	node: AstNode,
@@ -277,7 +277,7 @@ export const isServerEvaluable = (
 
 /**
  * Every prop bound at an owned site from a same-named server arg
- * (LT-122's `bindsProp`), anywhere in the template — a text child
+ * (the ticket's `bindsProp`), anywhere in the template — a text child
  * (`<span class="zero">{zero}</span>`) or an attribute. Collected
  * for {@link foldableHostProps}; see the rationale there.
  */
@@ -298,7 +298,7 @@ const argRenderedProps = (root: TemplateNode): string[] => {
 
 /**
  * Every `first()`-bound ref whose presence the server can settle, mapped
- * to the condition that settles it (LT-118) — the ref half of
+ * to the condition that settles it () — the ref half of
  * {@link hostDerivedFold}'s substitutable set. See `refBranchGuard`
  * (first-refs.ts) for what each condition means and when a ref is left
  * out (a `@switch`/`@try` arm, or several matches).
@@ -316,12 +316,12 @@ export const foldableRefGuards = (
 }
 
 /**
- * Global config attributes the PLATFORM itself reflects (LT-191): `lang`
+ * Global config attributes the PLATFORM itself reflects (): `lang`
  * and `dir` are built-in IDL properties whose accessors read the attribute
  * verbatim, so a `host.<name>` read mirrors the root attribute's server
  * expression WITHOUT Parser exposure — there is no parser owning the
  * attribute→value semantics because the platform owns them. A component
- * that treats `lang` as config-only (the ADR 0030 posture: the locale
+ * that treats `lang` as config-only (the ADR 0009 posture: the locale
  * materializes onto the attribute, never a reactive prop) keeps its fold
  * through this route.
  */
@@ -329,15 +329,15 @@ const PLATFORM_CONFIG_ATTRS: ReadonlySet<string> = new Set(['lang', 'dir'])
 
 /**
  * Host props whose SERVER-SIDE truth the compiler knows — the
- * substitutable set for {@link hostDerivedFold} (CHECKLIST §5, LT-085).
+ * substitutable set for {@link hostDerivedFold} (CHECKLIST §5).
  * Four ways a prop earns membership, and they are the same fact reached
  * from opposite directions — in every case the member's server truth is
  * what {@link hostSeedExpr} splices, so the two must stay in step:
  *
  * 1. **Parser-exposed with a server-rendered root attribute** — the host
- *    attribute is the prop's seed (ADR 0003), so the prop's value at
+ *    attribute is the prop's seed (ADR 0001), so the prop's value at
  *    render time is the PARSER applied to the attribute's SERIALIZED value
- *    (LT-386): `hostSeedExpr` splices `asInteger(fallback)(attrValue(exprText))`,
+ *    (): `hostSeedExpr` splices `asInteger(fallback)(attrValue(exprText))`,
  *    the same evaluation the client's connect-time parse performs, and the
  *    generated module re-declares the parser factory and `attrValue` from
  *    the harness.
@@ -350,18 +350,18 @@ const PLATFORM_CONFIG_ATTRS: ReadonlySet<string> = new Set(['lang', 'dir'])
  *    seed to apply the parser to (the client parses null), so the prop
  *    stays unfoldable — including when a same-named arg renders some site:
  *    the arg is NOT the prop's truth (the attribute channel is).
- * 2. **Harvested from a site a same-named server arg renders** (LT-118,
- *    the server half of LT-122's coincidence) — the arg renders the site,
+ * 2. **Harvested from a site a same-named server arg renders** (
+ *    the server half of the ticket's coincidence) — the arg renders the site,
  *    the site seeds the prop at connect, so the ARG is the value. The
  *    substituted expression is the arg name itself, in scope in the
  *    generated render function. Parser-exposed props are excluded (route 1
  *    or nothing: their attribute is the only seed channel).
- * 3. **A platform config attribute rendered onto the root** (LT-191) —
+ * 3. **A platform config attribute rendered onto the root** () —
  *    `lang`/`dir` are not reactive properties at all (the native accessor
  *    shadows any expose() accessor, `prop in this`), and the native
  *    accessor reads the attribute verbatim, so the root attribute's
  *    `exprText` is the value exactly as in (1), no parser required.
- * 4. **A plain-value `expose()` initializer** (LT-386) — `count: 5` seeds
+ * 4. **A plain-value `expose()` initializer** () — `count: 5` seeds
  *    the prop once at connect (`#initSignals` evaluates the initializer;
  *    the attribute is never a channel for a plain-value prop), so the
  *    initializer expression IS the prop's server truth, foldable when the
@@ -395,7 +395,7 @@ export const foldableHostProps = (
 
 /**
  * Whether `node`'s free names resolve in the generated render function's
- * scope, for a value spliced INTO a folded expression (LT-386): the render
+ * scope, for a value spliced INTO a folded expression (): the render
  * scope's own names ({@link foldableRenderScope} — args, signals,
  * `isPending`, the transitive-pure setup consts), the parser factories the
  * runtime harness re-declares (`asNumber(asNumber(0)(…))`'s fallback names
@@ -423,7 +423,7 @@ const seedResolvable = (
  * The server expression seeding `host.<prop>` — the ONE account of the
  * prop's render-time truth, spliced by `emit-server.ts`'s host-derived
  * folds (attributes and reactive conditionals alike) and mirrored by
- * `initial-winner.ts`'s portable rewrite (LT-386). Null when the prop has
+ * `initial-winner.ts`'s portable rewrite (). Null when the prop has
  * no server truth to splice — which membership in
  * {@link foldableHostProps} never admits, so a non-null fold's reads are
  * always splicable:
@@ -431,7 +431,7 @@ const seedResolvable = (
  * 1. Parser-exposed with a root attribute: `parser(fallback)(attrValue(attrText))`
  *    — the parser applied to the attribute's SERIALIZED value (what
  *    `attr()` renders, what the client's connect-time parse reads — a
- *    `false` expression renders no attribute and parses null, LT-386);
+ *    `false` expression renders no attribute and parses null);
  * 2. a plain-value initializer the render function can evaluate: the
  *    initializer's own text (route 4). A HARVESTED prop's initializer
  *    (reading its `first()` ref) does not qualify — the arg below is the
@@ -472,7 +472,7 @@ const findRootAttr = (
  * One read replaced during {@link hostDerivedFold} — either a
  * `host.<prop>` member (`kind: 'prop'`) or a bare identifier naming a
  * `first()`-bound ref whose presence the server decides (`kind: 'ref'`,
- * LT-118).
+ * ).
  */
 export type HostPropRead = {
 	start: number
@@ -487,13 +487,13 @@ export type HostPropRead = {
  * escape, no other free non-global name, no impure ambient. Widens the
  * server-fold rule beyond the bare `() => host.<prop>` mirror (`hostPropOf`,
  * ast-utils.ts) to derived reads like `() => host.value <= host.min` or
- * `() => !host.editing` (CHECKLIST §5, LT-085) — `emit-server.ts` splices
+ * `() => !host.editing` (CHECKLIST §5) — `emit-server.ts` splices
  * each returned range in place with the corresponding root attribute's
  * server expression to fold the whole thunk to an initial value; LTC034
  * (`analysis/construct-effects.ts`) treats a non-null result the same as a bare
  * mirror when deciding whether omission is safe.
  *
- * `foldableRefs` (LT-118) extends the same idea to a `first()`-bound ref
+ * `foldableRefs` () extends the same idea to a `first()`-bound ref
  * read as a bare identifier: the hand-written idiom for an optional
  * affordance is `const zero = first('.zero'); if (zero) { … }`, a LOCAL
  * ref and not a reactive prop, and a compiled component must be able to
@@ -509,7 +509,7 @@ export type HostPropRead = {
  * evaluates there exactly as the author wrote it; the same set doubles as
  * the impure-ambient WALK's scope, so an `Intl` constructor whose locale
  * is a server-known name (or a such-scoped call's parameter) counts as
- * locale-resolvable (LT-142's rule, applied transitively). Undefined
+ * locale-resolvable (the ticket's rule, applied transitively). Undefined
  * restores the pre-LT-173 behavior (no allowances, empty impurity scope).
  *
  * All-or-nothing: one `host` read that isn't a member of `foldable` (a
@@ -699,7 +699,7 @@ export const foldableRenderScope = (
 }
 
 /**
- * The server expression for a host-derived fold (LT-085): `thunkText`
+ * The server expression for a host-derived fold (): `thunkText`
  * (`() => host.value <= host.min`) with each `reads` range spliced for the
  * corresponding root attribute's `exprText` (`() => (value) <= (min)`),
  * ready to IIFE-invoke the same way the plain-`isServerEvaluable` case does
@@ -724,14 +724,14 @@ export const spliceHostDerivedFold = (
 }
 
 /**
- * The `host.<prop>` reads a signal declaration folds on the server (LT-451):
+ * The `host.<prop>` reads a signal declaration folds on the server ():
  * a signal IS its initial value under the value harness, so an initializer
  * reading `host` — `createList(host.seed, { keyConfig })` over a
  * Parser-backed `seed` — takes the reactive sites' fold, each read spliced
  * for {@link hostSeedExpr}. `[]` when `node` reads neither `host` nor
  * `internals` (nothing to fold); null when some read has no server truth —
  * an unfoldable prop, a bare or computed `host`, any `internals` read — and
- * the signal routes per ADR 0029 instead (`assemble-ir.ts`).
+ * the signal routes per ADR 0008 instead (`assemble-ir.ts`).
  */
 export const initializerHostReads = (
 	node: AstNode,

@@ -1,6 +1,6 @@
 /**
  * Per-run output directories for tests that must EXECUTE generated TSRX
- * modules (LT-140).
+ * modules ().
  *
  * Emitting into the real `server/generated/components/` couples the test suite to
  * a directory the build pipeline owns, in two ways that both surface as an
@@ -22,7 +22,7 @@ const ROOT = path.resolve(import.meta.dir, '../..')
 
 /**
  * Emit paths whose harness import stays repo-relative. The published
- * default (LT-254) is the package specifier `@zeix/le-truc-compiler/runtime`,
+ * default () is the package specifier `@zeix/le-truc-compiler/runtime`,
  * which plain-tsc spawns (`--ignoreConfig`, no `paths`) cannot resolve — the
  * tests that typecheck their emitted modules with such a spawn pin the
  * relative specifier instead, which resolves from this helper's depth (see

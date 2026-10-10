@@ -1,6 +1,6 @@
 /**
  * A signal read by a CLIENT-ONLY setup statement is credited as rendered
- * (LT-119). Such a statement — `watch(() => open.get() && …,
+ * (). Such a statement — `watch(() => open.get() && …,
  * bindAttribute(el, 'hidden'))` — reaches the DOM without a template render
  * site, and is the only route open to a predicate over a composed child's
  * public prop: as a reactive JSX attribute the same predicate cannot be
@@ -35,7 +35,7 @@ describe('client-only setup statements credit a signal as rendered', () => {
 import { bindAttribute, createState } from '@zeix/le-truc'`
 
 	test('no error — the signal is consumed, not dead', () => {
-		// Pre-tiering this was the LTC004 refusal; since LT-165 step 5 the
+		// Pre-tiering this was the LTC004 refusal; since  step 5 the
 		// code is retired onto tier.ts's RoutingSignalOrigin, so the pin is
 		// the positive: the module compiles with no diagnostic at all.
 		const { component, diagnostics } = compile(source)
@@ -55,8 +55,8 @@ import { bindAttribute, createState } from '@zeix/le-truc'`
 
 	test('the credit follows a const (LT-323)', () => {
 		// `open.get()` sits one level of indirection away inside `isOpen`.
-		// Until LT-323 the credit read only the statement's own node, so this
-		// spelling routed Simulated on LTC004; ADR 0029 folds it, because
+		// Until  the credit read only the statement's own node, so this
+		// spelling routed Simulated on LTC004; ADR 0008 folds it, because
 		// every consumer is still client-only.
 		const { component } = compile(
 			source.replace(
@@ -104,7 +104,7 @@ import { createState } from '@zeix/le-truc'`)
 		// `count` reaches the template only through `label`, so the direct
 		// `sig.get()` scan misses it. Its initializer reads `all()`, which the
 		// server cannot evaluate — folding it would emit `all` undeclared in
-		// the server module (ADR 0029: any doubt routes downward).
+		// the server module (ADR 0008: any doubt routes downward).
 		const { component } = compile(`export function C({}: {})
 @{
 	const count = createMemo(() => all('li').get().length)
@@ -132,7 +132,7 @@ import { bindText, createMemo } from '@zeix/le-truc'`)
 
 	test('a @case test is a render position (LT-330)', () => {
 		// The case test \`label()\` reaches \`count\` through a carrier, the
-		// same shape as LT-327 — but in a switch arm, not an \`@if\` test.
+		// same shape as  — but in a switch arm, not an \`@if\` test.
 		const { component } = compile(`export function C({ mode }: { mode: string })
 @{
 	const count = createMemo(() => all('li').get().length)

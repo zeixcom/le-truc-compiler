@@ -1,6 +1,6 @@
 /**
  * The raw-value-source rule for formatted reactive values (D-20, HOST_PROFILE
- * data account bullet 6, LT-374). Formatted text (`1,234`, a localized date)
+ * data account bullet 6). Formatted text (`1,234`, a localized date)
  * does not parse back into state, so a signal seeded from server args that
  * renders only as formatted text needs a raw value source the client
  * harvests instead — a reactive `value`/`aria-valuenow`/`datetime`

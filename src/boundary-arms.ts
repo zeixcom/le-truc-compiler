@@ -1,5 +1,5 @@
 /**
- * Async-boundary arm roots (ADR 0024 sub-design 13, ADR 0037 s4): what
+ * Async-boundary arm roots (ADR 0005 sub-design 13, ADR 0015 s4): what
  * counts as an arm root, where the catch message element sits, which
  * construct below a root is unaddressable, and which signal a reactive
  * `truc:html` thunk on a root drives. Shared by pass 4's branch handlers
@@ -21,7 +21,7 @@ import type { TemplateNode } from './ir'
 import { isClientConstructAttr } from './walk'
 
 /**
- * An async-boundary arm root: a plain element, or — since LT-460 — a
+ * An async-boundary arm root: a plain element, or — since  — a
  * compose site, whose rendered root is the child's own element.
  */
 export type BoundaryArmRoot = ElementNode | ComposeNode
@@ -31,7 +31,7 @@ export const isBoundaryArmRoot = (
 ): node is BoundaryArmRoot => node.kind === 'element' || node.kind === 'compose'
 
 /**
- * The err arm's message element (LT-449, compose-aware since LT-460): the
+ * The err arm's message element (compose-aware since ): the
  * first child element of `el` whose direct reactive child reads the catch
  * parameter (bare or a member read) — reached either directly or through
  * one compose hop, inside the composed content (a composed callout's
@@ -53,7 +53,7 @@ export const lazyCatchMessageEl = (
 	}
 	// One compose hop: the message element is parent-authored content
 	// spliced into the child's rendered markup — still inside the arm root,
-	// so the arm-scoped query reaches it (LT-096).
+	// so the arm-scoped query reaches it ().
 	for (const child of el.children) {
 		if (child.kind !== 'compose') continue
 		for (const inner of elementChildren(child.children)) {
@@ -65,7 +65,7 @@ export const lazyCatchMessageEl = (
 
 /**
  * The offending construct below an async-boundary arm root, or null.
- * Compose-aware (LT-460): composed content is transparent one level — a
+ * Compose-aware (): composed content is transparent one level — a
  * parent-authored element in it may carry exactly one lazy child reading
  * the catch parameter (the message element), its own attrs stay static,
  * and no deeper element or second reactive child is allowed. A reactive
@@ -129,7 +129,7 @@ export const boundaryDeepConstructOf = (
 
 /**
  * The signal an async boundary's ok arm reads through a reactive
- * `truc:html={() => name.get()}` thunk on its arm root (LT-449) — the
+ * `truc:html={() => name.get()}` thunk on its arm root () — the
  * attribute-channel counterpart of a direct lazy identifier child. The
  * thunk must be exactly a `.get()` read; anything else is not a boundary
  * driver. Shared with `emit-server.ts`, which must name the same signal

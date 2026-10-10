@@ -1,14 +1,14 @@
 /**
- * The arg-and-prop coincidence (LT-122).
+ * The arg-and-prop coincidence ().
  *
  * A component whose props are harvested from its own server-rendered
  * children needs one site to do three jobs: render the value (from
  * the server arg), let the client harvest it back at connect
- * (ADR 0003, DOM-is-truth), and rebind it when the prop is written
+ * (ADR 0001, DOM-is-truth), and rebind it when the prop is written
  * afterwards. Before this, each spelling covered part of it —
  * `{label}` rendered but never rebound, `{host.label}` rebound but
- * rendered EMPTY — which is what pushed LT-092 into duplicating the
- * value onto a host attribute and LT-117 into a template-less mode.
+ * rendered EMPTY — which is what pushed  into duplicating the
+ * value onto a host attribute and  into a template-less mode.
  *
  * So: an expression naming BOTH a server arg and an `expose()`d prop
  * of that name is reactive by position. The server emission is
@@ -85,7 +85,7 @@ describe('text sites (LT-122)', () => {
 		expect(diagnostics).toEqual([])
 		const client = component?.clientCode ?? ''
 		// The optional branch keeps its non-throwing query and guard
-		// (LT-008/LT-025 machinery) — this rule only supplies the source.
+		// ( machinery) — this rule only supplies the source.
 		expect(client).toMatch(/const \w+ = first\('b'\)\n/)
 		expect(client).toContain('watch(() => host.badge, bindText(')
 		// …and the server still renders the branch from the arg.
@@ -154,9 +154,9 @@ export function C({ label }: { label: string })
 })
 
 /**
- * The SERVER half of the same coincidence (LT-118).
+ * The SERVER half of the same coincidence ().
  *
- * `hostDerivedFold` (LT-085) lets a thunk reading only `host.<prop>`
+ * `hostDerivedFold` () lets a thunk reading only `host.<prop>`
  * members render an initial value server-side, by splicing each read
  * for the prop's server truth. Its `foldable` set was Parser-exposed
  * props only — the host attribute is their seed, so the root
@@ -214,7 +214,7 @@ describe('host-derived folds over a harvested prop (LT-118)', () => {
 		// `other` is exposed as a signal getter but no site renders it from a
 		// same-named arg and no plain-value initializer states it, so the
 		// server has no truth to splice — omission, not a guess. (A
-		// plain-value initializer WOULD state it — LT-386's route 4 — which
+		// plain-value initializer WOULD state it — the ticket's route 4 — which
 		// is why `other: ''` folds.) The omission is a routing signal (the
 		// realm reads `host.other` for real), not a diagnostic.
 		const { component, diagnostics } = compileComponent(
@@ -246,7 +246,7 @@ export function C({ zero = '' }: { zero?: string })
 })
 
 /**
- * Ref-presence folds (LT-118).
+ * Ref-presence folds ().
  *
  * The hand-written twin gated its whole zero-state affordance on
  * `const zero = first('.zero'); if (zero) { … }` — a local ref, not a
@@ -301,7 +301,7 @@ import { asNumber } from '@zeix/le-truc'`,
 		// Boolean(zeroSpan) && host.value === 0}`). `value` needs its root
 		// attribute here to be a foldable host prop in the first place, and
 		// its seed is the parser applied to the attribute's serialized value
-		// (LT-386) — the same evaluation the client's connect-time parse is.
+		// () — the same evaluation the client's connect-time parse is.
 		const { component, diagnostics } = compileComponent(
 			`export function C({ zero = '', value = 0 }: { zero?: string; value?: number })
 @{

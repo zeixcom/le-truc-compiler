@@ -1,20 +1,20 @@
 /**
- * Tests for harvest sites that live on the component ROOT (LT-115, NOTES
- * LT-092/LT-114): `first()` searches DESCENDANTS only (`src/helpers/dom.ts`
+ * Tests for harvest sites that live on the component ROOT (NOTES
+ * ): `first()` searches DESCENDANTS only (`src/helpers/dom.ts`
  * `queryOne` uses `root.querySelector`), so a harvest plan that synthesizes a
  * query for the root's own tag emits `first('<own-tag>')` — which throws
  * `MissingElementError` for the component's own root at activation, with no
  * compile-time diagnostic. Two analysis sites could produce that:
  *
- * 1. `paramDomRead`'s attribute-site walk (ADR 0024 sub-design 12) matched the
+ * 1. `paramDomRead`'s attribute-site walk (ADR 0005 sub-design 12) matched the
  *    root's own server attributes first — the usual case, since args render as
  *    root attributes — planning a query named after the component's own tag
  *    (basic-gauge and the since-retired basic-pluralize both hit this; a
  *    regrouping-era edit had
- *    dropped LT-024's `site.el !== component.root` guard).
+ *    dropped the ticket's `site.el !== component.root` guard).
  * 2. Pass 3's direct text-site branch for a signal-IDENTIFIER lazy root child
- *    (`<my-el>{sig}</my-el>`, LT-114's interplay note) — the same self-query,
- *    planned even though LT-114's root branch correctly binds the watch against
+ *    (`<my-el>{sig}</my-el>`, the ticket's interplay note) — the same self-query,
+ *    planned even though the ticket's root branch correctly binds the watch against
  *    the ambient `host`.
  *
  * The fix routes BOTH root-site variants through the ambient `host` (never a
@@ -124,7 +124,7 @@ describe('an exposed Parser prop arg seeds derived signals through the prop Slot
 		// Eager initializers execute at declaration, BEFORE expose() installs
 		// the Slot-backed property — a host.<prop> read there would be
 		// undefined. The DOM (attribute) read is the only sound seed — and,
-		// for a `number` arg, converted back with `Number()` (LT-374).
+		// for a `number` arg, converted back with `Number()` ().
 		expect(component?.clientCode).toContain(
 			"createCell(String(Number(host.getAttribute('value') ?? '')))",
 		)
@@ -153,7 +153,7 @@ export function C({}: {})
 		)
 		expect(diagnostics.filter(d => d.severity === 'error')).toEqual([])
 		expect(component).not.toBeNull()
-		// LT-114's root branch already plans the watch against the ambient
+		// the ticket's root branch already plans the watch against the ambient
 		// host; the harvest now agrees instead of throwing at activation.
 		expect(component?.clientCode).toContain('watch(greeting, bindText(host))')
 		expect(component?.clientCode).toContain('asString()(host.textContent)')

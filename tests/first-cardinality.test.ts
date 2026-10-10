@@ -1,5 +1,5 @@
 /**
- * `first()` cardinality is decided by the SITE (LT-123), plus the
+ * `first()` cardinality is decided by the SITE (), plus the
  * two output-shape loosenings that travelled with it.
  *
  * - one selector literal is the OPTIONAL form (`undefined` when
@@ -11,10 +11,10 @@
  * - a REQUIRED ref whose only match sits in a branch that may not
  *   render is required in name only: the analysis has always
  *   addressed it with a non-throwing query under a presence guard
- *   (LT-008/LT-025), so the reason string can never be thrown
+ *   , so the reason string can never be thrown
  *   (LTC040);
  * - the `@{ }` output is the bare root element; a `<style>` block is
- *   its child, and a fragment root is LTC060 (LT-375).
+ *   its child, and a fragment root is LTC060 ().
  */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
@@ -136,7 +136,7 @@ describe('output shape (LT-123)', () => {
 	})
 
 	test('a fragment root is LTC060, whether or not it carries a <style>', () => {
-		// Owner ruling 2026-09-29 (ADR 0032 s1, LT-375): the template's root is
+		// Owner ruling 2026-09-29 (ADR 0010 s1): the template's root is
 		// the host element, there is no fragment root.
 		for (const output of [
 			`<>

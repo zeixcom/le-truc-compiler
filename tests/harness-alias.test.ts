@@ -1,6 +1,6 @@
 /**
  * A render-scope name equal to a name the emitter writes a call to is
- * aliased, not forbidden (LT-302). With an arg named `items`, the server
+ * aliased, not forbidden (). With an arg named `items`, the server
  * module once emitted `for (const item of items(items))` — `items is not a
  * function` at render. The harness import is now bound as `__items` on a
  * collision, and the generated client does the same for its
@@ -71,7 +71,7 @@ describe('harness names shadowed by args are aliased (LT-302)', () => {
 	])('args `items`/`text` render on .%s', async (surface, result) => {
 		expect(result.diagnostics.filter(d => d.severity === 'error')).toEqual([])
 		const code = result.component?.serverCode ?? ''
-		// `text` is the typed text sink every text position writes (LT-428).
+		// `text` is the typed text sink every text position writes ().
 		expect(code).toContain('text as __text')
 		expect(code).toContain('items as __items')
 		expect(

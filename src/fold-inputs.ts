@@ -1,9 +1,9 @@
 /**
- * The partial-readiness invariant as a compile-time check (ADR 0034
- * sub-design 4, LT-258): **a component's folded output may depend only on
+ * The partial-readiness invariant as a compile-time check (ADR 0012
+ * sub-design 4): **a component's folded output may depend only on
  * its own props and a closed, enumerable set of page-ambient values.**
  *
- * Template emission (ADR 0034 sub-design 3, LT-257) turns the props into
+ * Template emission (ADR 0012 sub-design 3) turns the props into
  * template holes and passes the ambient set through the include. Anything
  * else a fold reads — the build page's `document`, the build machine's
  * `navigator`, a `window` global — has no hole to become, so a fold that
@@ -27,20 +27,20 @@
  * contract) keeps the reserved `i18n` record's destructured members inside
  * the set; `checkFoldInputs` (called from the shared pipeline) walks every
  * position the server render evaluates and reports a page-context read
- * there. Both report LTC054 — ADR 0028 tier 1 (Prevented), statically
+ * there. Both report LTC054 — ADR 0007 tier 1 (Prevented), statically
  * decidable, no runtime half. `assertFoldScopeClosed` is the compiler-side
  * guard: it throws when the render scope (`serverKnown`) holds a name that
  * is neither an own arg, an own setup name, nor a declared harness name.
  *
- * The Simulated tier is outside the invariant by construction (ADR 0035
+ * The Simulated tier is outside the invariant by construction (ADR 0013
  * sub-design 2: SSG-only, never a template), so statements the realm owns —
  * the ones setup extraction routes, reading refs, `host`/`internals`, or a
  * client-only primitive — are not fold inputs and are not checked.
  *
- * Reconcile rider (ADR 0037, 2026-09-21): a reactive condition's INITIAL
+ * Reconcile rider (ADR 0015, 2026-09-21): a reactive condition's INITIAL
  * winner is prop-dependent output — legal under this check, because its
  * inputs are the same args and ambients every other fold reads. How the
- * emitted backend conditional represents it is LT-257's to name.
+ * emitted backend conditional represents it is the ticket's to name.
  */
 
 import type { AstNode } from './ast-node'
@@ -67,7 +67,7 @@ import { childNodes } from './walk'
 
 /* === The declared vocabulary === */
 
-/** The reserved parameter that carries the page-ambient record (ADR 0030 s2). */
+/** The reserved parameter that carries the page-ambient record (ADR 0009 s2). */
 export const AMBIENT_RECORD_PARAM = 'i18n'
 
 /**
@@ -80,7 +80,7 @@ export const AMBIENT_RECORD_PARAM = 'i18n'
 export const PAGE_AMBIENT_TYPES: Readonly<Record<string, string>> = {
 	lang: 'string',
 	// The interface's type parameter: each server module instantiates it
-	// with the component's exact per-key record (LT-308).
+	// with the component's exact per-key record ().
 	t: 'T',
 	timeZone: 'string',
 	currency: 'string',
@@ -195,7 +195,7 @@ export const assertFoldScopeClosed = (component: ComponentIR): void => {
 	const foreign = [...component.serverKnown].filter(name => !own.has(name))
 	if (foreign.length > 0)
 		throw new Error(
-			`Partial-readiness invariant (ADR 0034 s4): <${component.tag}>'s render scope holds ${foreign.map(n => `\`${n}\``).join(', ')}, which is neither an own arg, an own setup name, nor a FOLD_HARNESS_NAMES member. Declare the input in src/fold-inputs.ts or keep it out of the fold.`,
+			`Partial-readiness invariant (ADR 0012 s4): <${component.tag}>'s render scope holds ${foreign.map(n => `\`${n}\``).join(', ')}, which is neither an own arg, an own setup name, nor a FOLD_HARNESS_NAMES member. Declare the input in src/fold-inputs.ts or keep it out of the fold.`,
 		)
 }
 
@@ -338,7 +338,7 @@ export const checkFoldInputs = (
 				if (loop) {
 					if (loop.kind === 'each') {
 						checkEvaluated(loop.iterable, 'the items of a loop')
-						// CHECKLIST §4 / LTC033 (error form), LT-326: the iterable
+						// CHECKLIST §4 / LTC033 (error form): the iterable
 						// is always evaluated, once, at build time — a shuffle or a
 						// random id bakes into the page for good. Checked here, not
 						// in the front ends, because only this walk holds the
@@ -359,7 +359,7 @@ export const checkFoldInputs = (
 						}
 					} else {
 						// The key and the item's setup names bind per item in the
-						// server's loop (ADR 0046 s5).
+						// server's loop (ADR 0024 s5).
 						if (loop.keyName) loopScope.add(loop.keyName)
 						for (const stmt of loop.setup)
 							if (stmt.name) loopScope.add(stmt.name)
@@ -376,7 +376,7 @@ export const checkFoldInputs = (
 				break
 			case 'conditional':
 				if (node.mode === 'reactive') {
-					// The initial winner folds like any reactive site (ADR 0037).
+					// The initial winner folds like any reactive site (ADR 0015).
 					checkReactive(node.test, scope, 'a condition')
 					break
 				}

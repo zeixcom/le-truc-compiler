@@ -1,5 +1,5 @@
 /**
- * Dirty-flag attribute DISPATCH tests (LT-116): `value`/`checked`/`selected`
+ * Dirty-flag attribute DISPATCH tests (): `value`/`checked`/`selected`
  * on native form controls must lower reactive thunks to PROPERTY writes
  * (`bindProperty`), not attribute writes — the write direction of the same
  * dirty-flag divergence `dirty-flag-harvest.test.ts` covers on the READ side
@@ -7,10 +7,10 @@
  * has written the property), removing/rewriting the content attribute no
  * longer clears the live IDL property, so a `bindAttribute` mirror silently
  * stops tracking — the form-radiogroup mutual-exclusion break that stopped
- * its cutover (NOTES LT-092). The twin wrote `radio.checked = isChecked` —
+ * its cutover (NOTES ). The twin wrote `radio.checked = isChecked` —
  * a property write — inside its `each()` callback; the compiler must match.
  *
- * Scoping (the LT-037-deferred nuance, now decided):
+ * Scoping:
  * - the widening is keyed on ATTR ∈ DIRTY_FLAG_ATTRS × TAG ∈ the native
  *   form-control set, in BOTH dispatch paths (loop body and top level);
  * - the thunk's own shape is irrelevant to the hazard — a string-valued
@@ -193,7 +193,7 @@ export function C({}: {})
 	test('number-valued thunk over `value` on a native input still stringifies for the property setter', () => {
 		// `returnsNumber`: number literals and conditionals over them. The
 		// bare number-signal read (`count.get()`) it used to miss is covered
-		// since LT-126 — see the test below.
+		// since  — see the test below.
 		const { component, diagnostics } = compiled(`export function C({}: {})
 @{
 	expose({})

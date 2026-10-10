@@ -1,5 +1,5 @@
 /**
- * The shared post-front-end pipeline (LT-202, ADR 0032 sub-design 6): the
+ * The shared post-front-end pipeline (ADR 0010 sub-design 6): the
  * stage assembly both front ends run after their `compileSource` — compose
  * validation, `analyzeClient`, tier classification, both emitters, the
  * registry entry. `server/compiler/frontend/tsrx/index.ts` (`compileComponent`) and
@@ -53,7 +53,7 @@ export type CompiledComponent = {
 	/** Generated client `defineComponent` module source. */
 	clientCode: string
 	/**
-	 * The scoped-emission CSS artifact (ADR 0033 s3–s4, LT-501): the
+	 * The scoped-emission CSS artifact (ADR 0011 s3–s4): the
 	 * authored `@scope` sheet with its explicit root (native `@scope`) or
 	 * rewritten as flat scoped selectors, per the configured `cssTargets`.
 	 * Empty when the component has no stylesheet.
@@ -61,22 +61,22 @@ export type CompiledComponent = {
 	css: string
 	/**
 	 * The authored form — the dedented sheet text — that `css` was emitted
-	 * from; what LTC051 compares across a variant set (ADR 0033 s10).
+	 * from; what LTC051 compares across a variant set (ADR 0011 s10).
 	 */
 	authoredCss: string
 	/**
 	 * Whether a form-association extension leads `config` — the host type
 	 * (`FormAssociatedElement` vs `HTMLElement`) of the tag-map entry
-	 * `tsrx-imports.d.ts` writes for a served `.tsrx` source (LT-325).
+	 * `tsrx-imports.d.ts` writes for a served `.tsrx` source ().
 	 */
 	formAssociated: boolean
 	/**
-	 * Client-module span table (LT-011, `check:corpus`): maps tsc diagnostics
+	 * Client-module span table (`check:corpus`): maps tsc diagnostics
 	 * over `clientCode` back onto the authored source.
 	 */
 	clientSpans: SourceSpan[]
 	/**
-	 * Server-module span table (LT-019): composition makes server modules
+	 * Server-module span table (): composition makes server modules
 	 * import each other's real types, so generated server modules are
 	 * type-checked too, through this table.
 	 */
@@ -96,7 +96,7 @@ export type CompileFileResult = {
  * `compileComponent` (see the `.tsrx` index for the compose-registry
  * tolerance notes); `sourcePath` is the authored file's project-root-relative
  * path. `emitPaths` carries the configured output root's consequences for the
- * emitted specifiers (LT-255, `emit-paths.ts`); its default is this repo's
+ * emitted specifiers (`emit-paths.ts`); its default is this repo's
  * layout, so an unconfigured call emits what it always emitted.
  */
 export const compileFromIR = (
@@ -110,7 +110,7 @@ export const compileFromIR = (
 	emitPaths: EmitPaths = DEFAULT_EMIT_PATHS,
 ): CompileFileResult => {
 	// Every return publishes the stages' diagnostics against the file the
-	// caller named (ADR 0044 s1, LT-371).
+	// caller named (ADR 0022 s1).
 	const located = () => diagnostics.map(d => locate(d, filename))
 	if (!component) return { component: null, diagnostics: located() }
 	const composeNodes = collectComposeElements(component)
@@ -128,12 +128,12 @@ export const compileFromIR = (
 		}
 	}
 	const plan = analyzeClient(component, registry, diagnostics, composeRegistry)
-	// Where each handler arg lands (LT-461), for the registry entry a
+	// Where each handler arg lands (), for the registry entry a
 	// composing parent binds through. Before the error gate: an
 	// unaddressable placement is LTC007.
 	const handlerArgs = handlerPlacementsOf(component, diagnostics)
 	const childrenRegion = childrenRegionOfComponent(component)
-	// The content model (ADR 0048 s4, LT-477): a compose site of a child
+	// The content model (ADR 0026 s4): a compose site of a child
 	// that declares `'non-interactive'` refuses interactive content — a
 	// literal element among the site's literal children, or a composed
 	// child whose own template renders one, transitively. It reads each
@@ -142,7 +142,7 @@ export const compileFromIR = (
 	// recorded either way (the discovery pass knows no composed child, so
 	// its value carries the direct half only).
 	const interactive = templateInteractiveOf(component.root, composeRegistry)
-	// The one-writer check (ADR 0048 s3, LT-476): the child half records
+	// The one-writer check (ADR 0026 s3): the child half records
 	// what its client writes on role elements in the passed content — own-IR
 	// only, so it runs in both passes and rides the entry like `interactive`
 	// and `handlerArgs`. The parent half refuses a compose-site binding that
@@ -179,11 +179,11 @@ export const compileFromIR = (
 				)
 		}
 	}
-	// LT-258: the partial-readiness invariant (ADR 0034 s4) — nothing but
+	//: the partial-readiness invariant (ADR 0012 s4) — nothing but
 	// own args and the declared ambient set may reach the fold.
 	checkFoldInputs(component, diagnostics)
 	// A `@scope` form the flat-selector lowering cannot express fails only
-	// on a CSS target without native `@scope` (LTC089, ADR 0033 s4). It
+	// on a CSS target without native `@scope` (LTC089, ADR 0011 s4). It
 	// depends on the configured targets, so it runs here rather than with
 	// the authored-form checks in template-output.ts.
 	if (
@@ -206,7 +206,7 @@ export const compileFromIR = (
 			)
 	}
 	// A scoped rule that reaches into a composed child's own markup (LTC087,
-	// ADR 0033 s5). It needs each child's rendered shapes, so it runs only
+	// ADR 0011 s5). It needs each child's rendered shapes, so it runs only
 	// in the registry-aware pass.
 	if (component.sheet && component.sheetText && composeRegistry) {
 		const sheetStart = component.source.lastIndexOf(component.sheetText)
@@ -227,7 +227,7 @@ export const compileFromIR = (
 	if (diagnostics.some(d => d.severity === 'error'))
 		return { component: null, diagnostics: located() }
 	/**
-	 * The per-component half of the tier decision (ADR 0029, LT-165). Both
+	 * The per-component half of the tier decision (ADR 0008). Both
 	 * halves of the analysis contribute: setup extraction sees the
 	 * `LTC013`/`LTC043` shapes, the client analysis sees `LTC004`/
 	 * `LTC034`.
@@ -248,7 +248,7 @@ export const compileFromIR = (
 	 * compose site (resolved to a synthetic `ref` attr by
 	 * `analysis/compose-refs.ts`) or a `truc:pass={{ }}` into it.
 	 *
-	 * Deliberately NOT every composed child (ADR 0029 sub-design 3):
+	 * Deliberately NOT every composed child (ADR 0008 sub-design 3):
 	 * containment does not contaminate, because the compose graph renders
 	 * children before parents, so a merely-embedded child's markup is
 	 * already a string by the time the parent needs it. A containment rule
@@ -273,7 +273,7 @@ export const compileFromIR = (
 		runtimeImport: emitPaths.runtimeImport,
 		sourcePath: filename,
 		composeRegistry,
-		// ADR 0029 sub-design 4: the tier decides whether the module
+		// ADR 0008 sub-design 4: the tier decides whether the module
 		// re-declares the `@{ }` value harness. Pre-contamination by
 		// construction — see the option's own doc for why that is sound.
 		tier,
@@ -324,7 +324,7 @@ export const compileFromIR = (
 			},
 			serverCode: server.code,
 			clientCode: client.code,
-			// The scoped emission (ADR 0033 s3–s4, LT-304): reachable only
+			// The scoped emission (ADR 0011 s3–s4): reachable only
 			// with no error diagnostics — the early return above dropped any
 			// file whose sheet failed LTC064 or the authored-form checks —
 			// so the surgery inputs are known-good. `sheetText` is the raw

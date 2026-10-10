@@ -1,5 +1,5 @@
 /**
- * Per-item setup (ADR 0046 s2, s5; LT-426), end to end on both surfaces:
+ * Per-item setup (ADR 0024 s2, s5; ), end to end on both surfaces:
  *
  * - the block body of a `.tsx` `map` callback and the statements of a
  *   `.tsrx` `@for` body are the item's setup, classified by the
@@ -14,7 +14,7 @@
  * - a client-only side effect runs in `bindItem` only;
  * - a `deriveList` declared in the item drives a nested list;
  * - a host-declared `deriveList` whose only consumer is a `byKey()` item
- *   const rides both generated modules and renders (LT-447).
+ *   const rides both generated modules and renders ().
  *
  * The refusals are pinned for parity in `tsx/diagnostic-parity.test.ts`.
  */
@@ -372,7 +372,7 @@ describe('a nested list over an item-declared deriveList', async () => {
 			markup.indexOf('<template data-list="1">'),
 		)
 		expect(template).not.toContain('data-key="p"')
-		// The nested template is hoisted beside the outer one (ADR 0046 s2).
+		// The nested template is hoisted beside the outer one (ADR 0024 s2).
 		expect(markup).toMatch(/<\/template><template data-list="1">/)
 	})
 

@@ -1,5 +1,5 @@
 /**
- * The Children Region (ADR 0048 s1, LT-472): content a parent passes as
+ * The Children Region (ADR 0026 s1): content a parent passes as
  * `children` belongs to the parent. At a compiled compose site the server
  * writes `data-children="<owner-tag>"` on the child's element that encloses
  * the `{children}` insertion; that element stays the child's, and its
@@ -38,7 +38,7 @@ export type ChildrenInsertions = {
 
 /**
  * What a component renders around the content it inserts, recorded on its
- * registry entry (ADR 0048 s1). Present exactly when the template has a
+ * registry entry (ADR 0026 s1). Present exactly when the template has a
  * `{children}` insertion.
  */
 export type ChildrenRegion = {
@@ -60,7 +60,7 @@ export const CHILDREN_MARKER = 'data-children'
 
 /* === Exported Functions === */
 
-/** The bare `{children}` insertion point (ADR 0024 s10). */
+/** The bare `{children}` insertion point (ADR 0005 s10). */
 export const isChildrenInsertion = (node: TemplateNode): boolean =>
 	node.kind === 'expr' &&
 	node.reactivity === 'server' &&

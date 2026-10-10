@@ -1,8 +1,8 @@
 /**
- * The one-writer-per-property check (ADR 0048 s3, LT-476).
+ * The one-writer-per-property check (ADR 0026 s3).
  *
  * A child acts on the content a parent passes only through declared roles
- * (ADR 0048 s2), and it does so with *runtime writes*: role-addressed
+ * (ADR 0026 s2), and it does so with *runtime writes*: role-addressed
  * `first()` references whose `watch` bindings — `bindProperty`,
  * `bindAttribute`, `bindText`, `bindClass`, `bindVisible`, `bindStyle`,
  * `bindAria` — own a property on every element carrying the role's class.
@@ -21,7 +21,7 @@
  * classes against the child entry's recording. `on()` return updates write
  * host props, not role elements — out of scope by the task's ruling.
  *
- * Tier 1 Prevented (ADR 0028): statically decidable on both sides, no
+ * Tier 1 Prevented (ADR 0007): statically decidable on both sides, no
  * runtime half.
  */
 
@@ -246,10 +246,10 @@ export const subjectRolesOf = (
 }
 
 /**
- * The registry entry's `roleWrites` (ADR 0048 s3, LT-476): the component's
+ * The registry entry's `roleWrites` (ADR 0026 s3): the component's
  * watch bindings whose reference is role-addressed — the selector's subject
  * names a declared role, the template inserts `{children}` (without an
- * insertion the content can never arrive — the LT-474 review-2 posture),
+ * insertion the content can never arrive — the  review-2 posture),
  * and the reference resolved to no own-template element. A reference that
  * matched the child's OWN markup writes that element, not the passed
  * content — no conflict with a parent's binding is possible, so it is not
@@ -299,16 +299,16 @@ export const roleWritesOf = (
 }
 
 /**
- * The compose-site half (ADR 0048 s3, LT-476): a parent `watch` binding on
+ * The compose-site half (ADR 0026 s3): a parent `watch` binding on
  * a `first()` reference INTO a compose site's content, whose element
  * carries a role class the child's client also writes the same property on,
  * is a conflict — reported at the parent's binding, naming both writers.
  * Runs in the registry-aware pass only (it reads each child's entry).
  * The reference-targeted binding is the parent's write channel this check
- * reads; a reactive `truc:html` in content (LT-492) is a template-authored
+ * reads; a reactive `truc:html` in content () is a template-authored
  * write the statement scan does not see — the accepted-edge ruling (LT-476
  * review) scopes the check to authored statements, and widening it is
- * LT-515's question.
+ * the ticket's question.
  */
 export const findRoleWriterConflicts = (
 	component: ComponentIR,
@@ -350,7 +350,7 @@ export const findRoleWriterConflicts = (
  * The parent's references into one compose site's content: ref name → the
  * referenced element. The same walk `planContentRefs` runs at effect
  * planning (analysis/compose-effects.ts): the front end attached these ref attrs
- * because the element collection enters compose content (ADR 0048 s1), and
+ * because the element collection enters compose content (ADR 0026 s1), and
  * a nested compose site is LTC011's refusal, not content to walk.
  */
 const contentRefsOf = (
@@ -394,7 +394,7 @@ const WHOLE_TEXT_NAMES: ReadonlySet<string> = new Set([
  * Do a parent's and a child's write hit the same property? Property and
  * attribute writes compare by their attribute spelling (the channels
  * converge for a given name — the divergence the dirty-flag rule handles is
- * LT-116's, a dispatch detail neither writer's intent changes). A
+ * the's, a dispatch detail neither writer's intent changes). A
  * whole-attribute write subsumes the partial kind in BOTH directions:
  * replacing `class` erases a `bindClass` token, replacing `style` erases a
  * `bindStyle` property, and writing the element's text (`textContent`,

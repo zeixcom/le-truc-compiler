@@ -1,14 +1,14 @@
 /**
- * The census surface of the build-report channel (ADR 0029 sub-design 6,
- * LT-165 step 6).
+ * The census surface of the build-report channel (ADR 0008 sub-design 6,
+ *  step 6).
  *
  * `tier.test.ts` pins the routing RULE and `tier-corpus.test.ts` pins what
  * it decides about the REAL corpus; this file pins the census RECORD itself —
  * the named-census shape both planned censuses ride (the tier census here,
- * the translation census under LT-173 step 4) and its formatting. The census
+ * the translation census under  step 4) and its formatting. The census
  * is a build-report record, not a diagnostic: its wording stays factual
- * (tag, tier, reasons — ADR 0028), and it must never enter the diagnostic
- * channel the LT-163 baseline gates (pinned corpus-wide in
+ * (tag, tier, reasons — ADR 0007), and it must never enter the diagnostic
+ * channel the  baseline gates (pinned corpus-wide in
  * `sim-driver.test.ts`).
  */
 
@@ -123,7 +123,7 @@ describe('formatCensus', () => {
 
 	test('the summary line counts every entry, including zero-count tiers', () => {
 		// "0 static" is a meaningful fact, not a gap: the empty Static census
-		// is the current corpus's correct classification (ADR 0029
+		// is the current corpus's correct classification (ADR 0008
 		// Consequences), and the count is what makes its emptiness visible.
 		expect(formatCensus(census).split('\n')[0]).toBe(
 			'Tier census — 3 entries: 2 folded, 1 simulated, 0 static',
@@ -152,7 +152,7 @@ describe('formatCensus', () => {
 
 	test('census lines never carry the warning marker the counted baseline reads', () => {
 		// `check:corpus` counts console.warn lines that start with ⚠️; the
-		// census is not a warning (ADR 0029 sub-design 6) and must never be
+		// census is not a warning (ADR 0008 sub-design 6) and must never be
 		// countable as one.
 		expect(formatCensus(census)).not.toContain('⚠️')
 	})

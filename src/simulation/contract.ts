@@ -1,5 +1,5 @@
 /**
- * The simulation seam (ADR 0035 sub-designs 3 and 4, LT-263).
+ * The simulation seam (ADR 0013 sub-designs 3 and 4).
  *
  * This module is the whole of what the compiler knows about simulation. It
  * names the interface a substrate driver must satisfy and nothing else: no
@@ -8,7 +8,7 @@
  *
  * ## Why the seam is shaped as a package boundary
  *
- * ADR 0034 sub-design 5 makes jsdom an optional peer dependency and
+ * ADR 0012 sub-design 5 makes jsdom an optional peer dependency and
  * absence a routing outcome rather than a build failure. That policy is
  * only implementable if the compiler can classify, report and TYPECHECK
  * with no substrate present — so the contract has to be a standalone
@@ -17,7 +17,7 @@
  * specifier is opaque to the typechecker, so an opted-out consumer's
  * `tsc --noEmit` never follows the edge into jsdom.
  *
- * ADR 0035 sub-design 4 keeps the driver inside `@zeix/le-truc-compiler`
+ * ADR 0013 sub-design 4 keeps the driver inside `@zeix/le-truc-compiler`
  * for 3.0 and defers the `@zeix/le-truc-simulation` split to a later 3.x.
  * The split is then a resolver-specifier change and a `package.json` entry —
  * not a breaking change to this interface, which is the entire reason the
@@ -37,7 +37,7 @@
 /**
  * The seam revision this compiler speaks. Bumped on a breaking change to
  * anything in this file; see the module header for what counts. Revision 2
- * (LT-411) made `dispose()` settle the last render's tree before restoring
+ * () made `dispose()` settle the last render's tree before restoring
  * the globals, so it returns a promise a caller must await before reading
  * the final diagnostics.
  */
@@ -48,7 +48,7 @@ export const SIMULATION_SEAM_VERSION = 2
 /**
  * The five conditions a driver reports, plus the drain overrun. None is
  * statically decidable — that is why they are build-report entries rather
- * than compile diagnostics (ADR 0028 tier 2, `../build-report.ts`).
+ * than compile diagnostics (ADR 0007 tier 2, `../build-report.ts`).
  */
 export type SimDiagnosticKind =
 	| 'jsdom-error'
@@ -101,7 +101,7 @@ export type ClassifiedDiagnostic = {
 	 * parses occurrences whose definitions registered on earlier pages, a
 	 * parse order the corpus realm never produces. The corpus baseline
 	 * cannot witness the match, so its used-check skips the entry; the
-	 * build:docs gate exercises it on every build instead (LT-449).
+	 * build:docs gate exercises it on every build instead ().
 	 */
 	docsOnly?: true
 }
@@ -118,8 +118,8 @@ export const SUPPRESSED_HOST_SELECTOR = 'host'
 
 /**
  * One unresolvable expression's target site, recorded at compile time for
- * the simulation driver (ADR 0029 sub-design 1's implementation constraint,
- * LT-165 step 7).
+ * the simulation driver (ADR 0008 sub-design 1's implementation constraint,
+ *  step 7).
  *
  * The generated client module is the shipped artifact and the driver replays
  * it, so the driver cannot decline to install a binding whose thunk reads the
@@ -131,7 +131,7 @@ export const SUPPRESSED_HOST_SELECTOR = 'host'
  * answers at connect.
  *
  * Only limb (b) sites (`not-a-server-fact`) are recorded. Limb (a)
- * (stubbed-API) sites keep ADR 0027 sub-design 6's unamended remainder —
+ * (stubbed-API) sites keep ADR 0006 sub-design 6's unamended remainder —
  * the driver's stub answer (silent zero, never-matching media list), which
  * the client corrects at connect — and that answer is deterministic inside
  * the realm, so the fixed-point gate is not threatened by it.
@@ -149,7 +149,7 @@ export type SuppressedSite =
 			attr: string
 			/**
 			 * The IDL property the binding writes instead of the attribute
-			 * (dirty-flag dispatch, LT-116). The revert must restore the
+			 * (dirty-flag dispatch). The revert must restore the
 			 * property too: once the control is dirty, the stale reading
 			 * survives `removeAttribute`.
 			 */
@@ -163,7 +163,7 @@ export type SuppressedSite =
 	| {
 			/**
 			 * A reactive condition's arm set whose test no tier can answer
-			 * (ADR 0037 s5, LT-391): the server renders no live arm, but the
+			 * (ADR 0015 s5): the server renders no live arm, but the
 			 * replayed client's `reconcile()` clones one at connect. The
 			 * driver restores the skeleton's arm-less state by removing the
 			 * live arm — the element immediately before the set's first
@@ -193,8 +193,8 @@ export type SimRenderRequest = {
 	/** Custom element name, used to attribute diagnostics and pick the root. */
 	component: string
 	/**
-	 * BCP 47 tag for the page this occurrence is being built into (LT-172,
-	 * ADR 0030 sub-design 7). Seeds the simulated document's `<html lang>` so
+	 * BCP 47 tag for the page this occurrence is being built into (
+	 * ADR 0009 sub-design 7). Seeds the simulated document's `<html lang>` so
 	 * `getLocale()`'s `closest('[lang]')` walk resolves the page's locale
 	 * instead of the `'en'` fallback. Omitted means "no page locale known",
 	 * which clears the attribute — a previous render's locale never leaks
@@ -227,8 +227,8 @@ export type SimulationRealmOptions = {
 	 */
 	composesTags?: (tag: string) => readonly string[]
 	/**
-	 * Suppression records per component tag (ADR 0029 sub-design 1,
-	 * LT-165 step 7), from the same registry entry the compile wrote.
+	 * Suppression records per component tag (ADR 0008 sub-design 1,
+	 *  step 7), from the same registry entry the compile wrote.
 	 * Defaults to "no records". Consulted once per render, for the
 	 * rendered tag.
 	 */
@@ -236,7 +236,7 @@ export type SimulationRealmOptions = {
 }
 
 /**
- * The DOM-free realm handle (ADR 0035 sub-design 3, limb 3).
+ * The DOM-free realm handle (ADR 0013 sub-design 3, limb 3).
  *
  * Every member here is a string, a string union or a plain record. A driver
  * may return a WIDER handle for its own tests and probes — the jsdom driver
@@ -251,7 +251,7 @@ export type SimulationRealm = {
 	readonly loadedTags: readonly string[]
 	/**
 	 * Resolution phase: import client modules, recording their definitions.
-	 * Throws if the import records no NEW definitions (ADR 0027 sub-design
+	 * Throws if the import records no NEW definitions (ADR 0006 sub-design
 	 * 10's load-once assertion).
 	 */
 	load(importer: () => Promise<unknown>): Promise<void>
@@ -262,11 +262,11 @@ export type SimulationRealm = {
 	 */
 	render(request: SimRenderRequest): Promise<SimRenderResult>
 	/**
-	 * End-of-process, never between renders (ADR 0027 sub-design 2, LT-154):
+	 * End-of-process, never between renders (ADR 0006 sub-design 2):
 	 * a disposed realm's deleted globals turn a contained component's
 	 * lingering dependency-wait into a process-aborting flood.
 	 *
-	 * Settles the last render's tree first (LT-411) — the same teardown
+	 * Settles the last render's tree first () — the same teardown
 	 * every earlier render got at the start of the next one — so its
 	 * disconnect work lands in `diagnostics` attributed to the component
 	 * that built the tree, and nothing it queued fires against the restored

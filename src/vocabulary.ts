@@ -43,8 +43,8 @@ export const SIGNAL_CONSTRUCTORS: ReadonlySet<string> = new Set<string>(
 
 /**
  * Signal constructors whose seed is a scalar value — the family a
- * `harvest(seed, parser)` marker (ADR 0046 s7, LT-443) and the LTC077
- * refusal apply to. `createList` takes the marker's map form (LT-429), and
+ * `harvest(seed, parser)` marker (ADR 0024 s7) and the LTC077
+ * refusal apply to. `createList` takes the marker's map form (), and
  * a derived callback re-derives instead of parsing a seed back.
  */
 export const SCALAR_HARVEST_CONSTRUCTORS: ReadonlySet<string> = new Set([
@@ -106,12 +106,12 @@ export const DIRTY_FLAG_ATTRS: ReadonlySet<string> = new Set<string>([
 
 /**
  * Native tags whose `value`/`checked`/`selected` IDL properties carry the
- * DOM dirty flag (LT-116). The WRITE-side counterpart of `DIRTY_FLAG_ATTRS`:
+ * DOM dirty flag (). The WRITE-side counterpart of `DIRTY_FLAG_ATTRS`:
  * a reactive thunk targeting one of these attr×tag combinations must lower
  * to a property write, because rewriting/removing the content attribute no
  * longer moves the live property once the control is dirty (user
  * interaction, autofill, or any prior JS property write) — the
- * form-radiogroup mutual-exclusion break (NOTES LT-092). The hand-written
+ * form-radiogroup mutual-exclusion break (NOTES ). The hand-written
  * corpus precedent is a property write in the `each()` callback
  * (`radio.checked = isChecked`), not `setAttribute`.
  *
@@ -136,7 +136,7 @@ export const DIRTY_FLAG_CONTROL_TAGS: ReadonlySet<string> = new Set<string>(
 
 /**
  * Does this attr×tag combination hit a native dirty-flag IDL property
- * (LT-116)? The reactive-attr dispatch uses this to lower thunks to
+ * ()? The reactive-attr dispatch uses this to lower thunks to
  * `bindProperty` — regardless of the thunk's own value type, since the
  * attribute/property divergence is a property of the TARGET, not of the
  * thunk: a string `value` thunk over an `<input>` desyncs from the
@@ -151,8 +151,8 @@ export const isDirtyFlagControlAttr = (tag: string, attr: string): boolean =>
  * submission: `input`/`select`/`textarea`/`button`. Two checks read the
  * same set, from opposite directions — LTC034's severe form escalates a
  * `disabled`/`checked` omission to an ERROR only when the target is a real
- * submittable control, not the host itself (LT-062/LT-085, read in
- * `analysis/construct-effects.ts`), and LT-059 refuses an authored `name`
+ * submittable control, not the host itself (read in
+ * `analysis/construct-effects.ts`), and  refuses an authored `name`
  * on a descendant control of a form-associated component: an unnamed
  * control stays out of native submission (the host submits via
  * `setFormValue`), so a named one submits the field TWICE
@@ -171,7 +171,7 @@ export const SUBMITTABLE_FORM_CONTROL_TAGS: ReadonlySet<string> = new Set([
 /**
  * Context members usable as free names in any client code position —
  * `host`/`internals` plus the Web Components Community Protocol helpers
- * (LT-035, ADR 0024 sub-design 15): `requestContext(Context, fallback)` in a
+ * (ADR 0005 sub-design 15): `requestContext(Context, fallback)` in a
  * setup const declaration and `provideContexts([...])` as a bare setup
  * statement. Both are `FactoryContext` members, never module imports.
  */
@@ -209,7 +209,7 @@ export const FACTORY_CONTEXT_MEMBERS: ReadonlySet<string> = new Set<string>(
 /**
  * Value exports of the `@zeix/le-truc` package barrel (`index.ts`) — the
  * names an authored `.tsrx` source may legitimately `import { … } from
- * '@zeix/le-truc'` (ADR 0024 sub-design 16: real exports are imported
+ * '@zeix/le-truc'` (ADR 0005 sub-design 16: real exports are imported
  * explicitly; the FactoryContext vocabulary is ambient and disjoint from
  * this set). Composed from the signal-constructor and parser-factory
  * tuples, so those stay subsets by construction; the remainder is
@@ -328,9 +328,9 @@ export const REAL_EXPORT_NAMES: ReadonlySet<string> = new Set<string>([
  * compiler doesn't import the runtime library). Every one is an inherited
  * own-property of `Object`, so `component.ts`'s `#initSignals` checks them
  * BEFORE its `prop in this` guard — that ordering, not the throw escaping,
- * is what protects the prototype chain (ADR 0028 sub-design 5). Since the
- * throw is contained (LT-155) the compiler carries the loud half: LTC028
- * (LT-157a).
+ * is what protects the prototype chain (ADR 0007 sub-design 5). Since the
+ * throw is contained () the compiler carries the loud half: LTC028
+ * ().
  */
 export const RESERVED_PROP_NAMES: ReadonlySet<string> = new Set<string>([
 	'constructor',
@@ -347,7 +347,7 @@ export const RESERVED_PROP_NAMES: ReadonlySet<string> = new Set<string>([
 /**
  * FactoryContext helpers that push an effect descriptor into the ambient
  * collector (`src/internal.ts`'s `pushDescriptor`). Calling one after the
- * factory has returned throws `NoActiveCollectorError`; LTC013 (LT-157d)
+ * factory has returned throws `NoActiveCollectorError`; LTC013 ()
  * decides the statically visible half of that.
  */
 export const COLLECTOR_HELPERS: ReadonlySet<string> = new Set<string>([
@@ -371,11 +371,11 @@ export const MANAGED_TEXT_PROPS: ReadonlySet<string> = new Set<string>([
  * any of these shadows the managed member — `expose()` already throws
  * `InvalidPropertyNameError` for it at RUNTIME (component.ts's
  * `reservedMembers` check), but only once the component actually connects;
- * LTC010's family (LT-058) catches it at compile time instead, naming the
+ * LTC010's family () catches it at compile time instead, naming the
  * exact source line and the extension it collides with. `value`/`checked`
  * are the deliberate exceptions the component MUST expose — never included
  * here; the variant-specific reset-baseline prop (`defaultValue`/
- * `defaultChecked`, LT-057) is added by the caller, since which one applies
+ * `defaultChecked`) is added by the caller, since which one applies
  * depends on `config.form`.
  */
 export const MANAGED_FORM_MEMBERS: ReadonlySet<string> = new Set<string>([
@@ -395,9 +395,9 @@ export const MANAGED_FORM_MEMBERS: ReadonlySet<string> = new Set<string>([
  * Client-only context helpers (query/effect primitives) that exist only in
  * the generated client factory's context object — never in the server render
  * function's scope, even though `component.setup`'s plain `const` statements
- * are emitted verbatim into both (ADR 0024 sub-design 12). A setup const that
+ * are emitted verbatim into both (ADR 0005 sub-design 12). A setup const that
  * calls one of these directly used to be the `LTC013` error; under tiering
- * (LT-165 step 5, ADR 0029 s5) it is a routing signal, and the tier-aware
+ * (LT-165 step 5, ADR 0008 s5) it is a routing signal, and the tier-aware
  * server emit drops the statement from the render function rather than
  * emitting a call that cannot resolve.
  */

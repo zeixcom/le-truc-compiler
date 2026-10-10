@@ -1,15 +1,15 @@
 /**
- * The ICU MessageFormat 1 evaluator (ADR 0030 s4, LT-250) — ONE
+ * The ICU MessageFormat 1 evaluator (ADR 0009 s4) — ONE
  * implementation, ours, for both sides of a message.
  *
  * The server fold calls it through the generated `i18n` module's `t`, and
- * LT-218 inlines a narrowed copy of it into the client preamble. Owning it
+ *  inlines a narrowed copy of it into the client preamble. Owning it
  * is the point: a server-rendered string and the client's recomputation run
  * the same walk over the same AST, so they cannot disagree.
  * `@messageformat/core` is a test oracle only (`icu.test.ts` differentially
  * checks this walk against it).
  *
- * Constraints, so LT-218 can inline it:
+ * Constraints, so  can inline it:
  * - **No imports.** Not from the compiler, not from a package. The locale
  *   work is `Intl.PluralRules` / `NumberFormat` / `DateTimeFormat`.
  * - **Emitter-agnostic.** A pure function of `(message, args, env)`; no
@@ -173,7 +173,7 @@ export const FORMATTING_KINDS: ReadonlySet<string> = new Set([
 
 /**
  * The node kinds (`arg`, `num`, `plural`, …) `messages` use, case bodies
- * included — what the client channel's inlined evaluator carries (LT-218):
+ * included — what the client channel's inlined evaluator carries ():
  * `emit-client.ts` narrows it to the union over a component's
  * client-referenced source messages.
  */
@@ -193,7 +193,7 @@ export const carriedKinds = (messages: Iterable<Message>): Set<string> => {
 
 /**
  * Whether the client channel renders `source` instead of `translation`
- * (LT-350): a translation with arguments where the source has none (the
+ * (): a translation with arguments where the source has none (the
  * argument-less accessor serves the source), or one using a node kind the
  * narrowed evaluator does not carry. An argument-less translation always
  * renders. Both arguments are compiled catalog entries: literal text or a
@@ -211,10 +211,10 @@ export const clientFallsBack = (
 
 /**
  * `message` with the record's `timeZone`/`currency` folded into the nodes
- * that read them (LT-218). The client channel serializes messages per
+ * that read them (). The client channel serializes messages per
  * render call, but the client never sees the record, so the facts the DOM
  * does not carry travel inside the AST. The locale is not among them: it
- * reaches the client through the root `lang` attribute (ADR 0030 s6), and
+ * reaches the client through the root `lang` attribute (ADR 0009 s6), and
  * {@link formatMessage} takes it from its caller's `env`, which is all the
  * result still reads.
  */

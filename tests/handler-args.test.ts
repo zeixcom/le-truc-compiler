@@ -1,5 +1,5 @@
 /**
- * Handler args (LT-461): an `on`-prefixed function arg the child places on
+ * Handler args (): an `on`-prefixed function arg the child places on
  * an owned element lowers to a parent-side `on()`.
  *
  * - the child emits nothing for the arg, on either half, and publishes the

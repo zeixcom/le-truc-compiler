@@ -1,5 +1,5 @@
 /**
- * Client analysis orchestration and plan vocabulary (LT-022, regrouping
+ * Client analysis orchestration and plan vocabulary (regrouping
  * move M5 of LE_TRUC_COMPILER.md §7). `analyzeClient` builds the typed
  * `PassShared` environment — the order-carrying accumulators the old
  * ~2,500-line closure web threaded implicitly — and runs the passes as
@@ -8,7 +8,7 @@
  * module, each taking its producers' output as a required parameter (ADR
  * 0040 s5), and independently testable against a constructed environment.
  * Every rewrite rule that cannot be applied reports a diagnostic — these
- * rules are the product (ADR 0024 consequences): a wrong rewrite is a wrong
+ * rules are the product (ADR 0005 consequences): a wrong rewrite is a wrong
  * component.
  */
 
@@ -49,7 +49,7 @@ import { reportServerOnlyNames } from './server-only-names'
 export type ParserKind = 'asNumber' | 'asBoolean' | 'asString'
 
 /**
- * An authored parser spliced into the client as written (LT-443): the
+ * An authored parser spliced into the client as written : the
  * `harvest(seed, parser)` marker's second argument. A type error in the
  * generated module maps to `start` through the span table.
  */
@@ -105,7 +105,7 @@ export type HarvestPlan =
 			valueAttr: string
 			default: string
 			/**
-			 * The parser the value read goes through (LT-443): the
+			 * The parser the value read goes through : the
 			 * `harvest()` marker's, spliced as authored — it owns the
 			 * no-match miss, so `default` is unused then. Absent (today's
 			 * raw read) for an unmarked seed.
@@ -114,17 +114,17 @@ export type HarvestPlan =
 	  }
 	| {
 			/**
-			 * Arg-substituted seed (LT-008): the initializer reads server args
+			 * Arg-substituted seed : the initializer reads server args
 			 * (e.g. `createCell(value.length)`); the client seeds from the
 			 * args' rendered DOM sites — the param identifier is replaced by
-			 * an element-derived read (DOM-is-truth, ADR 0024 sub-design 3).
+			 * an element-derived read (DOM-is-truth, ADR 0005 sub-design 3).
 			 */
 			kind: 'substitute'
 			signal: string
 			/** Initializer text with param identifiers replaced by DOM reads. */
 			expr: string
 			/**
-			 * The parser the substituted DOM read goes through (LT-443): the
+			 * The parser the substituted DOM read goes through : the
 			 * `harvest()` marker's, spliced as authored. Absent for an
 			 * unmarked seed — a `number` arg's read carries its own `Number()`
 			 * conversion (`asParamType`), everything else is a string.
@@ -148,7 +148,7 @@ export type HarvestPlan =
 						container: string
 						fields: ListFieldPlan[]
 						/**
-						 * A key-alias harvest (ADR 0047 s3, LT-453): the items are
+						 * A key-alias harvest (ADR 0025 s3): the items are
 						 * the alias scope's roots, reached from `container`'s items
 						 * through each nested list's container — its scoped selector
 						 * inside the enclosing item root, null when that root is
@@ -161,7 +161,7 @@ export type HarvestPlan =
 
 /**
  * How one field of an arg-seeded list's item is read back from the adopted
- * item (ADR 0046 s7, LT-429): its site — `data-key` for the field the
+ * item (ADR 0024 s7): its site — `data-key` for the field the
  * `keyConfig` returns verbatim, else the first text child or reactive
  * attribute reading exactly the field — and its parser. A `selector` is the
  * item's own scoped query; null reads the item root.
@@ -208,22 +208,22 @@ export type LoopEffectPlan =
 			attr: string
 			thunkText: string
 			/**
-			 * Property vs attribute dispatch (LT-116): a bare host-prop mirror
+			 * Property vs attribute dispatch : a bare host-prop mirror
 			 * OR a dirty-flag IDL attr (`value`/`checked`/`selected`) on a
 			 * native form control lowers to `bindProperty` — attribute
 			 * rewriting stops moving the live property once the control is
 			 * dirty, which broke form-radiogroup's mutual exclusion (NOTES
-			 * LT-092). Same rule the top-level `watch-attr` dispatch applies.
+			 * ). Same rule the top-level `watch-attr` dispatch applies.
 			 */
 			dispatch: 'attribute' | 'property'
 			/** Number-valued thunks stringify — `bindAttribute` takes string|boolean. */
 			coerceToString: boolean
-			/** Source range of `thunkText` (LT-011 span table). */
+			/** Source range of `thunkText`. */
 			sourceStart: number | undefined
 			sourceEnd: number | undefined
 			/**
 			 * Scoped selector (resolved within the loop output's own subtree,
-			 * LT-037) of the descendant this construct lives on, or `null` for
+			 * ) of the descendant this construct lives on, or `null` for
 			 * the output root itself. Non-null targets are queried once per
 			 * item (`itemParam.querySelector(target)`) and cached under a
 			 * generated local, so multiple constructs on the same descendant
@@ -253,7 +253,7 @@ export type ForClientPlan = {
 	/** Collection query variable (`tabs`); empty for a scoped loop. */
 	collection: string
 	/**
-	 * A loop nested in a Mount Scope (ADR 0046 s2, LT-424): its items are
+	 * A loop nested in a Mount Scope (ADR 0024 s2): its items are
 	 * fixed for the life of the clone, so the collection is a static query
 	 * against the scope root — `root`, the root's local — with no `all()`
 	 * and no MutationObserver. Null for a host-level loop (`each(all())`).
@@ -266,7 +266,7 @@ export type ForClientPlan = {
 }
 
 /**
- * One reactive-list item as a Mount Scope (ADR 0046 s1): the per-item mount
+ * One reactive-list item as a Mount Scope (ADR 0024 s1): the per-item mount
  * `bindItem` runs, addressed through the item's own `first` — the item root
  * by its element parameter (declared as a typed local only when something
  * binds it), descendants by scoped queries.
@@ -277,7 +277,7 @@ export type ReconcileItemScope = {
 	/** Descendants the item's effects address, queried within the item root. */
 	locals: ScopeLocal[]
 	/**
-	 * Key-derived attributes (ADR 0046 s1): `server` attributes over the key
+	 * Key-derived attributes (ADR 0024 s1): `server` attributes over the key
 	 * binding, set once at clone — a key never changes, so there is nothing
 	 * to watch. `el` names the root local or a scope local.
 	 */
@@ -285,7 +285,7 @@ export type ReconcileItemScope = {
 	/** The item's effects, in document order. */
 	effects: TopEffectPlan[]
 	/**
-	 * The item's setup statements (ADR 0046 s5), in source order: mounted
+	 * The item's setup statements (ADR 0024 s5), in source order: mounted
 	 * in `bindItem` before its key-derived attributes and effects, which
 	 * may read them.
 	 */
@@ -299,7 +299,7 @@ export type ReconcilePlan = {
 	/** Container query variable (`container`). */
 	container: string
 	/**
-	 * The list's compile-time document-order index per component (ADR 0046
+	 * The list's compile-time document-order index per component (ADR 0024
 	 * s2): the extracted template is stamped `data-list` and hoisted to the
 	 * host's end, one copy per instance, and queried from the host as
 	 * `:scope > template[data-list="N"]` — the stamp lifts the
@@ -316,7 +316,7 @@ export type ReconcilePlan = {
 	/**
 	 * Scoped selector of the FIRST bare `{item}` hole's parent element — the
 	 * item value's DOM site the arg-seeded List harvest reads at connect
-	 * (ADR 0003). Null when the body renders the item nowhere; an arg-seeded
+	 * (ADR 0001). Null when the body renders the item nowhere; an arg-seeded
 	 * List without a hole is refused in the harvest pass, a literal-seeded
 	 * one needs no site.
 	 */
@@ -324,20 +324,20 @@ export type ReconcilePlan = {
 	/** The item's Mount Scope: everything bindItem mounts per entering item. */
 	itemScope: ReconcileItemScope
 	/**
-	 * Query variables of the `@empty` arm's roots (LT-212), in order. Each
+	 * Query variables of the `@empty` arm's roots , in order. Each
 	 * root is always server-rendered inside the container with
 	 * `data-unreconciled`; the client toggles its `hidden` from the list's
-	 * length (ADR 0037 s5: the toggle path). Empty when the loop has no arm.
+	 * length (ADR 0015 s5: the toggle path). Empty when the loop has no arm.
 	 */
 	emptyQueries: string[]
 	/**
-	 * The list sits in a Mount Scope (an arm, an item; LT-424): `container`,
+	 * The list sits in a Mount Scope (an arm, an item; ): `container`,
 	 * `parent` and `emptyQueries` name that scope's locals, filled in pass 4
 	 * — and an arg-seeded harvest has no connect-time container to read.
 	 */
 	scoped: boolean
 	/**
-	 * The container sits in a server-rendered branch of its scope (LT-455):
+	 * The container sits in a server-rendered branch of its scope :
 	 * the branch folds per render call, the same for every clone, but may
 	 * leave the list out, so the container and `@empty` locals are
 	 * non-throwing queries and the client binds the nested mount under an
@@ -349,7 +349,7 @@ export type ReconcilePlan = {
 /**
  * One element a Mount Scope's mount queries through its `first`. `optional`
  * marks an element reached through a server-rendered conditional branch
- * that carries only key-derived attributes (LT-424): the render's winner may
+ * that carries only key-derived attributes : the render's winner may
  * not include it, so the query does not throw (`first(selector)`).
  */
 export type ScopeLocal = {
@@ -360,7 +360,7 @@ export type ScopeLocal = {
 }
 
 /**
- * A key-derived attribute (ADR 0046 s1): a `server` attribute over the
+ * A key-derived attribute (ADR 0024 s1): a `server` attribute over the
  * enclosing items' key bindings alone, set once at mount — a key never
  * changes, so there is nothing to watch. `el` names the scope root local or
  * a scope local.
@@ -377,7 +377,7 @@ export type KeyAttrPlan = {
 
 /** One arm of a reactive conditional, mounted inside `bindArm`. */
 export type ArmPlan = {
-	/** The arm key (ADR 0037 s2): `then`/`else`, `case:<value>`, `default`. */
+	/** The arm key (ADR 0015 s2): `then`/`else`, `case:<value>`, `default`. */
 	key: string
 	/** A `@case` test's source text, null for `then`/`else`/`default`. */
 	caseText: string | null
@@ -393,7 +393,7 @@ export type ArmPlan = {
 }
 
 /**
- * A reactive conditional or an async boundary (ADR 0037) lowered to
+ * A reactive conditional or an async boundary (ADR 0015) lowered to
  * `reconcile()`'s arm form: the arm templates the server stamped
  * `data-arms="<armSet>"` beside the live winner, a key thunk over the test
  * (or the boundary's task state), and one mount per arm.
@@ -412,7 +412,7 @@ export type ArmsPlan = {
 	keyParam: string
 	arms: ArmPlan[]
 	/**
-	 * An async boundary's routing (ADR 0037 s4): the arm key follows the
+	 * An async boundary's routing (ADR 0015 s4): the arm key follows the
 	 * guarded task's state (`ok`/`nil`/`err`, `match()`'s precedence), the
 	 * `ok` arm's mount writes the resolved value as its root's text and the
 	 * `err` arm's mount writes `errText` — the err arm's own lazy child over
@@ -433,9 +433,9 @@ export type TopEffectPlan =
 			query: string
 			source: string
 			/**
-			 * The authored child's text and offset (LT-011 span table): the
+			 * The authored child's text and offset: the
 			 * `bindText` sink is typed, so a non-text source is a tsc error
-			 * `check:corpus` reports at the child (LT-428).
+			 * `check:corpus` reports at the child.
 			 */
 			exprText: string
 			sourceStart: number | undefined
@@ -446,9 +446,9 @@ export type TopEffectPlan =
 			attr: string
 			thunkText: string
 			dispatch: 'attribute' | 'property'
-			/** Number-valued thunks stringify — `bindAttribute` takes string|boolean. */
+			/** Number-valued thunks stringify ‖ `bindAttribute` takes string|boolean. */
 			coerceToString: boolean
-			/** Source range of `thunkText` (LT-011 span table). */
+			/** Source range of `thunkText`. */
 			sourceStart: number | undefined
 			sourceEnd: number | undefined
 	  }
@@ -459,7 +459,7 @@ export type TopEffectPlan =
 			thunkText: string
 			sourceStart: number | undefined
 			sourceEnd: number | undefined
-			/** `{ get, set }` descriptor's write-back accessor (LT-017). */
+			/** `{ get, set }` descriptor's write-back accessor. */
 			setThunkText: string | undefined
 			setSourceStart: number | undefined
 			setSourceEnd: number | undefined
@@ -474,11 +474,11 @@ export type TopEffectPlan =
 	  }
 	| {
 			/**
-			 * `style={() => ({ … })}` (LT-028): one `watch(thunk, bindStyle(el,
-			 * keys))` call against `bindStyle()`'s map-form overload (LT-029) —
+			 * `style={() => ({ … })}` : one `watch(thunk, bindStyle(el,
+			 * keys))` call against `bindStyle()`'s map-form overload  —
 			 * every declared CSS property is set from the single evaluated map
 			 * in one dispatch. `query` is `'host'` for the component-root case
-			 * (LT-028's motivating gap): the target is the ambient `host`, not
+			 * (the ticket's motivating gap): the target is the ambient `host`, not
 			 * a queried descendant.
 			 */
 			kind: 'watch-style'
@@ -490,11 +490,11 @@ export type TopEffectPlan =
 	  }
 	| {
 			/**
-			 * `class={() => ({ … })}` (LT-031): one `watch(thunk, bindClass(el,
-			 * keys))` call against `bindClass()`'s map-form overload (LT-029) —
+			 * `class={() => ({ … })}` : one `watch(thunk, bindClass(el,
+			 * keys))` call against `bindClass()`'s map-form overload  —
 			 * every declared class token is toggled from the single evaluated
 			 * map in one dispatch, mirroring `watch-style`. `query` is `'host'`
-			 * for the component-root case (LT-032).
+			 * for the component-root case .
 			 */
 			kind: 'watch-class'
 			query: string
@@ -505,9 +505,9 @@ export type TopEffectPlan =
 	  }
 	| {
 			/**
-			 * `truc:html={() => …}` (LT-025): one `watch(thunk,
+			 * `truc:html={() => …}` : one `watch(thunk,
 			 * dangerouslyBindInnerHTML(el))` call — the sanctioned XSS-aware
-			 * sink (ADR 0010), never a raw `innerHTML` property binding.
+			 * sink (ADR 0002), never a raw `innerHTML` property binding.
 			 */
 			kind: 'watch-html'
 			query: string
@@ -558,30 +558,30 @@ export type ClientPlan = {
 	 */
 	childTags: string[]
 	/**
-	 * Why this component cannot be answered by phase 1 alone (ADR 0029,
-	 * LT-165) — the tier classifier's input, collected at the same sites
+	 * Why this component cannot be answered by phase 1 alone (ADR 0008,
+	 * ) — the tier classifier's input, collected at the same sites
 	 * that used to raise `LTC004`/`LTC034`. Empty means phase 1 is total,
 	 * which is the Folded tier.
 	 */
 	routingSignals: LocalRoutingSignal[]
 	/**
-	 * Reactive sites whose expression no server phase can answer (ADR 0029
-	 * sub-design 1 limb b, LT-165 step 7) — recorded at the same sites for
+	 * Reactive sites whose expression no server phase can answer (ADR 0008
+	 * sub-design 1 limb b step 7) — recorded at the same sites for
 	 * the driver's serialization-time suppression: the generated client
 	 * still binds them, and the realm replays that module.
 	 */
 	suppressedSites: SuppressedSite[]
 	/**
-	 * The message keys client positions read through `t.<key>` (ADR 0030 s9,
-	 * LT-218), sorted. Non-empty means the server renders the root `i18n`
+	 * The message keys client positions read through `t.<key>` (ADR 0009 s9,
+	 * ), sorted. Non-empty means the server renders the root `i18n`
 	 * attribute and the generated factory carries the message preamble.
 	 */
 	clientMessageKeys: string[]
 }
 
 /**
- * The order-carrying environment every analysis pass shares (ADR 0040 s5,
- * LT-289) — the accumulators whose APPEND ORDER is the contract: queries,
+ * The order-carrying environment every analysis pass shares (ADR 0018 s5,
+ * ) — the accumulators whose APPEND ORDER is the contract: queries,
  * used names, ambient context, child tags, ref names, and the diagnostic /
  * routing / suppression sinks, all appended in pass order so query and
  * diagnostic sequences are byte-stable. A pass's own PRODUCTIONS are not
@@ -595,25 +595,25 @@ export type ClientPlan = {
  * ruling, 2026-10-10): `badFreeNames` appends to `clientMessageKeys` as a
  * side effect of being called during later passes — a static `t.<key>` read
  * a pass finds client-resolvable is what puts the key in the serialized
- * message channel (ADR 0030 s9), so which passes call it is part of the
+ * message channel (ADR 0009 s9), so which passes call it is part of the
  * order above, not an implementation detail.
  */
 export type PassShared = {
 	component: ComponentIR
 	source: string
 	diagnostics: LocalDiagnostic[]
-	/** Tier routing signals (ADR 0029) — see {@link ClientPlan.routingSignals}. */
+	/** Tier routing signals (ADR 0008) — see {@link ClientPlan.routingSignals}. */
 	routingSignals: LocalRoutingSignal[]
 	/**
-	 * Suppression sites (ADR 0029 s1 limb b, LT-165 step 7) — see
+	 * Suppression sites (ADR 0008 s1 limb b step 7) — see
 	 * {@link ClientPlan.suppressedSites}.
 	 */
 	suppressedSites: SuppressedSite[]
 	registry: ReadonlySet<string>
 	/**
-	 * The compose-reference resolution (LT-127): `skipped` in the
+	 * The compose-reference resolution : `skipped` in the
 	 * registry-discovery pass, else `resolved` — carrying the composed
-	 * (PascalCase) elements' targets keyed by resolved source path (ADR 0024
+	 * (PascalCase) elements' targets keyed by resolved source path (ADR 0005
 	 * sub-design 10), and the compose sites an ambiguous `first()` matched,
 	 * already reported as LTC027, so `emitComposeEffects` must not address
 	 * them by tag or report them a second time.
@@ -631,8 +631,8 @@ export type PassShared = {
 	refNames: Set<string>
 	/**
 	 * Signals Pass 3 refused with their own harvest diagnostic — a
-	 * formatted-only render with no raw value source (LTC059, LT-374), a
-	 * list item field with no site or no parser (LTC072/LTC076, LT-429) —
+	 * formatted-only render with no raw value source (LTC059), a
+	 * list item field with no site or no parser (LTC072/LTC076) —
 	 * so the setup half's LTC005 skips them.
 	 */
 	rawSourceRefused: Set<string>
@@ -681,8 +681,8 @@ export const analyzeClient = (
 	const childTags = new Set<string>()
 	const ambient = new Set<string>(component.contextRefs)
 	// A context member read only from a setup declaration the client module
-	// emits (`host` inside a `createTask` callback, LT-104; `all()` in a
-	// plain const's initializer, LT-108) reaches no effect position
+	// emits (`host` inside a `createTask` callback; `all()` in a
+	// plain const's initializer) reaches no effect position
 	// `collectAmbient` walks, so it is collected here from the client
 	// module's own needed names.
 	for (const name of computeClientNeededNames(component))
@@ -697,13 +697,13 @@ export const analyzeClient = (
 		component.tag.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase()),
 		...component.signals.map(s => s.name),
 		'host',
-		// An item's setup names bind in `bindItem` (ADR 0046 s5): a minted
+		// An item's setup names bind in `bindItem` (ADR 0024 s5): a minted
 		// local there must not shadow one.
 		...component.itemSetup.flatMap(stmt =>
 			stmt.name === null ? [] : [stmt.name],
 		),
 	])
-	// LT-127: `first()` selectors addressing COMPOSED children are resolved
+	//: `first()` selectors addressing COMPOSED children are resolved
 	// here, not in `compileSource` — the child's tag needs the registry.
 	// Runs before the `refNames` walk below, which is what finds the
 	// synthetic `{kind: 'ref'}` attrs this attaches.
@@ -712,7 +712,7 @@ export const analyzeClient = (
 		diagnostics,
 		composeRegistry,
 	)
-	// LT-096: what each composed child renders, so every selector resolved
+	//: what each composed child renders, so every selector resolved
 	// below is unique over the DOM the query actually searches — the
 	// children's markup included — not just over this template.
 	if (composeRefs.mode === 'resolved')
@@ -722,9 +722,9 @@ export const analyzeClient = (
 		)
 
 	// Pre-collect ref names — thunks may reference any ref in the template.
-	// Traversal via `walkTemplate` (LT-042): refs are declared on plain and
+	// Traversal via `walkTemplate` : refs are declared on plain and
 	// composed elements only — compose-site content included, since the
-	// content is this component's markup (ADR 0048 s1).
+	// content is this component's markup (ADR 0026 s1).
 	const refNames = new Set<string>()
 	walkTemplate(component.root, node => {
 		if (node.kind !== 'element' && node.kind !== 'compose') return
@@ -732,7 +732,7 @@ export const analyzeClient = (
 			if (attr.kind === 'ref') refNames.add(attr.name)
 	})
 
-	// A deferred compose reference (LT-127) is an author-declared element
+	// A deferred compose reference  is an author-declared element
 	// reference whether or not this pass can resolve it: the registry-
 	// discovery pass has no `composeRegistry` and attaches no `ref` attr for
 	// the walk above to find, and a pass thunk reading the name there must
@@ -741,11 +741,11 @@ export const analyzeClient = (
 	for (const ref of component.firstRefs.values())
 		if (ref.stage === 'deferred') refNames.add(ref.name)
 
-	// Refs matching nothing structural: OPTIONAL ones are LT-123's —
+	// Refs matching nothing structural: OPTIONAL ones are the ticket's —
 	// the template never carried a `ref` attr for them, so the walk
 	// above found nothing — but the author declared the const
 	// and setup code may read it. A ROLE-ADDRESSED ref joins them from
-	// both verification sites (ADR 0048 s2, LT-474 review): it resolves
+	// both verification sites (ADR 0026 s2 review): it resolves
 	// inside the content a parent passes, so a no-match own-template is
 	// expected, required included. Query them from the AUTHORED selector
 	// under the authored NAME, which is what setup references — a
@@ -777,7 +777,7 @@ export const analyzeClient = (
 
 	/**
 	 * Names the server render binds and the client module does not carry
-	 * (LT-348): the component's parameters (nested `{ i18n: { t } }`
+	 * : the component's parameters (nested `{ i18n: { t } }`
 	 * included), module-level declarations (neither generated module copies
 	 * them), and the bindings of a server-data loop (item, index, hoisted
 	 * consts — `each()` rebinds none of them client-side). Defined
@@ -792,10 +792,10 @@ export const analyzeClient = (
 
 	// Client rebindings shadow a server binding of the same name — only the
 	// ones the AUTHOR declared: signals, `first()` refs, context members,
-	// plain setup consts (LT-088: a const pulled client-side is emitted
+	// plain setup consts (: a const pulled client-side is emitted
 	// there, and one that itself reads a server name is caught at its
-	// declaration, the setup half below) and authored imports (LT-091).
-	// Compiler-generated query locals are not (LT-349): args `{ button }`
+	// declaration, the setup half below) and authored imports .
+	// Compiler-generated query locals are not : args `{ button }`
 	// beside a queried `<button>` would otherwise compile a handler reading
 	// `button` against the element, silently changing its meaning. LT-136
 	// keeps the naming side of that shadow.
@@ -815,7 +815,7 @@ export const analyzeClient = (
 	const clientRebinds = (name: string): boolean =>
 		factoryBinds(name) || emittedOnDemand(name)
 
-	// The client message channel (ADR 0030 s9, LT-218): `t` is a server
+	// The client message channel (ADR 0009 s9): `t` is a server
 	// binding, but a static read of a declared key (`t.hi`, `t['a.b']`)
 	// compiles against the preamble's local `t`. The key is recorded, so
 	// the server serializes exactly those messages into the root `i18n`
@@ -836,10 +836,10 @@ export const analyzeClient = (
 		})
 
 	/**
-	 * `badFreeNames` for a list body (`each()`/`reconcile()` scopes, LT-349)
+	 * `badFreeNames` for a list body (`each()`/`reconcile()` scopes)
 	 * plus the setup consts and authored imports the body reads — a uniform
 	 * authoring rule, not an emission guard: item content stays in the
-	 * template tree (ADR 0046), so `computeClientNeededNames` does reach a
+	 * template tree (ADR 0024), so `computeClientNeededNames` does reach a
 	 * list body and the binding would be emitted (LT-483 probed a boundary
 	 * arm reading a setup const — clean compile, const declared client-side,
 	 * watch emitted beside it).
@@ -852,7 +852,7 @@ export const analyzeClient = (
 	}
 
 	// Client-only setup statements admitted for their `t.<key>` reads
-	// (`setup-extraction.ts`'s gate, LT-349) carry their keys into the
+	// (`setup-extraction.ts`'s gate) carry their keys into the
 	// attribute; the preamble precedes those statements.
 	for (const stmt of [
 		...component.clientSetup,
@@ -896,13 +896,13 @@ export const analyzeClient = (
 		badListBodyNames,
 	}
 
-	// The pass order is carried by the signatures (ADR 0040 s5): each pass
+	// The pass order is carried by the signatures (ADR 0018 s5): each pass
 	// takes its producers' output as a required parameter.
 	const loopPlans = runLoops(shared)
 	const harvests = runHarvest(shared, loopPlans)
 	const effects = runEffects(shared, loopPlans, harvests)
 
-	// LT-347: the setup half of the server-only check. `expose()` and every
+	//: the setup half of the server-only check. `expose()` and every
 	// plain const a client position pulls in are emitted into the client
 	// verbatim, so a server arg they read is unbound there — the same
 	// ReferenceError a reactive thunk would hit, caught here rather than
@@ -916,7 +916,7 @@ export const analyzeClient = (
 			)
 	// A signal with no harvest site (or a verbatim-seeded list) keeps its
 	// authored initializer client-side (`emit-client.ts`). Tier-independent
-	// (Architect ruling, LT-348): a `realm` resolution means the server can
+	// (Architect ruling): a `realm` resolution means the server can
 	// render the value, not that the browser can run the initializer. The
 	// setup entry holds the whole constructor call, options included.
 	for (const signal of component.signals) {
@@ -942,7 +942,7 @@ export const analyzeClient = (
 				`Setup const \`${stmt.name}\`, which a client position reads,`,
 			)
 
-	// LT-165 step 5: the narrow residue of the retired LTC013/LTC043
+	//  step 5: the narrow residue of the retired LTC013/LTC043
 	// refusals. An UNrendered setup const the value harness cannot evaluate
 	// is a routing signal (recorded during extraction) and routes Simulated —
 	// but a const whose VALUE reaches a server-evaluated position asks the
@@ -975,7 +975,7 @@ export const analyzeClient = (
 		}
 	}
 
-	// LT-123: an effect over an author-declared OPTIONAL ref
+	//: an effect over an author-declared OPTIONAL ref
 	// needs the same existence guard a single-branch `@if` root
 	// gets — the query is non-throwing, so the local is
 	// `Element | undefined` and binding it bare neither

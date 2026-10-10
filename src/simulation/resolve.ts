@@ -1,5 +1,5 @@
 /**
- * The substrate resolver (ADR 0035 sub-design 4, LT-263).
+ * The substrate resolver (ADR 0013 sub-design 4).
  *
  * Activation is INSTALLATION: the driver is present or it is not, with no
  * configuration flag and no dynamic degradation path threaded through the
@@ -11,13 +11,13 @@
  * the typechecker, and that is the point rather than an accident: a literal
  * would make `tsc` follow the edge into `sim/realm.ts` and from there into
  * `jsdom`, so an opted-out consumer's `tsc --noEmit` would fail on a
- * dependency they deliberately did not install (ADR 0034 sub-design 5). The
+ * dependency they deliberately did not install (ADR 0012 sub-design 5). The
  * contract (`./contract.ts`) carries the types instead; the import carries
  * only the values, cast once, here.
  *
  * ## Today's specifier and tomorrow's
  *
- * ADR 0035 sub-design 4 keeps the driver inside the compiler for 3.0, so
+ * ADR 0013 sub-design 4 keeps the driver inside the compiler for 3.0, so
  * the specifier is a relative path. When `@zeix/le-truc-simulation` is
  * split out in a later 3.x, this constant becomes the package name and
  * nothing else in the compiler changes — which is the whole return on
@@ -27,7 +27,7 @@
  *
  * {@link resolveSimulationProvider} answers `null` when the driver or its
  * substrate is not installed; the simulation pass turns that into a routing
- * outcome with an `unavailable substrate` census reason (LT-256, ADR 0034
+ * outcome with an `unavailable substrate` census reason (ADR 0012
  * sub-design 5). Absence is narrowly construed: only a resolution failure
  * for the driver or its substrate ({@link isSubstrateAbsence}) counts. A
  * driver that IS installed but broken — an init throw, a missing transitive
@@ -39,7 +39,7 @@ import { SIMULATION_SEAM_VERSION, type SimulationProvider } from './contract'
 
 /**
  * Where the driver lives. A relative path for 3.0; `'@zeix/le-truc-simulation'`
- * after the split (ADR 0035 sub-design 4). Held in a variable so the
+ * after the split (ADR 0013 sub-design 4). Held in a variable so the
  * typechecker does not follow it — see the module header.
  */
 const SIMULATION_DRIVER = '../sim/index.ts'
@@ -72,7 +72,7 @@ export class SimulationSeamVersionError extends Error {
 
 /**
  * Whether `error` is a genuine resolution failure for the driver or its
- * substrate — the one shape of absence (ADR 0035 sub-design 4). Exported
+ * substrate — the one shape of absence (ADR 0013 sub-design 4). Exported
  * for the discrimination tests; the resolver is the only caller.
  *
  * Both gates are load-bearing. The error must BE a module-resolution
@@ -111,7 +111,7 @@ export const isSubstrateAbsence = (error: unknown): boolean => {
  * Throws on a version mismatch — a driver that is present but wrong is a
  * broken install, not an opt-out — and on any error from loading the
  * driver that is not a resolution failure for the driver or its substrate
- * (LT-256): a driver that is present but broken surfaces with its real
+ * (): a driver that is present but broken surfaces with its real
  * cause instead of degrading the Simulated tier silently.
  */
 export const resolveSimulationProvider =
@@ -127,7 +127,7 @@ export const resolveSimulationProvider =
 			if (!isSubstrateAbsence(error)) throw error
 			// The driver or its substrate is genuinely not installed. The build
 			// has no Simulated tier available; the caller decides what that
-			// means (LT-256: it routes Static and records a census reason).
+			// means (: it routes Static and records a census reason).
 			provider = null
 		}
 		if (provider !== null && provider.seamVersion !== SIMULATION_SEAM_VERSION)

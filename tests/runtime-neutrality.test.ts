@@ -1,5 +1,5 @@
 /**
- * Source-level runtime-neutrality gate (LT-366, ADR 0038 s2).
+ * Source-level runtime-neutrality gate (ADR 0016 s2).
  *
  * `server/compiler/`'s own sources — both front ends and the shared
  * machinery — are pure computation over strings: no `Bun` global, no
@@ -8,10 +8,10 @@
  * `node:path`. Third-party dependencies are out of scope: what a package
  * requires at load is a dependency fact, not the compiler's.
  *
- * Since LT-480 (D-32) the directory also owns a FILE-SYSTEM seam — the
+ * Since  (D-32) the directory also owns a FILE-SYSTEM seam — the
  * corpus entry point discovers sources and writes artifacts — and that seam
  * may import the portable `node:` built-ins it needs (`node:fs`,
- * `node:fs/promises`, `node:crypto`), exactly as ADR 0038's runtime seam
+ * `node:fs/promises`, `node:crypto`), exactly as ADR 0016's runtime seam
  * always could. The carve-out is per module and deliberate: a new `node:`
  * import anywhere else still fails, and widening the seam's list is a
  * review-visible decision, not a drive-by.
@@ -21,7 +21,7 @@
  * `import x = require(…)`, a `require(…)` call and a dynamic `import(…)` are
  * all seen as nodes, whatever their formatting. A specifier must be a static
  * string, or name a module-level `const` bound to one (the simulation
- * resolver's driver specifier is held in a variable on purpose, ADR 0035
+ * resolver's driver specifier is held in a variable on purpose, ADR 0013
  * s4); anything else can't be checked and fails too.
  *
  * Browser loadability is NOT this gate's property — that belongs to ADR 0025
@@ -41,7 +41,7 @@ const COMPILER_DIR = path.resolve(import.meta.dir, '../src')
 const ALLOWED_BUILTINS: ReadonlySet<string> = new Set(['node:path'])
 
 /**
- * The file-system seam's own built-ins (D-32, LT-480): the corpus entry
+ * The file-system seam's own built-ins (D-32): the corpus entry
  * point's discovery and artifact writes live behind `fs.ts` and the catalog
  * pipeline (`i18n-catalog.ts`), and only these modules may reach past
  * `node:path`. Every member is a portable `node:` API — implemented by Bun,
@@ -271,7 +271,7 @@ describe('runtime-neutrality scanner', () => {
 	})
 })
 
-describe('src/ is runtime-neutral (ADR 0038 s2)', () => {
+describe('src/ is runtime-neutral (ADR 0016 s2)', () => {
 	const sources = compilerSources()
 
 	test('the scan reaches both front ends and the shared machinery', () => {

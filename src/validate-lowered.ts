@@ -1,6 +1,6 @@
 /**
- * The post-lowering validation tail, shared by both front ends (LT-202,
- * ADR 0032 sub-design 6: the anti-drift half of the dual front-end
+ * The post-lowering validation tail, shared by both front ends (
+ * ADR 0010 sub-design 6: the anti-drift half of the dual front-end
  * contract): every check that needs the lowered `root`, `config`, or the
  * extracted `expose()` argument. Front-end-neutral like the other
  * front-end stage modules: no parser values, only the loose `AstNode`
@@ -27,7 +27,7 @@ import { childNodes, walkTemplate } from './walk'
 /**
  * Report a `name` (static or bound) on a descendant `input`/`select`/
  * `textarea`/`button` inside a form-associated component's template
- * (LT-059, CHECKLIST §7): the inner control stays out of NATIVE form
+ * (CHECKLIST §7): the inner control stays out of NATIVE form
  * submission only because it's unnamed — the host submits via
  * `setFormValue` instead. A named inner control submits the field TWICE:
  * once via `setFormValue`, once natively. The markup looks entirely
@@ -71,7 +71,7 @@ const reportNamedFormControls = (
 
 /**
  * Report a loop whose output is a direct root of an `if`/`switch` branch
- * (LT-301) — `.tsrx` `@if (…) { … } @else { @for … }`, `.tsx`
+ * () — `.tsrx` `@if (…) { … } @else { @for … }`, `.tsx`
  * `{c ? <>{xs.map(…)}</> : …}` (fragments flatten, so the loop's items land
  * as the arm's roots). The server renders it correctly, but the client
  * addresses a branch by its roots: it binds the loop output with `first()`,
@@ -101,7 +101,7 @@ const reportLoopsInBranches = (
 }
 
 /**
- * LTC081's placement rules for handler args (LT-461). A handler arg carries
+ * LTC081's placement rules for handler args (). A handler arg carries
  * no value inside the component: the composing parent binds its handler on
  * the element that carries the arg, through a query from its own scope. So
  * the arg may be read in two positions only — an event attribute's value
@@ -212,39 +212,39 @@ const placementsOf = (
  * `resolveTemplateOutput` and `readModuleDecls` because every check below
  * needs `root`, `config`, or `expose.argNode`:
  *
- * - LTC039 (LT-122): one value, two channels. Skips the ROOT element (the
+ * - LTC039 (): one value, two channels. Skips the ROOT element (the
  *   root is the host, so a Parser prop rendered as its attribute is the
- *   correct channel) and the sanctioned override (LT-141); a
+ *   correct channel) and the sanctioned override (); a
  *   `formAssociated()`/`formAssociatedCheckbox()` host's reserved prop
  *   (`value`/`checked`) is a third exclusion — the root's own content
  *   attribute is the reset baseline, not a duplicate copy.
- * - LTC047 (LT-173, ADR 0030 sub-design 4): literal prose inside a
+ * - LTC047 (ADR 0009 sub-design 4): literal prose inside a
  *   component that declared `export const i18n`. Author-fixable, so a
  *   genuine compile warning that converges to zero — unlike a missing
  *   translation, which rides the build report's translation census instead.
  *   Two or more adjacent letters is the prose test: a single-letter fragment
  *   (a plural `s` suffix span) is per-instance page data, not catalog
  *   material.
- * - LTC055 (LT-250, ADR 0030 s4): every `t.<key>` site against the key's
+ * - LTC055 (ADR 0009 s4): every `t.<key>` site against the key's
  *   parsed ICU pattern — called with exactly its arguments, or read bare
  *   when it takes none (`reportMessageCallSites`, i18n.ts).
  * - `config.observedAttributes` must name Parser-exposed props only — a
  *   name that is not Parser-exposed would make the extension silently
  *   inert.
- * - LTC028 (LT-157a): an expose() key that is a reserved word or Object
+ * - LTC028 (): an expose() key that is a reserved word or Object
  *   builtin. Ungated: the runtime throws `InvalidPropertyNameError` before
- *   its `prop in this` guard, and since LT-155 contains that throw, this
+ *   its `prop in this` guard, and since  contains that throw, this
  *   rule is what the author actually sees.
- * - The LTC010 family (LT-058): a form-associated component's expose()
+ * - The LTC010 family (): a form-associated component's expose()
  *   naming a member the extension installs on the prototype — silently
  *   shadows it at the JS level. `value`/`checked` (config.form) are the
  *   deliberate exceptions the component MUST expose; the variant's own
- *   reset-baseline prop (`defaultValue`/`defaultChecked`, LT-057) is
+ *   reset-baseline prop (`defaultValue`/`defaultChecked`) is
  *   reserved too.
- * - LT-059: a form-associated component's inner native control must have
+ * - A form-associated component's inner native control must have
  *   no `name`.
- * - LT-301: a loop inside an `if`/`switch` branch is LTC005.
- * - LTC081 (LT-461): a handler arg read or placed where the composing
+ * - A loop inside an `if`/`switch` branch is LTC005.
+ * - LTC081 (): a handler arg read or placed where the composing
  *   parent cannot address it (`reportHandlerArgPlacements`).
  */
 export const validateLoweredComponent = (

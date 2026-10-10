@@ -1,5 +1,5 @@
 /**
- * ICU MessageFormat 1 at build time (ADR 0030 s4, LT-250): parse a message
+ * ICU MessageFormat 1 at build time (ADR 0009 s4): parse a message
  * pattern into the evaluator's AST, and read off the argument signature.
  *
  * Parse, don't compile. `@messageformat/parser` does the grammar; the
@@ -39,7 +39,7 @@ import type { Message, MessageNode } from './evaluate'
  * The value type an argument takes, from how the pattern uses it (LT-308
  * types each key from this): `plural`/`selectordinal`/`number` → number,
  * `date`/`time` → date, a `select` selector → string (its cases are keyed
- * by string), and a plain `{x}` → `plain`, a string or a number (LT-344):
+ * by string), and a plain `{x}` → `plain`, a string or a number ():
  * the evaluator renders it with `String(value)`. A date is not plain —
  * `String(date)` is the engine's locale-free `toString`; it belongs in
  * `{d, date}`. When one argument is used several ways, the narrowest use
@@ -276,7 +276,7 @@ const convert = (
  * Parse an MF1 pattern. Never throws: a syntax error or an unsupported
  * construct comes back as `{ ok: false, error }` — the compiler turns that
  * into a diagnostic for a source pattern, and a translation that fails to
- * parse falls back to the source (ADR 0030 s5: a translator's typo must not
+ * parse falls back to the source (ADR 0009 s5: a translator's typo must not
  * make a locale unbuildable).
  */
 export const parseMessage = (pattern: string): ParsedMessage => {
@@ -308,7 +308,7 @@ export const literalOf = (message: Message): string | null => {
 }
 
 /**
- * The client channel's source record for `keys` (ADR 0030 s9): each key's
+ * The client channel's source record for `keys` (ADR 0009 s9): each key's
  * source pattern as the client reads it — its literal text when
  * argument-less, else its parsed AST, else (unparseable) the raw pattern.
  * `emit-client.ts` inlines it as the preamble's `__i18nSource`;

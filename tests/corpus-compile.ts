@@ -1,6 +1,6 @@
 /**
  * The repo's shorthand caller of the corpus pass (ported from the source
- * repo's `server/corpus-compile.ts`; thin since LT-480, when the pass
+ * repo's `server/corpus-compile.ts`; thin since , when the pass
  * itself moved into the compiler package — `src/corpus.ts` — as the
  * published entry point, D-32).
  *
@@ -9,7 +9,7 @@
  * historical contract — "errors fail the build run", thrown AFTER the
  * artifacts are written — and the in-repo shorthand: a bare path means
  * "the repo's configuration, but write here", which is what tests do so
- * they never race the build (LT-140).
+ * they never race the build ().
  *
  * The full published form — scan the configured sources, compile, return
  * without throwing — is the package's `compileCorpus(config)`.
@@ -35,7 +35,7 @@ export type { CompiledSpanInfo }
  * configuration and FAIL the run on error diagnostics.
  *
  * `target` is the CONFIGURATION the run compiles under. Passing a bare path
- * is the shorthand for "the repo's config, but write here" (LT-140).
+ * is the shorthand for "the repo's config, but write here" ().
  */
 export const compileCorpus = async (
 	files: readonly CorpusFile[],

@@ -1,16 +1,16 @@
 /**
- * `@if`/`@else` addressing (LT-118): union addressing over branch roots,
+ * `@if`/`@else` addressing (): union addressing over branch roots,
  * extended to structurally DIFFERING branch roots via per-branch addressing.
  *
  * - Identical construct text on every branch root keeps union addressing
  *   byte-for-byte: ONE throwing query whose selector unions both roots —
- *   whichever branch rendered is the element found (LT-008).
+ *   whichever branch rendered is the element found ().
  * - DIFFERING constructs (different construct key sets, or the same key with
  *   different text — the shapes that used to be LTC005/"constructs differ"
  *   and LTC031/asymmetric) now route to per-branch addressing: each branch
  *   is addressed independently with a non-throwing `first()` and a
  *   `'guarded'` effect block — exactly how a plain `@try`'s two arms are
- *   addressed (LT-025), since the branches are different content, not the
+ *   addressed (), since the branches are different content, not the
  *   same construct duplicated.
  * - Exclusivity is structural: at most one branch's root exists in the DOM,
  *   so at most one guard is ever true — mutually-exclusive branches never
@@ -25,13 +25,13 @@ import { createGeneratedDir } from './helpers/generated-corpus'
 
 // Both fixtures below execute their generated module, so they need a per-run
 // directory rather than the build pipeline's output — `c-el` in particular
-// collides with server.golden.test.ts's fixture of the same tag (LT-140).
+// collides with server.golden.test.ts's fixture of the same tag ().
 const generated = createGeneratedDir('if-branches')
 afterAll(() => generated.cleanup())
 
 // `text` (the server arg) and `note` (the Parser-exposed prop) are
 // deliberately DIFFERENT names: a site rendering an arg that is also
-// a Parser prop is LTC039 (LT-122, one value through two channels),
+// a Parser prop is LTC039 (one value through two channels),
 // which these fixtures are not about.
 const wrap = (template: string, tag = 'c-el'): string =>
 	`export function C({ big, text }: { big?: boolean; text?: string })
@@ -142,7 +142,7 @@ describe('@if/@else union addressing over differing branch roots (LT-118)', () =
 		// aware counting calls them unique) — per-branch resolution must
 		// skip them for the class discriminator, or the two guards would
 		// both bind the one rendered button.
-		// Class discriminators are TOKEN clauses since LT-124, and
+		// Class discriminators are TOKEN clauses since , and
 		// `matchesSelector` must recognize them or the collision check
 		// above silently stops rejecting anything.
 		expect(maybeQueries(code).sort()).toEqual(['button.buy', 'button.sell'])
@@ -215,7 +215,7 @@ describe('@if/@else union addressing over differing branch roots (LT-118)', () =
 		// STATEMENTS, so `+` or `plain text` is read as JavaScript, not as a
 		// text child. Pinned because assuming otherwise is what produced both
 		// an unparseable form-spinbutton source and this file's original
-		// version of the test above (LT-118). Wrap text in an element.
+		// version of the test above (). Wrap text in an element.
 		const bare = compile(`@if (big) {
 			<strong class="cta" onClick={() => {}}>a</strong>
 		} @else {
@@ -296,7 +296,7 @@ import { asString } from '@zeix/le-truc'`
 				<>+</>
 			}`,
 		)
-		// The exact shape LT-118 could not express: two elements in one
+		// The exact shape  could not express: two elements in one
 		// branch, each with its own client constructs and its own `first()`.
 		expect(diagnostics.filter(d => d.severity === 'error')).toEqual([])
 		const code = component?.clientCode ?? ''

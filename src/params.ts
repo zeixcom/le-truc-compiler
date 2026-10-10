@@ -1,8 +1,8 @@
 /**
  * The component function's params contract, shared by both front ends
- * (LT-202, ADR 0032 sub-design 6: the anti-drift half of the dual
+ * (ADR 0010 sub-design 6: the anti-drift half of the dual
  * front-end contract): exactly one destructured args object (LTC008)
- * plus, per the LT-209 convention, an optional author-annotated
+ * plus, per the  convention, an optional author-annotated
  * factory-context parameter. Front-end-neutral like the other front-end
  * stage modules: no parser values, only the loose `AstNode` type.
  */
@@ -41,7 +41,7 @@ export type ComponentParams = {
 		annotationName: 'FactoryContext' | 'FormFactoryContext' | null
 		/**
 		 * The written type reference, when `annotationName` names one of
-		 * the two checked types (LT-358b) — LTC050 reports its range.
+		 * the two checked types  — LTC050 reports its range.
 		 */
 		annotation: AstNode | null
 	} | null
@@ -49,7 +49,7 @@ export type ComponentParams = {
 
 /**
  * Validate the component function's parameter list: exactly one destructured
- * args object (LTC008) — plus, per the LT-209 convention, an optional
+ * args object (LTC008) — plus, per the  convention, an optional
  * second, author-annotated factory-context parameter. Pushes the diagnostic
  * and returns null otherwise. A destructured default paired with a
  * non-optional type is LTC032 (CHECKLIST §10): the type annotation is what
@@ -84,13 +84,13 @@ export const extractParams = (
 				diagnostic.defaultOnRequiredProp(ctx.source, prop, bindingName),
 			)
 	}
-	// LT-258 (ADR 0034 s4): the reserved `i18n` record yields only the
+	//  (ADR 0012 s4): the reserved `i18n` record yields only the
 	// declared page-ambient members.
 	ctx.diagnostics.push(...ambientRecordViolations(ctx.source, paramsNode))
 	ctx.handlerArgs = readHandlerArgs(ctx, paramsNode)
 	ctx.childrenContract = readChildrenContract(ctx, paramsNode)
 
-	// The factory-context parameter (LT-209): the author's opt IN to precise
+	// The factory-context parameter : the author's opt IN to precise
 	// context typing. Names shadow the profile ambients at function scope;
 	// the compiler only validates the vocabulary — the generated factory
 	// destructures the same names, so body lowering is unchanged. Type-only
@@ -135,7 +135,7 @@ export const extractParams = (
  * (bare or generic), null for anything else (an inline type literal, an
  * alias the compiler cannot see through — nothing to check against, the
  * same don't-flag-what-you-can't-see posture as `isOptionalBinding`).
- * `annotation` is the written type, for LTC050's range (LT-358b).
+ * `annotation` is the written type, for LTC050's range .
  *
  * Both parsers keep an estree-shaped `typeAnnotation` on the parameter
  * pattern.
@@ -162,7 +162,7 @@ const contextAnnotationName = (
 }
 
 /**
- * The handler args of the args pattern (LT-461), binding name → arg name:
+ * The handler args of the args pattern , binding name → arg name:
  * every top-level arg named `on` plus a capital letter. Its type is read
  * syntactically from the parameter annotation — an inline type literal, a
  * same-file alias or interface, an intersection of those — with no checker;
@@ -248,8 +248,8 @@ const argTypeOf = (
 }
 
 /**
- * The declared contract of the component's `children` arg (ADR 0048 s2,
- * LT-474), read from its `Children<Roles, Model>` annotation: the roles the
+ * The declared contract of the component's `children` arg (ADR 0026 s2,
+ * ), read from its `Children<Roles, Model>` annotation: the roles the
  * child may address the passed content through and the declared content
  * model. The shape is the IR's `ChildrenContractIR` — the record rides the
  * IR for the analysis layer (LTC083's deferred-reference leg).
@@ -302,7 +302,7 @@ const rolesLiteralOf = (
  * same-file alias — the same readable shape `rolesLiteralOf` accepts.
  * Anything else (an imported name, a union) reads null: tsc owns it, the
  * `Model` union constraint rejects anything but `'any'`/`'non-interactive'`
- * at authored typecheck (LT-477).
+ * at authored typecheck .
  */
 const modelLiteralOf = (
 	ctx: ExtractContext,
@@ -338,7 +338,7 @@ export const readChildrenContract = (
 	const reference = childrenReferenceOf(ctx, member)
 	// An annotation the compiler cannot see through — an imported alias of
 	// `Children`, a qualified name, an imported custom type — may still
-	// declare roles the author wrote (LT-474 review): recorded as
+	// declare roles the author wrote ( review): recorded as
 	// `unreadable`, so LTC083's copy does not name a role the author
 	// declared. A readable non-reference (`children?: string`) declares no
 	// roles and keeps the plain read.
@@ -355,7 +355,7 @@ export const readChildrenContract = (
 	const rolesLiteral = rolesLiteralOf(ctx, typeArgs[0] as AstNode | undefined)
 	// A roles argument that is present but unreadable — an imported name,
 	// a union, anything but an inline type literal or its same-file alias —
-	// is the same recorded unreadability (LT-474 review). An ABSENT
+	// is the same recorded unreadability ( review). An ABSENT
 	// argument declares no roles and reads plain.
 	const unreadable = rolesLiteral === null && typeArgs[0] !== undefined
 	if (rolesLiteral)
@@ -389,7 +389,7 @@ export const readChildrenContract = (
 			? modelValue
 			: // A model argument present but unreadable — an imported name, a
 				// union, anything but the inline literal or its same-file alias —
-				// is not a declaration the compiler can act on (LT-477): tsc
+				// is not a declaration the compiler can act on : tsc
 				// owns it, and the absence of a readable 'non-interactive'
 				// keeps the compose-site check off.
 				modelValue === null && modelArg !== undefined

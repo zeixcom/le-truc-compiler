@@ -1,14 +1,14 @@
 /**
- * Stage-1 server-simulation driver (ADR 0027 sub-design 7, LT-154).
+ * Stage-1 server-simulation driver (ADR 0006 sub-design 7).
  *
  * Runs the WHOLE `.tsrx` corpus (`server/generated/components/` scope only — page
- * chrome is out of stage 1, LT-152) through the driver in `server/compiler/sim/`:
+ * chrome is out of stage 1) through the driver in `server/compiler/sim/`:
  * one shared realm, each component's client module loaded exactly once
  * (`realm.load()`'s own assertion enforces that — see `realm.ts`), every
  * component rendered from its server-rendered markup through the hermetic-
  * quiescence boundary, children-first replay driven by the compiler's
  * compose graph (`RegistryEntry.composesTags`). Disposal happens once, at
- * the end of this whole file (end-of-process posture, LT-152 review) — not
+ * the end of this whole file (end-of-process posture review) — not
  * between renders.
  *
  * Fixture-pinned: this is what "the old render function remains the
@@ -18,19 +18,19 @@
  * `--update-snapshots`) or a driver regression — same posture as
  * `server.golden.test.ts` for hand-picked tags, but corpus-wide and through
  * the simulation rather than the template alone. `server.golden.test.ts`
- * itself is unaffected in kind (LT-164): template lowering does not retire
- * (ADR 0027 sub-design 1), so the server modules stay byte-pinned there.
+ * itself is unaffected in kind : template lowering does not retire
+ * (ADR 0006 sub-design 1), so the server modules stay byte-pinned there.
  *
- * The simulated goldens are PER-SUBSTRATE bytes (LT-153 decision 3, LT-164).
+ * The simulated goldens are PER-SUBSTRATE bytes (LT-153 decision 3).
  * Inline-style serialization is substrate-specific: happy-dom terminates
  * inline custom-property declarations with `;` where jsdom omits it
- * (LT-152), so swapping the substrate re-baselines every snapshot in this
+ * , so swapping the substrate re-baselines every snapshot in this
  * file at once. A mass re-baseline immediately after a substrate change is
  * the expected shape, not a behavior change. A single tag moving with NO
  * substrate change is the dangerous kind — treat it as a behavior change or
  * a driver regression.
  *
- * Two corpus invariants live here too (LT-164):
+ * Two corpus invariants live here too :
  *
  * - The double-connect fixed-point gate (sub-design 8): every fixture feeds
  *   its own output back through a second `realm.render()`, mirroring the
@@ -57,7 +57,7 @@ import {
 	createSimulationRealm,
 	type JsdomSimulationRealm,
 } from '../src/sim/realm'
-// LT-165 step 8: the args table and the tag→render-fn mapping moved to
+//  step 8: the args table and the tag→render-fn mapping moved to
 // `corpus-args.ts` so the equivalence audit (equivalence-audit.test.ts)
 // drives BOTH mechanisms from the identical fixture inputs this file uses —
 // one copy, no drift. Data is unchanged.
@@ -79,12 +79,12 @@ const registry = JSON.parse(
 	await Bun.file(`${generated.path}/registry.internal.json`).text(),
 ) as InternalComponentRegistry
 
-// One realm for the whole corpus (ADR 0027 sub-design 2/10): disposed once,
+// One realm for the whole corpus (ADR 0006 sub-design 2/10): disposed once,
 // after every render this file will ever do — never between them (LT-152
 // review's disposal finding).
 const realm = createSimulationRealm({
 	composesTags: tag => registry[tag]?.composesTags ?? [],
-	// LT-165 step 7: revert each unresolvable expression's site to its
+	//  step 7: revert each unresolvable expression's site to its
 	// skeleton state after the drain — a no-op while no corpus component
 	// carries records, and what keeps the fixed-point gate below honest
 	// the day one does (the synthetic pin in suppression.test.ts).
@@ -142,7 +142,7 @@ describe('stage-1 server-simulation driver — corpus fixtures (LT-154)', () => 
 				await serverMarkupOf(info),
 			)
 			expect(html).toContain(`<${info.tag}`)
-			// Double-connect fixed-point gate (sub-design 8, LT-164): the
+			// Double-connect fixed-point gate (sub-design 8): the
 			// browser parses the simulation's own output and runs connect
 			// AGAIN over it, so enhancement must be idempotent over what
 			// enhancement produced. Feed the first pass's output back through
@@ -153,7 +153,7 @@ describe('stage-1 server-simulation driver — corpus fixtures (LT-154)', () => 
 				throw new Error(
 					`${info.tag} is not a connect fixed point: feeding the ` +
 						'simulated output back through a second connect pass produced ' +
-						'different markup (ADR 0027 sub-design 8). The browser parses ' +
+						'different markup (ADR 0006 sub-design 8). The browser parses ' +
 						'the served HTML and runs connect again over it, so this ' +
 						'component would change after hydration. Make the second pass ' +
 						'byte-identical.',
@@ -163,9 +163,9 @@ describe('stage-1 server-simulation driver — corpus fixtures (LT-154)', () => 
 	}
 
 	test('form-tokenbox: the client-message attribute stays in the low hundreds of bytes (LT-219)', async () => {
-		// ADR 0030 s9's payload measure: only client-referenced keys the
+		// ADR 0009 s9's payload measure: only client-referenced keys the
 		// locale changes ride the attribute, as parsed ASTs. At en every key
-		// equals the source, so there is none (LT-354); at de tokenbox
+		// equals the source, so there is none ; at de tokenbox
 		// carries three event-time messages, and the served attribute
 		// (entity-escaped, as the page ships it) must stay small enough that
 		// per-instance duplication is noise.
@@ -202,7 +202,7 @@ describe('stage-1 server-simulation driver — corpus fixtures (LT-154)', () => 
 	})
 
 	test('module-lazyload: the served instance keeps its arms through simulated connect', async () => {
-		// LT-449: the compiled component OWNS its markup (the twin's
+		//: the compiled component OWNS its markup (the twin's
 		// missing-required-element demo instance is retired with the
 		// scenario), so the simulated connect runs over the compiled server
 		// render: the pending arm live, the three arm templates inert beside
@@ -227,7 +227,7 @@ describe('stage-1 server-simulation driver — corpus fixtures (LT-154)', () => 
 		// The docs build's page order: module-coloreditor's last occurrence,
 		// then module-lazyload's demo instance. Detaching coloreditor's tree
 		// restores its composed form-colorgraph's passed `value`, which
-		// re-fires the child's canvas effects — before LT-335 that ran in
+		// re-fires the child's canvas effects — before  that ran in
 		// lazyload's window and failed the build on two unclassified
 		// `getContext` notices against a component with no canvas.
 		const tagged = (tag: string) => {
@@ -309,8 +309,8 @@ describe('build-report baseline (LT-163) — the wave-4 regression signal', () =
 			expect(formatSimReport(report)).toContain(classification.reason)
 	})
 
-	test('the tier census rides its own channel, never the diagnostic one (ADR 0029 s6)', () => {
-		// The census (LT-165 step 6) is a second KIND of build-report record,
+	test('the tier census rides its own channel, never the diagnostic one (ADR 0008 s6)', () => {
+		// The census ( step 6) is a second KIND of build-report record,
 		// not a diagnostic: none of its reasons may be admitted by — or be
 		// needed by — the classification table, and the zero-unclassified gate
 		// above is unchanged by the census's existence. A census record that
@@ -384,7 +384,7 @@ describe('two-order hermeticity (sub-design 10, LT-164)', () => {
 							`was rendered in two orders and ${tag}'s output differs ` +
 							`(first difference at char ${at}). State is leaking between ` +
 							'renders or the children-first replay is order-sensitive ' +
-							'(ADR 0027 sub-design 10) — renders must stay isolated on ' +
+							'(ADR 0006 sub-design 10) — renders must stay isolated on ' +
 							'the shared registry.',
 					)
 				}
@@ -393,7 +393,7 @@ describe('two-order hermeticity (sub-design 10, LT-164)', () => {
 				// end-of-its-renders posture, not a between-renders disposal.
 				// It must dispose BEFORE the file-level realm (its restores
 				// re-install realm's patches), and this test is the file's last.
-				// Awaited: the restores follow the final settle (LT-411), so an
+				// Awaited: the restores follow the final settle , so an
 				// un-awaited dispose would race the file realm's own afterAll.
 				await realm2.dispose()
 			}

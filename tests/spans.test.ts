@@ -1,5 +1,5 @@
 /**
- * Unit tests for the LT-011 span table (ADR 0024 sub-design 6 amendment,
+ * Unit tests for the  span table (ADR 0005 sub-design 6 amendment,
  * stage 1): `appendWithSpans` records generated-file ↔ source-file offsets
  * for verbatim slices (setup statements, thunks, handlers), and
  * `check:corpus` uses `fileLineColToOffset`/`fileOffsetToLineCol`/
@@ -92,7 +92,7 @@ describe('appendWithSpans', () => {
 		expect(second.sourceStart).toBe(200 + 'handler(a,\n    '.length)
 	})
 
-	test('lines inside a template literal pass through untouched (LT-010)', () => {
+	test('lines inside a template literal pass through untouched', () => {
 		const lines: string[] = []
 		const spans: SourceSpan[] = []
 		const cursor = { offset: 0 }

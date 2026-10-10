@@ -1,6 +1,6 @@
 /**
- * The catalog pipeline's build half (ADR 0030 sub-designs 4+5, LT-173;
- * moved from `server/effects/i18n.ts` into the compiler package at LT-480,
+ * The catalog pipeline's build half (ADR 0009 sub-designs 4+5;
+ * moved from `server/effects/i18n.ts` into the compiler package at ,
  * D-32 — the corpus pass writes the `i18n` module itself).
  *
  * Source-locale strings live INLINE in each authored source
@@ -19,23 +19,23 @@
  *   made against. Override present + manifest hash ≠ current source hash
  *   ⇒ `stale`; no override ⇒ `missing`. A manifest that exists but does
  *   not read as a JSON object is one `malformed` record on the file, and
- *   no `stale` is reported until it is fixed (LT-430).
+ *   no `stale` is reported until it is fixed ().
  * - the translation census (`translationCensus`, `census.ts`) and the
  *   gitignored machine-readable report (`writeI18nReport`). The census
- *   walks BOTH directions (LT-196): declared keys missing from a catalog
+ *   walks BOTH directions (): declared keys missing from a catalog
  *   (`missing`/`stale`) and catalog keys nothing declares (`orphaned` —
  *   a translator's typo, a renamed key, a deleted component). A catalog
  *   value that is not a string reports `malformed` in either direction
- *   (LT-249) — never silently dropped.
+ *   () — never silently dropped.
  *
- * The build stays READ-ONLY over tracked files (ADR 0030 sub-design 5):
+ * The build stays READ-ONLY over tracked files (ADR 0009 sub-design 5):
  * writing missing keys into `<i18nDir>/<locale>.json` is the separate,
  * person-run `i18n:sync` script (scripts/i18n-sync.ts), never this
  * pipeline.
  *
  * No repo fact lives here: the catalog directory is the caller's
  * configuration (`i18nDir`), and the locales the generated module
- * enumerates come from the configuration too (`locales`, LT-480) — the
+ * enumerates come from the configuration too (`locales`) — the
  * default being this repo's own site locales, as with every default.
  */
 
@@ -57,17 +57,17 @@ import type { InternalRegistryEntry } from './registry'
 /**
  * The source locale — the language the inline strings are written in, and
  * the locale every catalog resolves against before an override lands
- * (ADR 0030 sub-design 5). The source locale has NO override file: its
+ * (ADR 0009 sub-design 5). The source locale has NO override file: its
  * strings live in the component sources themselves.
  */
 export const SOURCE_LOCALE = 'en'
 
 /**
  * The record's formatting configuration, given the corpus's locales (the
- * configuration's `locales` list, LT-480).
+ * configuration's `locales` list).
  *
  * The page locale is per-page input supplied by the caller — `i18nRecord`'s
- * `lang` argument (LT-174). What survives as a constant is the FALLBACK:
+ * `lang` argument (). What survives as a constant is the FALLBACK:
  * the locale a record resolves at when no caller supplies one, which is
  * the FIRST configured locale.
  *
@@ -89,7 +89,7 @@ export const buildI18n = (locales: readonly string[]) =>
 /**
  * Primary language subtags written right-to-left — the input to the
  * record's `dir` field. There is no platform API for direction-from-locale
- * (unlike plural categories, ADR 0030 sub-design 6), so this is a
+ * (unlike plural categories, ADR 0009 sub-design 6), so this is a
  * hand-maintained table of the standard RTL languages; a BCP 47 tag whose
  * PRIMARY subtag is not listed resolves `ltr`. Deliberately minimal: `dir`
  * is exposed for components whose LOGIC is direction-aware, and actual
@@ -120,7 +120,7 @@ export type Catalogs = {
 	/**
 	 * Per locale: the override map keyed by `<tag>.<key>`, values as the
 	 * catalog file carries them. A value that is not a string (a nested
-	 * group, a number) is data the census reports `malformed` (LT-249);
+	 * group, a number) is data the census reports `malformed` ();
 	 * only the string entries reach {@link I18nCollection}.
 	 */
 	overrides: Map<string, Record<string, unknown>>
@@ -133,7 +133,7 @@ export type Catalogs = {
 	manifest: Map<string, Record<string, string>>
 	/**
 	 * Per locale whose catalog file exists but cannot be used — it does not
-	 * parse as JSON, or its top level is not an object (LT-356): why. Its
+	 * parse as JSON, or its top level is not an object (): why. Its
 	 * `overrides` entry is empty. The census records the file once instead
 	 * of reporting every declared key `missing`, and `i18n:sync` refuses to
 	 * write the locale. Absent from injected test catalogs = none.
@@ -141,7 +141,7 @@ export type Catalogs = {
 	unreadable?: Map<string, string>
 	/**
 	 * Why `manifest.json` exists but cannot be used — it does not parse as
-	 * JSON, or its top level is not an object (LT-430). `manifest` is then
+	 * JSON, or its top level is not an object (). `manifest` is then
 	 * empty. The census records the file once and skips the stale
 	 * comparison, and `i18n:sync` refuses to write anything. An ABSENT
 	 * manifest is the first-run empty state, not unreadable.
@@ -159,7 +159,7 @@ const asStringRecord = (value: unknown): Record<string, string> =>
 		: {}
 
 /**
- * Read one catalog file: its entries, or why it cannot be used (LT-356).
+ * Read one catalog file: its entries, or why it cannot be used ().
  * A file that does not parse, or whose top level is not an object, is
  * UNREADABLE — never an empty catalog, which the census would misreport as
  * every key `missing` and `i18n:sync` would overwrite with placeholders.
@@ -172,7 +172,7 @@ const readCatalog = async (
 		value = JSON.parse(await readTextFile(path))
 	} catch (error) {
 		// An ABSENT file reads as empty: the manifest's first-run state
-		// (LT-430). A listed catalog file is absent only if it vanished.
+		// (). A listed catalog file is absent only if it vanished.
 		if ((error as NodeJS.ErrnoException)?.code === 'ENOENT')
 			return { catalog: {} }
 		return { error: error instanceof Error ? error.message : String(error) }
@@ -184,7 +184,7 @@ const readCatalog = async (
 
 /**
  * The committed catalogs under `i18nDir` — the one reader the build and
- * `i18n:sync` share (LT-356), so neither can mistake an unreadable file
+ * `i18n:sync` share (), so neither can mistake an unreadable file
  * for an empty one.
  */
 export const readCatalogs = async (i18nDir: string): Promise<Catalogs> => {
@@ -194,7 +194,7 @@ export const readCatalogs = async (i18nDir: string): Promise<Catalogs> => {
 	try {
 		// Sorted: readdir order is the runtime's, and the locale order flows
 		// into the generated module, the census and the report — which must
-		// not differ between runtimes (LT-267).
+		// not differ between runtimes ().
 		for (const file of await readDir(i18nDir)) {
 			if (!file.endsWith('.json') || file === 'manifest.json') continue
 			const locale = file.replace(/\.json$/, '')
@@ -208,7 +208,7 @@ export const readCatalogs = async (i18nDir: string): Promise<Catalogs> => {
 	} catch {
 		// No i18n directory yet: zero locales, zero gaps.
 	}
-	// The manifest is read like a catalog file (LT-430): unreadable is
+	// The manifest is read like a catalog file (): unreadable is
 	// reported, never read as "no recorded sources" — which would read
 	// every carried translation as stale, and let `i18n:sync` overwrite
 	// every locale's recorded source hashes.
@@ -243,15 +243,15 @@ export type I18nCollection = {
 }
 
 /**
- * Walk BOTH directions between declarations and catalogs (ADR 0030
- * sub-design 5, LT-196). The declared-key walk below asks "does every
- * declared key have a translation?"; the orphan walk (LT-196) asks the
+ * Walk BOTH directions between declarations and catalogs (ADR 0009
+ * sub-design 5). The declared-key walk below asks "does every
+ * declared key have a translation?"; the orphan walk () asks the
  * inverse — "does every catalog key have a declaration?" — because a
  * translator's typo, a renamed key, or a deleted component otherwise
  * leaves residue in the catalogs that nothing ever reports. `catalogs` is
  * injectable for tests; production reads the committed catalogs under
  * `i18nDir` — this repo's `i18n/` by default, a consumer's wherever their
- * config puts it (LT-255).
+ * config puts it ().
  */
 export const collectI18n = async (
 	entries: readonly InternalRegistryEntry[],
@@ -270,7 +270,7 @@ export const collectI18n = async (
 		unreadableManifest,
 	} = catalogs ?? (await readCatalogs(i18nDir as string))
 	const sources = new Map<string, Record<string, string>>()
-	// Split each catalog into its string entries and the rest (LT-249): a
+	// Split each catalog into its string entries and the rest (): a
 	// non-string value — most naturally a group nested "under the
 	// component" instead of the flat `<tag>.<key>` compound — is
 	// `malformed` in its locale, declared or not, and never `missing` or
@@ -278,7 +278,7 @@ export const collectI18n = async (
 	// do neither to an entry whose intended shape it cannot know.
 	const overrides = new Map<string, Record<string, string>>()
 	const malformed: TranslationGap[] = []
-	// An unreadable manifest (LT-430) is one record on the file, across
+	// An unreadable manifest () is one record on the file, across
 	// every locale, and no `stale` anywhere: without recorded sources no
 	// translation can be compared, and reporting every carried key stale
 	// would blame the translations for a syntax error.
@@ -290,7 +290,7 @@ export const collectI18n = async (
 			detail: `the staleness manifest is unreadable, so no translation is checked for staleness — ${unreadableManifest}`,
 		})
 	for (const locale of locales) {
-		// An unreadable catalog FILE (LT-356) is one `malformed` record on
+		// An unreadable catalog FILE () is one `malformed` record on
 		// the file, not one `missing` per declared key — those would blame
 		// the translator's keys for a syntax error. Its locale renders the
 		// source strings, exactly as an empty catalog would.
@@ -325,7 +325,7 @@ export const collectI18n = async (
 		byTag.set(entry.tag, entry)
 		if (!entry.i18nMessages) continue
 		sources.set(entry.tag, entry.i18nMessages)
-		// The client channel's narrowed evaluator (LT-218) carries the node
+		// The client channel's narrowed evaluator () carries the node
 		// kinds of the component's client-referenced SOURCE messages; the
 		// construct-coverage walk asks the same question of each translation.
 		const clientKeys = new Set(entry.clientMessageKeys ?? [])
@@ -367,9 +367,9 @@ export const collectI18n = async (
 			}
 		}
 	}
-	// The orphan walk (LT-196): catalog keys nothing declares — a
+	// The orphan walk (): catalog keys nothing declares — a
 	// translator's typo, a renamed key, a deleted component. Every locale
-	// carries the same key set (one ICU pattern per key, LT-251), so an
+	// carries the same key set (one ICU pattern per key), so an
 	// undeclared key is an orphan in every locale, unconditionally.
 	for (const locale of locales) {
 		const localeOverrides = overrides.get(locale) ?? {}
@@ -419,7 +419,7 @@ export type LocaleSync = {
  * census records. A `missing` key lands as an empty placeholder; an
  * `orphaned` key is pruned with its manifest entry; everything else
  * `collectI18n` reports about an entry itself — `malformed` included,
- * whether unparseable (LT-219) or not a string at all (LT-249) — is
+ * whether unparseable () or not a string at all () — is
  * flagged and left alone: only a translator knows what it should have
  * been, so sync must not guess a shape. Every carried STRING entry with a
  * declared source is confirmed against the current source hash.
@@ -457,7 +457,7 @@ export const syncLocale = (
 		} else result.flagged.push(gap)
 	}
 	for (const [compound, value] of Object.entries(next)) {
-		// A non-string entry is not a translation of anything yet (LT-249).
+		// A non-string entry is not a translation of anything yet ().
 		if (typeof value !== 'string') continue
 		const dot = compound.indexOf('.')
 		const source =
@@ -476,7 +476,7 @@ export const syncLocale = (
 }
 
 /**
- * The pattern-integrity walks over one translation (ADR 0030 s5, LT-219) —
+ * The pattern-integrity walks over one translation (ADR 0009 s5) —
  * report records, never build errors: a catalog is translator-paced data,
  * and every finding here still renders something (the source, or `other`).
  * An empty entry is `i18n:sync`'s placeholder, not a translation. `carried`
@@ -545,14 +545,14 @@ const byKey = (a: [string, unknown], b: [string, unknown]): number =>
 	a[0] < b[0] ? -1 : 1
 
 /**
- * One catalog value as the generated module carries it (LT-250, ADR 0030
+ * One catalog value as the generated module carries it (ADR 0009
  * s4): an argument-less pattern as its literal text — MF1 escapes resolved,
  * so `t.<key>` is the same string it always was — and a pattern with
  * arguments as its parsed AST, which `i18nRecord` wraps in a function over
  * the shared evaluator. Null for a pattern that does not parse: a source
  * pattern like that is already LTC055; a translation like that falls back
- * to the source (ADR 0030 s5 — a translator's typo must not make a locale
- * unbuildable; the census reports it, LT-219).
+ * to the source (ADR 0009 s5 — a translator's typo must not make a locale
+ * unbuildable; the census reports it).
  */
 const compiledEntry = (pattern: string): string | Message | null => {
 	const parsed = parseMessage(pattern)
@@ -617,7 +617,7 @@ const i18nModuleText = (
 	const sourcesEntries = entriesText(sources)
 	const overrideEntries = entriesText(overrides)
 	return `/**
- * Generated by the Le Truc i18n pipeline (ADR 0030, LT-173) — DO NOT EDIT.
+ * Generated by the Le Truc i18n pipeline (ADR 0009) — DO NOT EDIT.
  * Source catalogs fold in each component's \`export const i18n\`; overrides
  * fold in the committed \`i18n/<locale>.json\` files. The staleness
  * manifest lives in the committed \`i18n/manifest.json\` — regenerate this
@@ -635,7 +635,7 @@ type Message = never
 `
 }
 /**
- * The reserved record, generic over its \`t\` shape (LT-308): each generated
+ * The reserved record, generic over its \`t\` shape (): each generated
  * server module instantiates it with the component's exact per-key record.
  */
 export interface I18n<T = Record<string, string>> {
@@ -646,7 +646,7 @@ ${Object.entries(PAGE_AMBIENT_TYPES)
 
 /**
  * The locale a record resolves at when the caller supplies none — the
- * default locale of \`I18N_LOCALES\` (ADR 0030 sub-design 1).
+ * default locale of \`I18N_LOCALES\` (ADR 0009 sub-design 1).
  */
 export const I18N_PAGE_LOCALE = ${JSON.stringify(build.pageLocale)}
 
@@ -666,7 +666,7 @@ const RTL_LANGUAGES: ReadonlySet<string> = new Set(${JSON.stringify([...RTL_LANG
 /**
  * Inline source catalogs, per component tag: key → the message. An
  * argument-less ICU pattern is its literal text; one with arguments is its
- * parsed AST (LT-250).
+ * parsed AST ().
  */
 const SOURCES: Record<string, Record<string, string | Message>> = {
 ${sourcesEntries}
@@ -682,7 +682,7 @@ ${overrideEntries}
 }
 
 /**
- * The reserved \`i18n\` record for one component at one locale (ADR 0030
+ * The reserved \`i18n\` record for one component at one locale (ADR 0009
  * sub-design 2). A key resolves in exactly one place: the locale's
  * override when one is present, else the inline source message
  * (sub-design 5's fallback — a missing key is a census record, never a
@@ -708,7 +708,7 @@ export function i18nRecord<T = Record<string, string>>(
 			continue
 		}
 		const env = { lang: locale, timeZone: I18N_TIME_ZONE, currency: I18N_CURRENCY }
-		// The AST rides the closure for the client channel (LT-218): a
+		// The AST rides the closure for the client channel (): a
 		// client-referenced key serializes it into the root \`i18n\` attribute.
 		t[key] = Object.assign(
 			(args: Record<string, unknown>) => formatMessage(message, args, env),
@@ -721,7 +721,7 @@ export function i18nRecord<T = Record<string, string>>(
 	return {
 		lang: locale,
 		// The catalog is keyed by tag at runtime; the caller's render
-		// signature states the tag's exact per-key record (LT-308).
+		// signature states the tag's exact per-key record ().
 		t: t as unknown as T,
 		timeZone: I18N_TIME_ZONE,
 		currency: I18N_CURRENCY,
@@ -735,7 +735,7 @@ export function i18nRecord<T = Record<string, string>>(
  * Write the generated `i18n` module into the same directory as the other
  * generated artifacts (generated server modules address it as `./i18n`).
  * `runtimeImport` is the generated server modules' own harness specifier
- * (LT-255): a catalog with argument messages imports the shared evaluator
+ * (): a catalog with argument messages imports the shared evaluator
  * from there.
  */
 export const writeI18nModule = async (
@@ -750,7 +750,7 @@ export const writeI18nModule = async (
 	)
 }
 
-/** The gitignored machine-readable report (ADR 0030 sub-design 5). */
+/** The gitignored machine-readable report (ADR 0009 sub-design 5). */
 export const writeI18nReport = async (
 	outDir: string,
 	collection: I18nCollection,

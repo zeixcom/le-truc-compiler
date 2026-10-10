@@ -1,5 +1,5 @@
 /**
- * A signal initializer reading a Parser-backed `host` prop (LT-451), on both
+ * A signal initializer reading a Parser-backed `host` prop (), on both
  * surfaces. The shape — `expose({ seed: asJSON(…) })`, then
  * `createList(host.seed, { keyConfig })` under a root `seed={…}` — compiled
  * clean and miscompiled three ways; each is pinned here:
@@ -12,7 +12,7 @@
  * - a substituted declaration keeps the call's other arguments, so the
  *   client's list is keyed by `keyConfig` and `byKey` resolves.
  *
- * A prop with no server truth (no root attribute) routes per ADR 0029
+ * A prop with no server truth (no root attribute) routes per ADR 0008
  * instead: the signal leaves the server scope and the component goes to the
  * realm. A literal-free list rendered directly over `host.seed` takes the
  * verbatim route, as a literal seed does.
@@ -203,7 +203,7 @@ describe('a list seeded from a Parser-backed host prop (LT-451)', () => {
 	}
 })
 
-/* === A prop with no server truth routes per ADR 0029 === */
+/* === A prop with no server truth routes per ADR 0008 === */
 
 describe('a host prop with no root attribute routes the signal to the realm (LT-451)', () => {
 	for (const surface of SURFACES) {

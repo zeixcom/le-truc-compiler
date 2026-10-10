@@ -1,11 +1,11 @@
 /**
  * Server-Simulation driver: patch table, realm application, and the
- * hermetic-quiescence serialization boundary (ADR 0027 sub-designs 2, 9 and
- * 10, LT-151, amended LT-154).
+ * hermetic-quiescence serialization boundary (ADR 0006 sub-designs 2, 9 and
+ * 10, amended ).
  *
  * These tests define their components inline through the realm's recording
  * registry rather than importing generated modules, so they exercise the
- * DRIVER without depending on `server/generated/` (the LT-140 race). The
+ * DRIVER without depending on `server/generated/` (the  race). The
  * cross-runtime equivalence of a real generated component is
  * `scripts/sim-portability-check.ts`.
  */
@@ -63,13 +63,13 @@ const globalRecord = globalThis as unknown as Record<string, unknown>
 /**
  * Import the library INSIDE a realm, as that realm's OWN module instance.
  *
- * One module cache per process (ADR 0027 sub-design 10) applies to the
+ * One module cache per process (ADR 0006 sub-design 10) applies to the
  * library too, and it bites harder there than for a client module:
  * `src/helpers/context.ts` captures the ambient `Event` when it evaluates
  * (`class ContextRequestEvent extends Event`), so a library instance
  * evaluated under an EARLIER realm dispatches an event that a LATER realm's
  * jsdom rejects as foreign. The connect then fails, the library contains it
- * (ADR 0028 tier 2), and the component degrades — which LT-180's host-console
+ * (ADR 0007 tier 2), and the component degrades — which the ticket's host-console
  * capture now surfaces as a build-report entry, against whichever realm ran
  * second. A per-import token gives each realm a library bound to its own
  * globals, and leaves the canonical `index.ts` for the corpus driver
@@ -93,7 +93,7 @@ const foreignLibrary = await importLibrary()
 
 describe('patch table', () => {
 	test('is declarative data, not behaviour', () => {
-		// The whole-table export went with LT-222; the contract it pinned —
+		// The whole-table export went with ; the contract it pinned —
 		// data, not conditionals — is asserted over the columns themselves.
 		for (const patch of [
 			...REALM_GLOBALS,
@@ -104,7 +104,7 @@ describe('patch table', () => {
 				expect(typeof value).not.toBe('function')
 			expect(['realm', 'stub', 'network']).toContain(patch.kind)
 		}
-		// The classifier-facing half (LT-263) carries no `kind` — it is not
+		// The classifier-facing half  carries no `kind` — it is not
 		// applied to anything — but the same data-not-behaviour rule holds.
 		for (const patch of CAPABILITY_PATCHES)
 			for (const value of Object.values(patch))
@@ -112,7 +112,7 @@ describe('patch table', () => {
 	})
 
 	test('agrees with the classifier half on which globals are unanswerable', () => {
-		// LT-263 split the table by audience (ADR 0035 sub-design 3 limb 2).
+		//  split the table by audience (ADR 0013 sub-design 3 limb 2).
 		// The two halves answer different questions about the SAME set of
 		// names, and nothing derives one from the other — so drift is caught
 		// here rather than by a component silently re-routing.
@@ -138,7 +138,7 @@ describe('patch table', () => {
 		}
 	})
 
-	test('covers the globals ADR 0027 sub-design 2 names', () => {
+	test('covers the globals ADR 0006 sub-design 2 names', () => {
 		const realm = REALM_GLOBALS.map(patch => patch.name)
 		for (const name of ['HTMLElement', 'customElements', 'document', 'Event'])
 			expect(realm).toContain(name)
@@ -195,7 +195,7 @@ describe('realm application', () => {
 			].map(name => [name, globalRecord[name]]),
 		)
 		const realm = createSimulationRealm()
-		// The restores happen after the final settle (LT-411), so the promise
+		// The restores happen after the final settle , so the promise
 		// is the contract: past the await, the globals are back.
 		await realm.dispose()
 		for (const [name, value] of before)
@@ -289,7 +289,7 @@ describe('realm application', () => {
 
 describe('ARIA under simulation (LT-177)', () => {
 	/**
-	 * The pin LT-177 exists for. Removing the forced `attachInternals()`
+	 * The pin  exists for. Removing the forced `attachInternals()`
 	 * throw lets jsdom's skeletal `ElementInternals` reach the library, which
 	 * registers it in `internalsHosts`; `bindAria()` then probes it, finds no
 	 * reflection reaching the platform, and binds the host's content
@@ -320,7 +320,7 @@ describe('ARIA under simulation (LT-177)', () => {
 
 	test('a form-associated component still degrades to no internals (LT-150)', async () => {
 		// Form association keeps the GLOBAL degradation the forced throw used
-		// to guarantee: an incomplete stub is worse than none there. LT-150's
+		// to guarantee: an incomplete stub is worse than none there. the ticket's
 		// shape check was built against exactly this substrate, and must
 		// still see it now that nothing normalizes `attachInternals()`.
 		const realm = withRealm()
@@ -421,7 +421,7 @@ describe('closed network (sub-design 2d)', () => {
 		expect(network.length).toBe(1)
 		expect(network[0]?.message).toContain('sub-design 2d')
 		// The fetch happened inside probe-fetcher's connect window, so the
-		// build warning names it (LT-163's attribution criterion).
+		// build warning names it (the ticket's attribution criterion).
 		expect(network[0]?.component).toBe('probe-fetcher')
 	})
 
@@ -474,8 +474,8 @@ describe('library-contained connect failures reach the report (LT-180)', () => {
 	/**
 	 * The gap this closes. A generated client runs in THIS process against
 	 * patched globals, so when the library contains a connect throw
-	 * (ADR 0028 tier 2) it reports on the host console — jsdom's
-	 * `virtualConsole` never sees it, and before LT-180 `diagnostics` stayed
+	 * (ADR 0007 tier 2) it reports on the host console — jsdom's
+	 * `virtualConsole` never sees it, and before  `diagnostics` stayed
 	 * empty while the component serialized as the un-enhanced skeleton.
 	 * Remove the host-console capture in `realm.ts` and this test fails with
 	 * no diagnostic at all, which is the mutation it is here to catch.
@@ -529,7 +529,7 @@ describe('library-contained connect failures reach the report (LT-180)', () => {
 	})
 
 	/**
-	 * The regression pin for what LT-180's wiring found on its first run.
+	 * The regression pin for what the ticket's wiring found on its first run.
 	 *
 	 * `foreignLibrary` is evaluated OUTSIDE any realm, so its
 	 * `ContextRequestEvent` extends Bun's native `Event` — the state every
@@ -854,7 +854,7 @@ describe('repeat renders (LT-193 removed the render cache)', () => {
 		})
 		// Byte-stable repeat renders stay a pinned invariant (the same
 		// fixed-point property sub-design 10 rides); with the cache gone,
-		// every render connects — the documented post-LT-193 behavior.
+		// every render connects — the documented post- behavior.
 		expect(second).toBe(first)
 		expect(connects).toBe(2)
 	})
@@ -962,7 +962,7 @@ describe('the last render settles at dispose (LT-411)', () => {
 		const realm = withRealm()
 		await realm.load(async () => {
 			// The module-listnav cleanup shape, plus the sync and queued
-			// reports the LT-335 pin uses: all of it is disconnect work, all
+			// reports the  pin uses: all of it is disconnect work, all
 			// of it must land attributed and captured.
 			customElements.define(
 				'probe-final-teardown',
@@ -1022,7 +1022,7 @@ describe('build report (LT-163)', () => {
 		expect(text).toContain('probe-x')
 		expect(text).toContain('boom')
 		// Tier 2, Contained: the wording says the component keeps its
-		// server-rendered markup — it does not say the page broke (ADR 0028
+		// server-rendered markup — it does not say the page broke (ADR 0007
 		// sub-design 4, error-message-lifecycle criterion 3).
 		expect(text).toContain('server-rendered markup')
 		expect(text).not.toMatch(/broken|crashed|failed to render/)
@@ -1094,7 +1094,7 @@ describe('load-once assertion (sub-design 10)', () => {
 	})
 })
 
-describe('page locale seeding (LT-172, ADR 0030 sub-design 7)', () => {
+describe('page locale seeding (LT-172, ADR 0009 sub-design 7)', () => {
 	/**
 	 * The component the seeding exists for: it reads `getLocale(host)` with
 	 * no `lang` arg of its own, exactly as `module-calctable` and

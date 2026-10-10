@@ -1,15 +1,15 @@
 /**
- * The server emitter's tier flag (ADR 0029 sub-design 4, LT-165 step 4).
+ * The server emitter's tier flag (ADR 0008 sub-design 4 step 4).
  *
  * Every component gets a render module in every tier — the realm PARSES the
  * phase-1 markup before replaying definitions, so the skeleton is simulation's
  * input, not its alternative. One emit path, one skeleton, one flag.
  *
  * What the flag changes is the SETUP BLOCK, filtered by one criterion
- * (LT-182): *retain a statement when the emitted markup depends on its
+ * (): *retain a statement when the emitted markup depends on its
  * declared name, transitively; drop the rest.*
  *
- * The rule replaces LT-165 step 4's original two-part filter, which dropped
+ * The rule replaces  step 4's original two-part filter, which dropped
  * signal declarations wholesale. That was unsound: the skeleton and the value
  * harness are not separable layers, because `lazyValueExpression` emits
  * `<name>.get()` INTO the markup — a folded signal is not dead code
@@ -25,7 +25,7 @@
  * can reference it (an exposed-prop lazy child resolves through the
  * prop→signal map at COMPILE time to a literal).
  *
- * The Static tier has no corpus member and stays empty until wave 4 (ADR 0029
+ * The Static tier has no corpus member and stays empty until wave 4 (ADR 0008
  * is explicit that the tier is rare by construction, not that the classifier
  * is unwired), so the Static CLASSIFICATION is pinned here with a SYNTHETIC
  * fixture. The Static EMIT path is additionally exercised over the whole
@@ -49,7 +49,7 @@ import { compileCorpusSource, loadCorpus } from './corpus-fixture'
  * tier. Until step 5 this shape could not compile at all (LTC004 was an
  * error), which is why the fixture originally routed through an impure
  * `hidden` thunk instead; step 5 rewired that route and the fixture was
- * re-pinned deliberately (LT-165).
+ * re-pinned deliberately ().
  *
  * It also carries both setup shapes on purpose, so one fixture pins both
  * halves of the rule: `expose()` (declares no name — dropped) and `labelId`
@@ -80,7 +80,7 @@ export function C({ name }: { name: string })
  * whatever the signal settles to). Resolution flips from `none` to `realm`,
  * and the conjunction lands one tier up. The initializer is a literal, not a
  * server arg: the client emits a harvest-less initializer verbatim, so an arg
- * there is LTC005 in every tier (LT-348).
+ * there is LTC005 in every tier ().
  *
  * This is the control that makes the Static assertion mean something. A plain
  * Folded control would only prove the fixture has a routing signal at all;
@@ -269,7 +269,7 @@ describe('the tier flag filters setup to what the markup references', () => {
 /**
  * A folded signal read from the markup: `count.get()` is spliced into the
  * `<span>`, so the declaration is load-bearing server-side. This is the shape
- * LT-165 step 4 dropped — it is `basic-counter` reduced to the one thing that
+ *  step 4 dropped — it is `basic-counter` reduced to the one thing that
  * matters, kept synthetic so the assertion cannot be quietly weakened by an
  * edit to the real component.
  */
@@ -318,12 +318,12 @@ describe('a folded signal the markup reads survives every tier', () => {
 
 /**
  * A host-declared `deriveList` whose ONLY reader is a reactive-list item
- * const (`prices.byKey(k)`, LT-447). The item setup rides the server module
+ * const (`prices.byKey(k)`). The item setup rides the server module
  * inside the `@for` loop, so the retention seed (`rootMarkup, ...lines`)
  * names `prices` — the declaration must survive every tier, the Simulated
  * one included, whose pool excludes server-unevaluable statements outright.
  * Dropping it would leave the emitted item const referencing an undeclared
- * name: `ReferenceError` at render, the failure LT-109's migration hit.
+ * name: `ReferenceError` at render, the failure the ticket's migration hit.
  */
 const hostDeriveListFixture = `import { createList, deriveList } from '@zeix/le-truc'
 
@@ -365,7 +365,7 @@ describe('a host list read only through an item const survives every tier (LT-44
  *
  * `emit-tier.test.ts` originally asserted markup byte-identity only for the
  * synthetic fixture, which had no markup-read signal — that gap is precisely
- * why LT-165 step 4's unsound filter reached review. The corpus is where the
+ * why  step 4's unsound filter reached review. The corpus is where the
  * rule meets folded signals, `@for` scaffolding, compose sites and setup
  * chains, so the corpus is where the invariant has to be pinned.
  *
@@ -422,7 +422,7 @@ describe('every corpus component, emitted at every tier', () => {
 				// Comments are not references: a JSDoc word that equals a setup
 				// name (module-coloreditor's "color") would read as a use. The
 				// emitted props alias is not one either: a type member sharing a
-				// dropped const's name (section-menu's `open`, LT-469) cannot
+				// dropped const's name (section-menu's `open`) cannot
 				// raise TS2304, and the alias is the module's only multi-line
 				// type-level text.
 				const uncommented = code
@@ -457,7 +457,7 @@ describe('every corpus component, emitted at every tier', () => {
 	})
 
 	test('the Folded emit is what an unclassified caller still gets', () => {
-		// The default is the pre-LT-165 behaviour for the whole corpus, not
+		// The default is the pre- behaviour for the whole corpus, not
 		// just the fixture: no caller that skips classification loses setup.
 		emitCorpus('folded').forEach(({ component, code }, index) => {
 			const file = corpus[index]

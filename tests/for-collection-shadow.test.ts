@@ -1,6 +1,6 @@
 /**
  * A host-level server-data loop lowers client-side to `const items = all(…)`,
- * so the collection name shadows the server arg of the same name (LT-136).
+ * so the collection name shadows the server arg of the same name ().
  * The shadow never reaches tsc: a client position reading the arg is
  * LTC005's server-only-name face, on both surfaces, naming the arg. No
  * dedicated diagnostic is needed.

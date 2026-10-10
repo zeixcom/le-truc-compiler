@@ -1,9 +1,9 @@
 /**
  * A compiler-inferred `number` harvest reads through `asNumber`, not
- * `asInteger` (LT-440). The server renders a number with `String(n)`, the
+ * `asInteger` (). The server renders a number with `String(n)`, the
  * shortest round-tripping form, so `parseFloat` recovers it exactly; the old
  * `asInteger` mapping truncated `2.5` to `2` at connect — a silent
- * miscompile of the DOM-is-truth seed (ADR 0003).
+ * miscompile of the DOM-is-truth seed (ADR 0001).
  *
  * Each fixture connects in the simulation realm on both surfaces: connect is
  * a fixed point, so a harvest that recovered `2.5` re-renders `2.5`, and a

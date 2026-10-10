@@ -1,5 +1,5 @@
 /**
- * Text positions take primitives, through TypeScript (ADR 0046 s6, LT-428).
+ * Text positions take primitives, through TypeScript (ADR 0024 s6).
  *
  * Every text sink the compiler emits is typed: the server's `text`/`textOf`
  * harness calls take `string | number | null | undefined`, the client's
@@ -157,7 +157,7 @@ const FIXTURES: Record<string, Fixture> = {
 		child: '{e}',
 	},
 	// A ternary for a boolean — one of the fixes the sink's JSDoc names (a
-	// list item's field waits on ADR 0046 s1) — and a comment child: clean.
+	// list item's field waits on ADR 0024 s1) — and a comment child: clean.
 	'c-fixed-tsrx': {
 		surface: 'tsrx',
 		source: tsrx(
@@ -305,7 +305,7 @@ const typecheck = (): Map<string, Reported[]> => {
 const lineOf = (source: string, needle: string): number =>
 	source.slice(0, source.indexOf(needle)).split('\n').length
 
-describe('typed text sinks (ADR 0046 s6, LT-428)', () => {
+describe('typed text sinks (ADR 0024 s6, LT-428)', () => {
 	test('every fixture compiles', () => {
 		expect(compileErrors).toEqual([])
 	})

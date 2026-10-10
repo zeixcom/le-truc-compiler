@@ -1,10 +1,10 @@
 /**
- * The initial winner of every conditional (ADR 0043 s4, LT-274): which arm
+ * The initial winner of every conditional (ADR 0021 s4): which arm
  * a conditional renders at render time, kept on the `conditional` node apart
  * from its client thunk so a template target can emit it as a backend
  * conditional.
  *
- * The test is rewritten into the portable hole grammar (ADR 0043 s1) by
+ * The test is rewritten into the portable hole grammar (ADR 0021 s1) by
  * substituting each signal read for its initializer and each `host.<prop>`
  * read for the server expression that seeds the prop — the same truths the
  * value harness folds with (`evaluability.ts`). What the rewrite leaves:
@@ -16,7 +16,7 @@
  * - anything else the harness can still evaluate → `fold`;
  * - nothing any server phase can evaluate (a ref, a client-only primitive)
  *   → `constant: null`: no live arm renders, and the client renders the
- *   arm at connect (ADR 0037 s5 — the compiler does not guess).
+ *   arm at connect (ADR 0015 s5 — the compiler does not guess).
  *
  * SSG emission reads the same truths through `emit-server.ts`'s
  * `serverTestExpr`: `emitReactiveConditional` renders `initial.constant`'s
@@ -24,7 +24,7 @@
  * server module must agree on what is foldable, and do: both ask
  * `evaluability.ts` (`foldableHostProps` membership, `hostSeedExpr`'s
  * seeds). The one deliberate divergence is representability, not truth:
- * the portable hole grammar (ADR 0043 s1) admits no calls, so a
+ * the portable hole grammar (ADR 0021 s1) admits no calls, so a
  * Parser-backed prop's seed — `asInteger()(attrValue(count))` — leaves the
  * rewrite (`winnerOf` answers `fold`) while the server module folds it, the
  * parser factory resolving through the harness import.
@@ -77,7 +77,7 @@ const union = (...sets: ReadonlySet<string>[]): ReadonlySet<string> =>
 
 /**
  * The server expression seeding `host.<prop>`, as an AST or an arg name —
- * the portable-rewrite twin of `evaluability.ts`'s `hostSeedExpr` (LT-386),
+ * the portable-rewrite twin of `evaluability.ts`'s `hostSeedExpr` (),
  * which owns the same account for the emitted module. A Parser-backed prop
  * refuses: its truth is the parser applied to the attribute's rendered
  * value, a call the portable grammar cannot represent — the conditional
@@ -106,7 +106,7 @@ const hostSeed = (
 }
 
 /**
- * `node` rewritten into the portable subset (ADR 0043 s1), or null when it
+ * `node` rewritten into the portable subset (ADR 0021 s1), or null when it
  * leaves it: a call other than a signal read, a computed or optional member,
  * an operator outside the subset, a name that is neither a hole nor
  * substitutable.
@@ -325,11 +325,11 @@ export const resolveInitialWinners = (component: ComponentIR): void => {
 				new Set([...bound, ...loop.hoisted.map(h => h.name)]),
 			)
 		}
-		// A reactive list's item and key (LT-424): each live item renders
+		// A reactive list's item and key (): each live item renders
 		// with them in scope, so a conditional over the item folds per item
 		// in the harness. The item is a signal — `item.get()` is a call the
 		// portable grammar does not admit, so it is no hole.
-		// The item's setup names the server's loop declares (ADR 0046 s5) are
+		// The item's setup names the server's loop declares (ADR 0024 s5) are
 		// in scope there too.
 		if (loop?.kind === 'reconcile')
 			innerKnown = union(

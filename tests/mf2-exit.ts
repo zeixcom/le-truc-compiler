@@ -1,5 +1,5 @@
 /**
- * The MF2 exit (LT-253, ADR 0030 Alternatives): the mechanical MF1 → MF2
+ * The MF2 exit (ADR 0009 Alternatives): the mechanical MF1 → MF2
  * conversion the migration would run, as a test-side helper. The two
  * upstream packages do the work — `@messageformat/icu-messageformat-1`
  * lifts MF1 into the MF2 data model, `messageformat@4` serializes, parses
@@ -27,7 +27,7 @@ import {
 /**
  * MF1 lets one argument drive selectors of different types in different
  * arms — `{type, select, ordinal {{count, selectordinal, …}} other
- * {{count, plural, …}}}`, the `c-plural` fixture's `tasks` (LT-252). The
+ * {{count, plural, …}}}`, the `c-plural` fixture's `tasks` (). The
  * converter lifts each into its own `.input {$count …}`, and MF2 forbids
  * declaring a variable twice (`duplicate-declaration`). Rewrite every
  * input of a repeated variable as a `.local $count__N = {$count …}` over

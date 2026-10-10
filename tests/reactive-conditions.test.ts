@@ -1,11 +1,11 @@
 /**
- * Reactive conditions as template-cloned arms (ADR 0037, LT-274) and the
- * async boundary on the same mechanism (ADR 0037 s4, LT-276), end to end:
+ * Reactive conditions as template-cloned arms (ADR 0015) and the
+ * async boundary on the same mechanism (ADR 0015 s4), end to end:
  *
  * - both surfaces lower one authored conditional to byte-identical modules;
- * - the IR's initial winner (ADR 0043 s4) takes its three forms;
+ * - the IR's initial winner (ADR 0021 s4) takes its three forms;
  * - the server renders the winner live beside inert `<template>` arms, and
- *   the skeleton is byte-identical across the three tiers (ADR 0029 s4);
+ *   the skeleton is byte-identical across the three tiers (ADR 0008 s4);
  * - the generated client adopts the server's winner without touching it
  *   (the designed connect diff is empty), then switches arms as signals
  *   change — re-entry clones afresh, and arm effects die with their arm;
@@ -182,7 +182,7 @@ describe('both surfaces lower one reactive conditional identically', () => {
 	})
 })
 
-/* === The initial winner (ADR 0043 s4) === */
+/* === The initial winner (ADR 0021 s4) === */
 
 describe('the initial winner', () => {
 	test('a literal initializer folds to a constant arm', () => {
@@ -211,7 +211,7 @@ describe('the initial winner', () => {
 	})
 
 	test('an initializer over server args selects with a portable `when`', () => {
-		// LT-385g: pinned on a fixture the FULL pipeline accepts — a cell
+		//: pinned on a fixture the FULL pipeline accepts — a cell
 		// seeded from a server arg needs the arg's DOM site (`data-mode`),
 		// and a string comparison keeps the generated client typecheckable
 		// (the number-spelled `start > 2` seeded `(getAttribute() ?? '') > 2`,
@@ -267,7 +267,7 @@ export function C({ open }: { open?: boolean })
 				),
 			).root,
 		)
-		// Case keys are value-typed (LT-385d): `case:` + the literal's JSON,
+		// Case keys are value-typed (): `case:` + the literal's JSON,
 		// so `@case 1` and `@case '1'` stay distinct keys.
 		expect(node?.arms.map(arm => arm.key)).toEqual([
 			'case:"a"',
@@ -353,7 +353,7 @@ describe('the server renders the winner beside the inert arms', () => {
 	test('a test no server phase can evaluate renders no live arm and routes the component', async () => {
 		// The parser's fallback reads a `first()` ref (the HOST_PROFILE
 		// children-are-data idiom) — no server truth to splice, so the
-		// conditional routes off the host-derived fold (LT-386): an
+		// conditional routes off the host-derived fold (): an
 		// LTC034-origin signal, never a wrong winner.
 		const { component, diagnostics } = compile(
 			tsrx(
@@ -384,7 +384,7 @@ describe('the server renders the winner beside the inert arms', () => {
 		)
 		expect(diagnostics).toEqual([])
 		const html = await render(component?.serverCode ?? '', 'C', {})
-		// String literals JSON-quote their key (LT-385d); the attribute
+		// String literals JSON-quote their key (); the attribute
 		// escapes the quotes.
 		expect(html).toBe(
 			'<c-el><p data-key="case:2">two</p>' +
@@ -472,8 +472,8 @@ describe('the server renders the winner beside the inert arms', () => {
 		)
 	})
 
-	test('the skeleton is byte-identical across the three tiers (ADR 0029 s4)', async () => {
-		// LT-385g: the same compiling fixture the `select` test pins — the
+	test('the skeleton is byte-identical across the three tiers (ADR 0008 s4)', async () => {
+		//: the same compiling fixture the `select` test pins — the
 		// retired `createCell(start > 2)` spelling is refused by a full
 		// compile (LTC005's server-only face: the initializer reads a server
 		// arg with no DOM site to seed from).
@@ -503,7 +503,7 @@ describe('the server renders the winner beside the inert arms', () => {
 /* === The initial winner agrees with the client's first key (LT-386) === */
 
 describe('a Parser-backed seed folds through the parser (LT-386)', async () => {
-	// The LT-274 review's miscompile: the fold substituted the RAW attribute
+	// The  review's miscompile: the fold substituted the RAW attribute
 	// expression, folding `'3' === 3` to `else` while the client's parsed
 	// prop (`asInteger('3') === 3`) picks `then` — a replacement at connect
 	// on a component the census calls Folded. The spliced seed now applies
@@ -555,7 +555,7 @@ describe('a Parser-backed seed folds through the parser (LT-386)', async () => {
 describe('a static expose() initializer folds to a constant (LT-386)', async () => {
 	// `#initSignals` evaluates the initializer once as the prop's client
 	// seed — the attribute never seeds a plain-value prop — so the
-	// initializer expression IS the prop's server truth. Pre-LT-386 the
+	// initializer expression IS the prop's server truth. Pre- the
 	// conditional rendered no live arm AND routed the component Simulated.
 	test('the initial winner is the constant arm, on a Folded component', async () => {
 		const [node] = conditionals(
@@ -651,7 +651,7 @@ test('a reactive list beside an arm set queries its own item template', () => {
 	)
 	expect(diagnostics).toEqual([])
 	// The item template is stamped `data-list` and queried from the host
-	// (ADR 0046 s2) — `first('template')` could never
+	// (ADR 0024 s2) — `first('template')` could never
 	// tell it from the arm template beside it.
 	expect(component?.clientCode).toContain(
 		'host.querySelector<HTMLTemplateElement>(\':scope > template[data-list="0"]\')!',
@@ -774,7 +774,7 @@ describe('the async boundary switches arms as its task settles (LT-276)', async 
 test('boundary templates bake their value sites empty while pending (LT-385c)', async () => {
 	// The boundary's grammar admits exactly one client-written site per arm
 	// — the recognized value child on the arm root (`emitArmRoot`); deeper
-	// constructs are LTC005. LT-276 already bakes that one site empty in the
+	// constructs are LTC005.  already bakes that one site empty in the
 	// templates (the live winner writes it); this pins the emptiness — the
 	// pending task's `get()` must never be evaluated for a template.
 	const { component, diagnostics } = compile(

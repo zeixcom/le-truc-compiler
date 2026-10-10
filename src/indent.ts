@@ -1,6 +1,6 @@
 /**
  * Template-literal-safe line classification for verbatim-slice reindentation
- * (LT-010).
+ * ().
  *
  * `reindent` and `appendWithSpans` — both in `spans.ts`, the reindentation
  * family's home — strip the source's common leading indentation from
@@ -10,7 +10,7 @@
  * value (a validity message carrying `Min length is ${n}\nPlease enter…`
  * loses the second line's indentation). Both consult `lineStartsInTemplate`
  * and leave interior lines byte-identical, including their indentation.
- * `commonIndent` (LT-234) is their one shared common-indentation answer.
+ * `commonIndent` () is their one shared common-indentation answer.
  *
  * The scanner is a conservative single-pass lexer over the slice: strings,
  * template literals with `${ … }` interpolation (nested templates included),
@@ -136,9 +136,9 @@ export const lineStartsInTemplate = (lines: string[]): boolean[] => {
 }
 
 /**
- * The common leading indentation of `lines`' significant lines (LT-234,
+ * The common leading indentation of `lines`' significant lines (
  * shared by `spans.ts`'s two reindent computations). A line is skipped
- * when blank, when it starts inside a template literal (`mask`, LT-010),
+ * when blank, when it starts inside a template literal (`mask`),
  * when `skipFirst` excludes line 0 (a caller-positioned first line), or
  * when `skipDocContinuations` excludes a `*`-led JSDoc continuation.
  */

@@ -27,7 +27,7 @@ The one entry point is the corpus pass:
 import { compileCorpus, type CorpusConfig } from '@zeix/le-truc-compiler'
 
 const config: CorpusConfig = {
-	root: process.cwd(),
+	root: process.cwd,
 	sources: ['src/components/**/*.tsx', 'src/components/**/*.tsrx'],
 	siblingModules: [],
 	outDir: 'dist',
@@ -48,7 +48,7 @@ then returns the diagnostics and a summary. Errors are returned, never
 thrown: the caller decides whether they fail its build.
 
 Authored sources import the compile-time markers from the `/macros`
-subpath — `css` (the stylesheet tag) and `harvest()` (parsers for
+subpath — `css` (the stylesheet tag) and `harvest` (parsers for
 server-seeded values):
 
 ```ts

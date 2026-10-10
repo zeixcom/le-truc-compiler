@@ -1,5 +1,5 @@
 /**
- * Handler args (LT-461): an arg named `on` plus a capital letter, which the
+ * Handler args (): an arg named `on` plus a capital letter, which the
  * child places as an event attribute on an element it owns
  * (`<button onClick={onClick}>`) and the parent binds at its compose site
  * (`<BasicButton class="remove" onClick={e => items.remove(k)} />`).
@@ -104,7 +104,7 @@ export const handlerPlacementsOf = (
 					: [],
 			)
 			if (forwards.length === 0) return
-			// The clause is chosen without the child's tag (LT-498): the entry a
+			// The clause is chosen without the child's tag (): the entry a
 			// parent reads is the registry-discovery pass's, which knows none,
 			// so any raw custom element counts against it — the same choice in
 			// both passes. Once the tag is known, a clause that another composed

@@ -1,6 +1,6 @@
 /**
  * Gate-wave verification (LT-153 re-scope of LT-143/LT-133/LT-144/LT-145):
- * ADR 0027 turned four former compiler fold-route tasks into pinning tasks —
+ * ADR 0006 turned four former compiler fold-route tasks into pinning tasks —
  * "does the simulated render come out right", not "can the compiler prove it
  * statically". `sim-driver.test.ts` already exercises the whole corpus
  * (including `basic-number`, `basic-gauge` and `form-listbox`) through the
@@ -8,7 +8,7 @@
  * that the corpus's default ARGS don't exercise (several `count` values, the
  * `{host.count}`/`{count}` spelling pair, and `form-listbox`'s `filterable`
  * clear button). The LT-143/LT-144 legs pinned the corpus's
- * `basic-pluralize`; since its retirement (LT-467) they compile the same
+ * `basic-pluralize`; since its retirement  they compile the same
  * source as the `c-plural` compiler fixture.
  */
 import { afterAll, describe, expect, test } from 'bun:test'
@@ -73,7 +73,7 @@ const loadRealm = async (
 ): Promise<JsdomSimulationRealm> => {
 	const realm = createSimulationRealm({
 		composesTags: tag => registry[tag]?.composesTags ?? [],
-		// LT-165 step 7: registry-driven suppression (no corpus component
+		//  step 7: registry-driven suppression (no corpus component
 		// carries records today).
 		suppressedSites: tag => registry[tag]?.suppressedSites ?? [],
 	})
@@ -147,8 +147,8 @@ describe('LT-143 — c-plural renders correctly under simulation', () => {
 	afterAll(() => pluralizeRealm.dispose())
 
 	test('LT-173 acceptance: classifies Folded — no standing routing signals', () => {
-		// The reserved `i18n` parameter (ADR 0030) makes the locale
-		// server-known, so `Intl.PluralRules` folds (LT-142) and the six
+		// The reserved `i18n` parameter (ADR 0009) makes the locale
+		// server-known, so `Intl.PluralRules` folds  and the six
 		// LTC034 routing signals the six-span shape carried are gone. If a NEW
 		// signal appears here, the fold rule or the classifier moved underneath
 		// the fixture; investigate rather than reclassify.
@@ -163,26 +163,26 @@ describe('LT-143 — c-plural renders correctly under simulation', () => {
 		expect(html).not.toContain('truc:case')
 	})
 
-	test('LT-252: the byte delta against the six-span render (the ADR 0030 headline, pinned)', async () => {
-		// The LT-190 render at en, count=1, cardinal was 226 bytes: two
+	test('LT-252: the byte delta against the six-span render (the ADR 0009 headline, pinned)', async () => {
+		// The  render at en, count=1, cardinal was 226 bytes: two
 		// pruned category spans — `<span class="one">task</span><span hidden
 		// class="other">tasks</span>`, 68 bytes — and no attribute. The pattern
 		// render's body carries ONE span, `<span class="tasks">task</span>`
 		// (31 bytes): the body shrinks by 37. The client-reactive argument
 		// (`count`) would put the pattern's parsed AST on the root `i18n`
-		// attribute (ADR 0030 s9), but at the source locale it equals the
+		// attribute (ADR 0009 s9), but at the source locale it equals the
 		// preamble's inlined source record, so the attribute is left out
-		// (LT-354; LT-252 measured 539 bytes of it, 728 in total). The
+		// (; measured 539 bytes of it, 728 in total). The
 		// measurements were taken on `<basic-pluralize>`; the fixture's
 		// `<c-plural>` tag is 7 bytes shorter in both the open and the close
-		// tag (LT-467), so every total below is 14 bytes under them.
+		// tag , so every total below is 14 bytes under them.
 		const TAG_DELTA = 2 * ('basic-pluralize'.length - 'c-plural'.length)
 		const html = await serverMarkupOf(pluralizeInfo, C_PLURAL_ARGS(1))
 		expect(html).not.toContain(' i18n=')
 		expect(Buffer.byteLength(html)).toBe(226 - 37 - TAG_DELTA)
 		// A translated locale still pays for it: cy carries both arms' six
-		// categories. Without a locale per node (ADR 0030 s6) the total is
-		// 957 bytes, down from LT-252's 1015.
+		// categories. Without a locale per node (ADR 0009 s6) the total is
+		// 957 bytes, down from the ticket's 1015.
 		const welsh = await serverMarkupOf(pluralizeInfo, localeArgs('cy'))
 		const attribute = / i18n="[^"]*"/.exec(welsh)?.[0] ?? ''
 		expect(attribute).not.toContain('&quot;l&quot;')
@@ -203,9 +203,9 @@ describe('LT-143 — c-plural renders correctly under simulation', () => {
 		).toEqual(['tasks'])
 	})
 
-	// ADR 0030's consequence list: "the served markup for a component
+	// ADR 0009's consequence list: "the served markup for a component
 	// differs per locale beyond its text — a fact fixtures must pin per
-	// locale rather than once." Since LT-252 the shape is one span in every
+	// locale rather than once." Since  the shape is one span in every
 	// locale; the arms live inside each committed catalog pattern.
 	test.each([
 		// Welsh: all six cardinal categories inside one value
@@ -279,7 +279,7 @@ describe('LT-143 — c-plural renders correctly under simulation', () => {
 		// Hand-authored light DOM — the demo-page shape: no server render
 		// owns the root lang attribute, so the connect-time walk answers and
 		// materializes. With no `i18n` attribute the instance speaks the
-		// source locale (ADR 0030 s9): Welsh 2 is `two`, which the en
+		// source locale (ADR 0009 s9): Welsh 2 is `two`, which the en
 		// pattern does not spell, so it falls to `other`.
 		const markup = `<div lang="cy"><c-plural count="2">
 			<p class="none">none</p>
@@ -307,7 +307,7 @@ describe('LT-143 — c-plural renders correctly under simulation', () => {
 	})
 
 	test('LT-252: changing count after connect re-evaluates the pattern', async () => {
-		// ADR 0030 s6: a message with a client-reactive argument is
+		// ADR 0009 s6: a message with a client-reactive argument is
 		// recomputed from the pattern, not selected among pre-rendered
 		// alternatives.
 		const { html } = await pluralizeRealm.render({
@@ -361,7 +361,7 @@ describe('LT-143 — c-plural renders correctly under simulation', () => {
 	)
 
 	test('LT-252: a page of per-locale renders — every instance connects to its own wording', async () => {
-		// The retired example page's shape (LT-467): one instance per locale,
+		// The retired example page's shape : one instance per locale,
 		// each carrying the `i18n` attribute its server render wrote, plus a
 		// client-authored instance that inherits `cy` from an ancestor.
 		// Connect them together and read each, as its Playwright spec did.
@@ -513,8 +513,8 @@ describe('LT-144 — {host.count} and {count} converge on the same initial rende
 	// The convergence is in the SERIALIZED OUTPUT only. `{host.count}` plans a
 	// live `watch(() => host.count, bindText(...))`; `{count}` is a
 	// compile-time literal substitution with no client binding at all — the
-	// real, still-standing distinction (LT-122's one-site-three-roles,
-	// untouched by LT-153). A later `host.count` mutation updates one and not
+	// real, still-standing distinction (the ticket's one-site-three-roles,
+	// untouched by ). A later `host.count` mutation updates one and not
 	// the other; that is a binding-plan difference, not a silent-empty bug.
 	test('the reactive spelling plans a client binding the static spelling does not', () => {
 		expect(hostVariant.spans).toBeTruthy()

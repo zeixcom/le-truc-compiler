@@ -1,19 +1,19 @@
 /**
- * The one structural `TemplateNode` visitor (LT-042, regrouping move M3 of
+ * The one structural `TemplateNode` visitor (regrouping move M3 of
  * LE_TRUC_COMPILER.md §7). Traversal — element/compose children, `@if`
  * branches, `@switch` arms, `@try` arms, and whether composed children are
  * entered — is encoded HERE, once; consumers express only what they collect
  * per node.
  *
- * `@pending` policy (LT-230, one ruling for every walk): an async boundary's
+ * `@pending` policy (one ruling for every walk): an async boundary's
  * pending arm is RENDERED markup — the live winner while the task has no
- * value, and template content otherwise (ADR 0037 s4) — so every walk
+ * value, and template content otherwise (ADR 0015 s4) — so every walk
  * enters it, as it enters every conditional arm. The arm admits only static
  * and server markup (`handleAsyncBoundary` rejects client constructs
  * there), so a walk looking for client constructs finds nothing and pays
  * nothing; a walk collecting what the DOM contains (compose sites, ids,
  * rendered props) must see it. A composed element nested below the pending
- * root is valid authoring — the LT-221 probe only covered a compose site AS
+ * root is valid authoring — the  probe only covered a compose site AS
  * the root. Exclusivity arithmetic follows the same fact: one arm of a
  * boundary is in the document at a time, with or without a pending arm
  * (max).
@@ -22,7 +22,7 @@
  * keep their own descent (structural steps still go through `childNodes`
  * where they apply):
  * - probe materialization: `serializeNodes`
- *   (`analysis/probe.ts`, LT-379/LT-382) — the selector proof's
+ *   (`analysis/probe.ts`, ) — the selector proof's
  *   serializer, whose recursion threads each element's exclusive-arm path
  *   (stamped as an attribute the aggregation reads: max over exclusive
  *   arms, sum over coexisting ones);
@@ -53,7 +53,7 @@ import { attributeReactivity } from './reactivity'
 
 /* === Conditionals === */
 
-/** A conditional node (ADR 0043 s4), either construct, either mode. */
+/** A conditional node (ADR 0021 s4), either construct, either mode. */
 export type ConditionalNode = Extract<TemplateNode, { kind: 'conditional' }>
 /** An `@if`/`@else` (or `.tsx` ternary/`&&`): arms `then` and `else`. */
 export type IfNode = ConditionalNode & { construct: 'if' }
@@ -102,9 +102,9 @@ export const armSetOf = (root: TemplateNode, target: TemplateNode): number => {
 }
 
 /**
- * A reactive list's index (ADR 0046 s2): its position among the component's
+ * A reactive list's index (ADR 0024 s2): its position among the component's
  * reconcile loops in document order (pre-order, so an outer list precedes
- * the lists nested in its item, LT-424). The server stamps it on the
+ * the lists nested in its item). The server stamps it on the
  * extracted item template (`data-list`), hoisted to the host's end, and the
  * client queries it from the host (`:scope > template[data-list="N"]`), so
  * both emitters derive it from the IR, never from emitter state — the same
@@ -129,7 +129,7 @@ export const listIndexOf = (
 }
 
 /**
- * The reactive lists whose item holds `target`, outermost first (ADR 0046
+ * The reactive lists whose item holds `target`, outermost first (ADR 0024
  * s2): their item and key bindings are unbound wherever `target`'s list
  * template renders, because that template renders once, at the host's end.
  * A list is not counted as enclosing its own output.
@@ -178,12 +178,12 @@ export const loopBindingNames = (loop: ForIR, into: Set<string>): void => {
 }
 
 /**
- * Does `target` sit inside a Mount Scope other than the host (ADR 0046 s1)
+ * Does `target` sit inside a Mount Scope other than the host (ADR 0024 s1)
  * — in an arm of an arm set, or inside a reactive-list item? Strict: an arm
  * set or a list is itself nested when its POSITION is, so a list whose
  * output sits in an arm is nested, and the item root is not counted as
  * inside its own item. A nested construct emits into its nearest enclosing
- * scope's mount (LT-424), never as a host-level query.
+ * scope's mount (), never as a host-level query.
  */
 export const inNestedScope = (
 	root: TemplateNode,
@@ -233,7 +233,7 @@ export type WalkOptions = {
 	 * Recurse into composed children. Default true; the compose node itself
 	 * is always visited. Consumers that treat composition as a boundary
 	 * (compose-element collection) pass false. A compose site's content is
-	 * the composing component's markup (ADR 0048 s1), so `first()` element
+	 * the composing component's markup (ADR 0026 s1), so `first()` element
 	 * collection enters it.
 	 */
 	intoCompose?: boolean
@@ -281,7 +281,7 @@ export const someNode = (
  * Every `element`-kind attribute in traversal order (compose attributes are
  * `ComposeAttrIR`, a different vocabulary — deliberately not included here;
  * `imports.ts`'s `clientExprNodes` walks compose `pass` thunks separately,
- * LT-088).
+ * ).
  */
 export const collectAttrs = (
 	node: TemplateNode,
@@ -300,13 +300,13 @@ export const collectAttrs = (
 
 /**
  * Every composed (PascalCase) element in a component's template, for
- * cross-file resolution against the corpus-wide registry (ADR 0024
- * sub-design 10). Traversal via `walkTemplate` (LT-042): composition is a
+ * cross-file resolution against the corpus-wide registry (ADR 0005
+ * sub-design 10). Traversal via `walkTemplate` (): composition is a
  * boundary (composed children are the child component's own template);
- * `@pending` arms are entered like every arm (LT-230) — a compose site
+ * `@pending` arms are entered like every arm () — a compose site
  * nested below the pending root renders and must resolve.
  *
- * Lives at the machinery level (LT-206): a pure `ComponentIR` walk the
+ * Lives at the machinery level (): a pure `ComponentIR` walk the
  * shared pipeline consumes, so the machinery does not depend on a front
  * end for it.
  */
@@ -327,11 +327,11 @@ export const collectComposeElements = (
  * Does this attribute carry a client construct — something the client
  * module binds or addresses (LT-231: the one answer; every "has its own
  * client construct" check derives from it)? Read off the recorded class
- * (ADR 0040 s7, none re-derives): a `reactive` value is bound — including
- * LT-122's arg-and-prop `server` attribute and a reactive `truc:html` — and
+ * (ADR 0018 s7, none re-derives): a `reactive` value is bound — including
+ * the ticket's arg-and-prop `server` attribute and a reactive `truc:html` — and
  * the kinds with no template value (event, `truc:pass`, ref) are addressed.
  * A `static` or `server` value — a non-reactive `truc:html={ref}` included
- * (LT-025) — is render-only.
+ * () — is render-only.
  */
 export const isClientConstructAttr = (a: AttributeIR): boolean => {
 	const reactivity = attributeReactivity(a)

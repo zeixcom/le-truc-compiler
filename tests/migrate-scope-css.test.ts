@@ -5,7 +5,7 @@ import { migrateSheet } from '../scripts/migrate-scope-css'
 const migrate = (sheet: string, limits: string[] = []): string =>
 	migrateSheet(sheet, limits)
 
-describe('migrate-scope-css (LT-501, ADR 0033 s1)', () => {
+describe('migrate-scope-css (LT-501, ADR 0011 s1)', () => {
 	test('the host block keeps declarations and root variants; descendants move out bare', () => {
 		expect(
 			migrate(

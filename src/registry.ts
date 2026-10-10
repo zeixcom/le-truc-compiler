@@ -1,17 +1,17 @@
 /**
- * Component registry (ADR 0024 milestone 1).
+ * Component registry (ADR 0005 milestone 1).
  *
  * One entry per compiled component: where its artifacts live and which types
  * it exports. Written as `registry.json` into the configured output root, and
  * scoped to ONE PROJECT'S corpus — every component the configured source
- * globs select, wherever that project keeps them (LT-255,
+ * globs select, wherever that project keeps them (
  * `corpus-config.ts`). The tag is the key, which is why two sources anywhere
  * in a project declaring the same tag fail the compile naming both (LTC048)
  * rather than letting compile order decide — a folder-local variant set
- * (ADR 0039) excepted: its members compile, and only the selected surface's
+ * (ADR 0017) excepted: its members compile, and only the selected surface's
  * entry, naming that member's source, reaches this registry.
  *
- * Since D-32 (LT-480) the entry is TWO types. {@link RegistryEntry} is the
+ * Since D-32 () the entry is TWO types. {@link RegistryEntry} is the
  * public projection — the fields a consumer of the built corpus reads, and
  * exactly the `registry.json` schema, which semver covers. Everything only
  * the compiler's own passes read — the compose-validation facts, the tier
@@ -28,7 +28,7 @@
  *   attribute on a registry tag lowers to `pass()`, any other dashed tag
  *   to `bindProperty()`; AGENTS.md's own rule, encoded — the compiler has
  *   registry knowledge hand-written code lacks);
- * - `pass={{ }}` legality (LT-158) — a binding's target is decided against
+ * - `pass={{ }}` legality () — a binding's target is decided against
  *   the TARGET component's own `expose()`, recorded here as `exposedProps`;
  * - the docs/examples pipeline, which resolves tags to render functions,
  *   stylesheets and i18n declarations through this file.
@@ -62,7 +62,7 @@ export type RegistryEntry = {
 	propsType: string | null
 	/**
 	 * Every `expose()` key, mapped to how its initializer lands on the host
-	 * (LT-158, [ADR 0028](../../adr/0028-tiered-error-surfacing.md)
+	 * ([ADR 0007](adr/0007-tiered-error-surfacing.md)
 	 * sub-design 6).
 	 *
 	 * `propsType` records only the exported type's NAME, which says nothing
@@ -71,7 +71,7 @@ export type RegistryEntry = {
 	 * backing SIGNAL and only a Slot-backed prop has one
 	 * ([ADR 0004](../../adr/0004-slot-based-signal-swapping-for-inter-component-binding.md)).
 	 * TypeScript accepts a read-only prop structurally, so without this the
-	 * only channel left was the runtime throw — which since LT-155 is
+	 * only channel left was the runtime throw — which since  is
 	 * contained, and would have left the author with a console line instead
 	 * of a build failure.
 	 *
@@ -85,7 +85,7 @@ export type RegistryEntry = {
 	 * Corpus-wide (composeRegistry-resolved) so it is empty during the
 	 * registry-discovery pass, same tolerance as `pass()` dispatch.
 	 *
-	 * The server-simulation driver (ADR 0027, LT-154) needs this to replay
+	 * The server-simulation driver (ADR 0006) needs this to replay
 	 * `customElements.define()` calls children-first: a composed child that
 	 * a component's own client module never imports (pure server-splice
 	 * composition, no `pass()`/`first()` binding) still needs its tag
@@ -96,7 +96,7 @@ export type RegistryEntry = {
 	composesTags: string[]
 	/**
 	 * Which server-evaluation mechanism renders this component's initial
-	 * HTML (ADR 0029, LT-165), and why it was routed there.
+	 * HTML (ADR 0008), and why it was routed there.
 	 *
 	 * Recorded here rather than kept inside the compiler because the tier is
 	 * product surface, not an implementation detail: it decides build cost,
@@ -106,7 +106,7 @@ export type RegistryEntry = {
 	 * Static-tier module does not re-declare `@{ }` setup verbatim.
 	 *
 	 * The value written by the FIRST pass is pre-contamination. The
-	 * registry-aware second pass applies ADR 0029 sub-design 3's compose-read
+	 * registry-aware second pass applies ADR 0008 sub-design 3's compose-read
 	 * fixpoint, which can only move a component downward, towards the
 	 * Simulated tier.
 	 */
@@ -116,12 +116,12 @@ export type RegistryEntry = {
 /**
  * The compile's own record of a component — the public projection plus
  * every field only a compiler pass or the repo's build pipeline reads
- * (D-32, LT-480 ruling 4). Serializes to `registry.internal.json`, never
+ * (D-32 ruling 4). Serializes to `registry.internal.json`, never
  * to `registry.json`.
  */
 export type InternalRegistryEntry = RegistryEntry & {
 	/**
-	 * Every element this component's template can render (LT-096), for the
+	 * Every element this component's template can render (), for the
 	 * PARENT's selector engine: a composing parent's synthesized `first()`
 	 * query runs over the whole subtree, the child's markup included, so a
 	 * candidate that one of these shapes could match is not unique. Composed
@@ -132,7 +132,7 @@ export type InternalRegistryEntry = RegistryEntry & {
 	renderedShapes?: RenderedShape[]
 	/**
 	 * What this component renders inside its Children Region besides the
-	 * content a composing parent passes (ADR 0048 s1). Present exactly when
+	 * content a composing parent passes (ADR 0026 s1). Present exactly when
 	 * the template inserts `{children}`: a parent's compose site then passes
 	 * its own tag as the region owner, and the parent's selector engine
 	 * proves a reference into its content against these shapes.
@@ -140,12 +140,12 @@ export type InternalRegistryEntry = RegistryEntry & {
 	childrenRegion?: ChildrenRegion
 	/**
 	 * Whether the component's own template renders interactive content (ADR
-	 * 0048 s4, LT-477): an `a[href]`, `button`, `input` (except
+	 * 0048 s4): an `a[href]`, `button`, `input` (except
 	 * `type="hidden"`), `select`, `textarea`, `label`, `details`, `iframe`,
 	 * any `[tabindex]`, or `audio`/`video` with `controls` — transitively
 	 * through its own composed children, which the registry-aware pass
 	 * closes over the entries' `renderedShapes` the way
-	 * `composedShapesFor` does. Direction matters (ADR 0048 s1): markup the
+	 * `composedShapesFor` does. Direction matters (ADR 0026 s1): markup the
 	 * component passes at its own compose sites is its own markup and
 	 * counts toward the flag; content a parent passes TO it is the parent's,
 	 * never part of its template, and never counts. The consumer of the
@@ -159,7 +159,7 @@ export type InternalRegistryEntry = RegistryEntry & {
 	interactive: boolean
 	/**
 	 * The declared content model of the `children` arg's `Children<Roles,
-	 * Model>` annotation (ADR 0048 s4, LT-477): `'any'` when the second
+	 * Model>` annotation (ADR 0026 s4): `'any'` when the second
 	 * type argument is absent (the default), `'non-interactive'` when
 	 * declared, `null` when a model argument is present that the compiler
 	 * cannot read (tsc owns it — the union constraint rejects anything
@@ -171,8 +171,8 @@ export type InternalRegistryEntry = RegistryEntry & {
 	/** Why this component is not Folded-tier; empty for the Folded tier. */
 	routingSignals: RoutingSignal[]
 	/**
-	 * Reactive sites whose expression no server phase can answer (ADR 0029
-	 * sub-design 1 limb b, LT-165 step 7), so the simulation driver can
+	 * Reactive sites whose expression no server phase can answer (ADR 0008
+	 * sub-design 1 limb b step 7), so the simulation driver can
 	 * revert each one to its server-rendered skeleton state after the
 	 * connect window stabilizes. Recorded per EXPRESSION, not per tier —
 	 * unresolvability is a property of an expression — and keyed here
@@ -183,14 +183,14 @@ export type InternalRegistryEntry = RegistryEntry & {
 	suppressedSites: SuppressedSite[]
 	/**
 	 * Composed children this component READS — the contamination edges of
-	 * ADR 0029 sub-design 3, and a strict subset of `composesTags`.
+	 * ADR 0008 sub-design 3, and a strict subset of `composesTags`.
 	 * Containment alone does not contaminate; only a `first()` on the
 	 * compose site or a `truc:pass={{ }}` into it does.
 	 */
 	composeReadTags: string[]
 	/**
 	 * Whether the component declares the reserved `i18n` parameter (ADR
-	 * 0030 sub-design 2, LT-173). A parent's generated server module reads
+	 * 0030 sub-design 2). A parent's generated server module reads
 	 * this off the child's entry at a compose site to supply the record the
 	 * child never receives from its caller — and to know that a caller
 	 * cannot have authored it either.
@@ -198,27 +198,27 @@ export type InternalRegistryEntry = RegistryEntry & {
 	declaresI18n: boolean
 	/**
 	 * The component's authored `lang` default (`lang = 'en'`), or null —
-	 * ADR 0030 sub-design 3's precedence: a compose site builds the child's
+	 * ADR 0009 sub-design 3's precedence: a compose site builds the child's
 	 * record with the site's `lang` arg when authored, else this default,
 	 * else the build's page locale.
 	 */
 	langArgDefault: string | null
 	/**
-	 * The component's inline message catalog (ADR 0030 sub-design 4): key →
+	 * The component's inline message catalog (ADR 0009 sub-design 4): key →
 	 * source-locale string, from `export const i18n`. Null when the
 	 * component declares none. The corpus effect folds every entry's
 	 * catalog into the generated `i18n` module the render boundaries use.
 	 */
 	i18nMessages: Record<string, string> | null
 	/**
-	 * The message keys the component reads in client positions (ADR 0030
-	 * s9, LT-218), sorted — the keys the server renders into the root
+	 * The message keys the component reads in client positions (ADR 0009
+	 * s9), sorted — the keys the server renders into the root
 	 * `i18n` attribute. The translation census checks their translations
-	 * against the narrowed client evaluator (LT-219).
+	 * against the narrowed client evaluator ().
 	 */
 	clientMessageKeys: string[]
 	/**
-	 * Where each handler arg lands (LT-461), by arg name: every element the
+	 * Where each handler arg lands (), by arg name: every element the
 	 * component places the arg on as an event attribute, or the composed
 	 * child it forwards the arg to. A composing parent reads this at its
 	 * compose site to bind its handler with `on()` against each placement,
@@ -229,8 +229,8 @@ export type InternalRegistryEntry = RegistryEntry & {
 	handlerArgs?: Record<string, HandlerPlacement[]>
 	/**
 	 * Per declared role class, what this component's client writes on the
-	 * role's elements inside the content a parent passes (ADR 0048 s3,
-	 * LT-476): the role-targeted `watch` bindings — `bindProperty`,
+	 * role's elements inside the content a parent passes (ADR 0026 s3,
+	 * ): the role-targeted `watch` bindings — `bindProperty`,
 	 * `bindAttribute`, `bindText`, `bindClass`, `bindVisible`, `bindStyle`,
 	 * `bindAria` over a `first()` reference whose selector's subject names
 	 * the role and that resolved to no own-template element. `on()` return
@@ -245,7 +245,7 @@ export type InternalRegistryEntry = RegistryEntry & {
 }
 
 /**
- * One placement of a handler arg (LT-461), relative to the component's host
+ * One placement of a handler arg (), relative to the component's host
  * element. `optional` marks a placement in a server-rendered branch, which
  * the render may leave out: the parent's query for it must not throw.
  *

@@ -1,5 +1,5 @@
 /**
- * Corpus configuration tests (LT-255, ADR 0034 sub-design 1): the source
+ * Corpus configuration tests (ADR 0012 sub-design 1): the source
  * globs and the output root are a consumer's to choose, and this repo's paths
  * are only the defaults.
  *
@@ -46,7 +46,7 @@ const scratchProject = (files: Record<string, string>): string => {
 
 describe('the defaults are this repo, not the mechanism', () => {
 	test('both authored extensions are globbed', () => {
-		// The LT-271 gap: `build:corpus` globbed `.tsrx` only while
+		// The  gap: `build:corpus` globbed `.tsrx` only while
 		// `check:corpus` and the build effect globbed both, so a `.tsx`
 		// component was invisible to `build:cem` and `typecheck`. One
 		// configured list is now the single place either is widened.
@@ -118,7 +118,7 @@ describe('the config file is validated, not trusted (LT-273)', () => {
 		value as CorpusConfigInput
 
 	test('an unknown key is rejected naming it and the accepted keys', () => {
-		// Probed at the LT-255 review: a mis-cased "outdir" silently wrote to
+		// Probed at the  review: a mis-cased "outdir" silently wrote to
 		// the repo default path inside the consumer's project.
 		expect(() =>
 			resolveCorpusConfig('/p', untrusted({ outdir: 'build' })),
@@ -135,7 +135,7 @@ describe('the config file is validated, not trusted (LT-273)', () => {
 	})
 
 	test('a string where an array belongs reports the array spelling', () => {
-		// Probed at the LT-255 review: a bare string spread into twelve
+		// Probed at the  review: a bare string spread into twelve
 		// single-character globs and reported twelve garbage patterns.
 		expect(() =>
 			resolveCorpusConfig('/p', untrusted({ sources: 'src/**/*.tsx' })),
@@ -236,15 +236,15 @@ describe('the config file is validated, not trusted (LT-273)', () => {
 		})
 		expect(config.variantSurface).toBe('tsrx')
 		expect(config.variantOverrides).toEqual({ 'basic-counter': 'tsx' })
-		// Defaults when absent: `.tsx`, the ADR 0032 default surface, by
-		// rule rather than by practice (ADR 0039).
+		// Defaults when absent: `.tsx`, the ADR 0010 default surface, by
+		// rule rather than by practice (ADR 0017).
 		const defaults = resolveCorpusConfig('/p')
 		expect(defaults.variantSurface).toBe('tsx')
 		expect(defaults.variantOverrides).toEqual({})
 	})
 })
 
-describe('cssTargets (ADR 0033 s5, LT-304)', () => {
+describe('cssTargets (ADR 0011 s5, LT-304)', () => {
 	const untrusted = (value: unknown): CorpusConfigInput =>
 		value as CorpusConfigInput
 
@@ -332,7 +332,7 @@ describe('the config search stops at the project boundary (LT-273)', () => {
 		try {
 			const config = loadCorpusConfig(path.join(outer, 'checkout', 'src'))
 			// The checkout's own boundary, not the stray file's root: the
-			// defaults resolve at the nearest project marker (LT-480).
+			// defaults resolve at the nearest project marker ().
 			expect(config.root).toBe(path.join(outer, 'checkout'))
 			expect(config.outDir).toBe(
 				path.join(outer, 'checkout', 'server', 'generated', 'components'),
@@ -400,7 +400,7 @@ describe('a project outside this repo', () => {
 
 			// A depth-2 output root, so two `../` — not the repo's three.
 			// No `cssTargets` in the file: the resolved target is the default
-			// (Baseline widely available, LT-304).
+			// (Baseline widely available).
 			expect(emitPathsFor(config)).toEqual({
 				outDirPrefix: '../../',
 				runtimeImport: '@zeix/le-truc-compiler/runtime',

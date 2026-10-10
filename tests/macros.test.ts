@@ -1,9 +1,9 @@
 /**
- * Compile-time markers (ADR 0034 s1, LT-442): a marker is imported from
+ * Compile-time markers (ADR 0012 s1): a marker is imported from
  * `@zeix/le-truc-compiler/macros`, recognized by module specifier and
  * imported name — an alias resolves, a same-named local never matches —
  * and its import never reaches either generated module. A `css` that is
- * not the marker is refused (LTC078, LT-444), not read as an empty sheet.
+ * not the marker is refused (LTC078), not read as an empty sheet.
  * The shipped stub throws when a source reaches it uncompiled.
  */
 import { describe, expect, test } from 'bun:test'
@@ -39,7 +39,7 @@ const refused = (source: string) => {
 
 /* === Tests === */
 
-describe('compile-time markers (ADR 0034 s1, LT-442)', () => {
+describe('compile-time markers (ADR 0012 s1, LT-442)', () => {
 	test('the imported `css` tag is the stylesheet, and its import reaches neither module', () => {
 		const { component, diagnostics } = compile(tsx(IMPORT, 'css'))
 		expect(diagnostics).toEqual([])

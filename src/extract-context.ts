@@ -1,5 +1,5 @@
 /**
- * The front end's mutable extraction state (LT-244): one `ExtractContext`
+ * The front end's mutable extraction state (): one `ExtractContext`
  * per compiled source, threaded through `runFrontEnd`, setup extraction,
  * template lowering, attribute classification and the validation tail.
  * It lives here, beside its consumers, rather than in `ir.ts` — it carries
@@ -23,8 +23,8 @@ export type ExtractContext = {
 	surface: Surface
 	diagnostics: LocalDiagnostic[]
 	/**
-	 * Why this component cannot be answered by phase 1 alone (ADR 0029,
-	 * LT-165). Collected at the same setup-extraction sites that raise
+	 * Why this component cannot be answered by phase 1 alone (ADR 0008,
+	 * ). Collected at the same setup-extraction sites that raise
 	 * `LTC013`/`LTC043`, and merged in `index.ts` with the analysis pass's
 	 * own signals before the tier is classified.
 	 */
@@ -41,7 +41,7 @@ export type ExtractContext = {
 	/**
 	 * Prop names exposed through a Parser factory — the subset of
 	 * `exposedProps` seeded from the HOST ATTRIBUTE rather than
-	 * from the component's own markup. LT-122 excludes them; see
+	 * from the component's own markup.  excludes them; see
 	 * `bindsExposedArg`.
 	 */
 	parserProps: Set<string>
@@ -49,7 +49,7 @@ export type ExtractContext = {
 	parserFactoryOf: (prop: string) => string
 	/**
 	 * The `first()`-bound ref names a Parser-exposed prop's FALLBACK
-	 * expression reads (LT-129). `asNumber(asNumber(1)(input.step))` returns
+	 * expression reads (). `asNumber(asNumber(1)(input.step))` returns
 	 * `{'input'}` — the fallback re-reads the very element the arg renders
 	 * into, which is the data account's sanctioned OVERRIDE precedence rather
 	 * than a second copy, so LTC039 must not fire on it.
@@ -57,18 +57,18 @@ export type ExtractContext = {
 	parserFallbackRefsOf: (prop: string) => ReadonlySet<string>
 	/**
 	 * The component function's own parameter names — the strict
-	 * subset of `serverKnown` that arrives from the CALLER. LT-122's
+	 * subset of `serverKnown` that arrives from the CALLER. the's
 	 * arg-and-prop coincidence is about those only: a setup const or
 	 * signal sharing a prop's name is a different relationship.
 	 */
 	argNames: Set<string>
 	/**
 	 * Local name → import specifier resolved to a repo-relative `.tsrx` path,
-	 * for composed (PascalCase) elements (ADR 0024 sub-design 10).
+	 * for composed (PascalCase) elements (ADR 0005 sub-design 10).
 	 */
 	composeImports: ReadonlyMap<string, string>
 	/**
-	 * Local name → the compile-time marker it binds (ADR 0034 s1, LT-442):
+	 * Local name → the compile-time marker it binds (ADR 0012 s1):
 	 * imports from `@zeix/le-truc-compiler/macros`, less the names a
 	 * component-scope declaration shadows. Read through `markerOf`.
 	 */
@@ -82,7 +82,7 @@ export type ExtractContext = {
 	claimedMarkers: Set<AstNode>
 	/**
 	 * The module's own `type` aliases and interfaces, by name — what a list
-	 * item type resolves through for the per-field harvest (ADR 0046 s7).
+	 * item type resolves through for the per-field harvest (ADR 0024 s7).
 	 */
 	moduleTypes: ReadonlyMap<string, AstNode>
 	/**
@@ -94,15 +94,15 @@ export type ExtractContext = {
 	 */
 	setupInits: ReadonlyMap<string, AstNode>
 	/**
-	 * The component's handler args (LT-461), binding name → arg name: every
+	 * The component's handler args (), binding name → arg name: every
 	 * arg named `on` plus a capital letter whose declared type is a function
 	 * type. Neither half of the component emits one; the parent's compose
 	 * site binds it.
 	 */
 	handlerArgs: ReadonlyMap<string, string>
 	/**
-	 * The declared contract of the component's `children` arg (ADR 0048 s2,
-	 * LT-474), or null when the arg has no `Children<…>` annotation: the
+	 * The declared contract of the component's `children` arg (ADR 0026 s2,
+	 * ), or null when the arg has no `Children<…>` annotation: the
 	 * roles the child may address the passed content through, and the
 	 * declared content model. Read by the reach-in check (LTC083) and
 	 * carried on the IR for the analysis layer.
@@ -110,23 +110,23 @@ export type ExtractContext = {
 	childrenContract: ChildrenContract | null
 	/**
 	 * The identifier nodes that read a handler arg where it may be read
-	 * (LT-461): an event attribute's value on a raw element, a forwarding
+	 * (): an event attribute's value on a raw element, a forwarding
 	 * compose-site handler arg. Every other read is LTC081.
 	 */
 	handlerArgRefs: Set<AstNode>
 	/**
 	 * Loop item/index/key bindings of the loops being lowered (innermost last).
-	 * They shadow same-named signals inside the loop body (LT-387).
+	 * They shadow same-named signals inside the loop body ().
 	 */
 	loopBound: string[]
 	/**
 	 * Parallel to `loopBound`: whether each binding is a reactive-list item or
-	 * key (ADR 0046 s3) — a signal, so a condition over it is reactive and
-	 * switches arms inside the item's mount (LT-424).
+	 * key (ADR 0024 s3) — a signal, so a condition over it is reactive and
+	 * switches arms inside the item's mount ().
 	 */
 	loopReactive: boolean[]
 	/**
-	 * What a reactive-list item's setup (ADR 0046 s5) resolves against
+	 * What a reactive-list item's setup (ADR 0024 s5) resolves against
 	 * beyond its own names: the authored imports, the component's `first()`
 	 * refs, and the client message channel's `t` bindings and declared keys.
 	 * Seeded with the rest of the context after setup extraction.

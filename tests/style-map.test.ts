@@ -1,8 +1,8 @@
 /**
  * Tests for `style={() => ({ … })}` object-literal-bodied style thunks
- * (LT-028): server-side initial render and client-side lowering to one
+ * (): server-side initial render and client-side lowering to one
  * `watch(thunk, bindStyle(el, keys))` call against `bindStyle()`'s map-form
- * overload (LT-029) — including the component-root case (targeting `host`),
+ * overload () — including the component-root case (targeting `host`),
  * which the custom-element reactive-attribute gate otherwise rejects.
  */
 import { describe, expect, test } from 'bun:test'
@@ -121,7 +121,7 @@ import { createCell } from '@zeix/le-truc'`
 	})
 })
 
-describe('signal used only inside the style-map thunk (LT-036)', () => {
+describe('signal used only inside the style-map thunk', () => {
 	const descendant = `export function C({}: {})
 @{
 	const color = createCell('red')

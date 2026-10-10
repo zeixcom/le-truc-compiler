@@ -1,5 +1,5 @@
 /**
- * The `c-plural` fixture's catalog (LT-467): the retired basic-pluralize
+ * The `c-plural` fixture's catalog (): the retired basic-pluralize
  * entries, verbatim from the committed `i18n/*.json` they left. The source
  * locale (`en`) lives inline in `c-plural.tsrx`. Each `tasks` pattern spells
  * its locale's own plural and ordinal categories inside one select on

@@ -1,6 +1,6 @@
 /**
  * Corpus discovery: config loading and source globbing (LT-255; moved into
- * the compiler package at LT-480, D-32 — the corpus entry point needs to
+ * the compiler package at , D-32 — the corpus entry point needs to
  * find its own inputs in an installing project).
  *
  * Everything here goes through the package's file-system seam (`fs.ts`) —
@@ -77,7 +77,7 @@ const findConfigFile = (
  * The configuration in force for a compile run.
  *
  * Searches from `cwd` upward — no further than the project boundary, the
- * nearest directory holding a `package.json` or a `.git` (LT-273) — for a
+ * nearest directory holding a `package.json` or a `.git` () — for a
  * `le-truc.config.json`, and takes the directory holding it as the project
  * root. With no config file within that boundary, the project root IS the
  * boundary and the default configuration resolves there — which is what

@@ -1,5 +1,5 @@
 /**
- * The shared estree child enumeration (LT-229): `forEachChild`/`walkNodes`
+ * The shared estree child enumeration (): `forEachChild`/`walkNodes`
  * take their child keys from `eslint-visitor-keys`, fall back to every
  * non-bookkeeping key for node types it doesn't know (TS nodes, TSRX
  * directives, CSS), and follow one explicit type-position policy.
