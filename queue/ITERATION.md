@@ -24,6 +24,10 @@ iteration is byte-identical output by goldens.
   (the 0024 port, the citation sweep, the REQUIREMENTS rework), the
   css-scope/sim review (TC-010), and TC-011 until the owner rules its
   shape.
+- 2026-10-10 — Chain positions are first-mention: only a track's
+  pick-order list names positions, and a prose citation of another chain
+  task is not one — prerequisites ride the task's `needs:`. (Track 3's
+  citation of TC-006 parsed as a second position and ghosted the board.)
 
 **The chain.**
 
@@ -39,8 +43,8 @@ iteration is byte-identical output by goldens.
   1. TC-008 — Unify setup-extraction's twin loops
 - **Track 3 — Carve the largest function.** `planHarvests` is one
   ~877-line function of twelve closures — modules without interfaces;
-  behind TC-006, whose helper dissolves the selector-adapter closures
-  first:
+  sequenced behind Track 1, whose lead task's helper dissolves the
+  selector-adapter closures first:
   1. TC-009 — Carve planHarvests into named stages
 - **Track 4 — Demo corpus hygiene.** The board's corpus gets the type
   gate the examples corpus already has:
