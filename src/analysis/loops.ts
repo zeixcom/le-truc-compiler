@@ -25,8 +25,6 @@ import {
 	listIndexOf,
 	walkTemplate,
 } from '../walk'
-import { reportServerOnlyNames } from './effects'
-import { returnsNumber } from './harvest'
 import type {
 	ForClientPlan,
 	LoopEffectPlan,
@@ -43,6 +41,8 @@ import {
 	resolveSelectorIn as resolveSelectorScoped,
 	staticAttrs,
 } from './selectors'
+import { reportServerOnlyNames } from './server-only-names'
+import { returnsNumber } from './thunk-types'
 
 /* === Internal Functions === */
 

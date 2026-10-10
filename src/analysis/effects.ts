@@ -5,6 +5,14 @@
  * children) into `TopEffectPlan`s, plus the structural handlers for `@if`
  * (union and optional addressing), `@switch`/`@try` (construct-free arms),
  * async boundaries, loops, and composed elements.
+ *
+ * Dependency shape (2026-10-10 architecture review): the checks and
+ * predicates every pass needs live in leaf modules (`server-only-names.ts`,
+ * `thunk-types.ts`), leaving two intentional back-edges — effects→loops
+ * (`planEachLoop`: nested Mount-Scope loops re-run pass-1 planning, ADR
+ * 0046 s2 / LT-424) and harvest↔list-harvest (the pass-2/pass-3 planning
+ * pair). Every cross-call on those edges must stay inside a function body,
+ * so no cycle resolves at module load.
  */
 
 import type { AstNode } from '../ast-node'
@@ -44,7 +52,6 @@ import { wordingOf } from '../surface'
 import { type LocalRoutingSignal, rangeFields, resolutionOf } from '../tier'
 import {
 	isDirtyFlagControlAttr,
-	MANAGED_TEXT_PROPS,
 	SEMANTICALLY_LOADED_ATTRS,
 } from '../vocabulary'
 import {
@@ -62,9 +69,9 @@ import {
 } from '../walk'
 import type { ComposeRefs } from './compose-refs'
 import { joinSelector, resolveHandlerPlacements } from './handler-args'
-import { lazyWatchSource, returnsNumber } from './harvest'
+import { lazyWatchSource } from './harvest'
 import { planEachLoop } from './loops'
-import { renderOnlyBindings, uniqueName } from './naming'
+import { uniqueName } from './naming'
 import type {
 	ArmPlan,
 	EffectPlans,
@@ -99,43 +106,12 @@ import {
 	selectorFor as selectorForIn,
 	type TryNode,
 } from './selectors'
-
-/**
- * Native form-control tags a form-associated component's `disabled`/
- * `checked` omission (LTC034) escalates to an ERROR for (LT-062/LT-085):
- * a real submittable control, not the host itself. Compiler-side duplicate
- * of `validate-lowered.ts`'s `NAMED_FORM_CONTROL_TAGS` (LT-059) — front-end/
- * analysis-layer duplication is the established pattern here (same
- * precedent as `MANAGED_FORM_MEMBERS`, vocabulary.ts) rather than an import
- * against the documented front-end → analysis direction.
- */
-const SUBMITTABLE_FORM_CONTROL_TAGS: ReadonlySet<string> = new Set([
-	'input',
-	'select',
-	'textarea',
-	'button',
-])
-
-/**
- * The managed form prop a reactive child reads, or null. Since LT-052 that
- * is a `host.<prop>` member read; the retired `{'<prop>'}` string-literal
- * spelling is still recognised so a stale source reports the managed-prop
- * message instead of a downstream type error.
- */
-const managedPropRead = (expr: AstNode): string | null => {
-	if (nodeType(expr) === 'Literal' && typeof expr.value === 'string') {
-		const prop = String(expr.value)
-		return MANAGED_TEXT_PROPS.has(prop) ? prop : null
-	}
-	if (nodeType(expr) !== 'MemberExpression' || expr.computed) return null
-	const obj = expr.object
-	if (!isNode(obj) || obj.type !== 'Identifier' || String(obj.name) !== 'host')
-		return null
-	const prop = expr.property
-	if (!isNode(prop) || prop.type !== 'Identifier') return null
-	const name = String(prop.name)
-	return MANAGED_TEXT_PROPS.has(name) ? name : null
-}
+import {
+	managedPropRead,
+	reportServerOnlyNames,
+	SUBMITTABLE_FORM_CONTROL_TAGS,
+} from './server-only-names'
+import { returnsNumber } from './thunk-types'
 
 /**
  * Pass 4's shared state (LT-226): what `runEffects`'s nested closures used
@@ -269,78 +245,6 @@ const selectorOf = (fx: EffectsContext, query: string): string =>
 	fx.queries.find(q => q.name === query)?.selector ??
 	fx.armSelectors.get(query) ??
 	query
-
-/**
- * LTC005's server-only face: the generated client binds no server name — a
- * parameter (`t` included), a module-level declaration, a server-data loop
- * binding (`badFreeNames`, LT-348) — so any client-emitted position reading
- * one is a ReferenceError at connect. One check and one wording for every
- * such position (LT-347 audited them: reactive attributes, lazy text
- * children, class/style maps, event handlers, `truc:html`, pass entries,
- * `expose()` entries, client-needed setup consts and harvest-less signal
- * initializers; `loops.ts` routes list bodies here through
- * `badListBodyNames`, LT-349). `subject` opens
- * the sentence.
- */
-export const reportServerOnlyNames = (
-	ctx: Pick<
-		EffectsContext,
-		'component' | 'source' | 'diagnostics' | 'badFreeNames'
-	>,
-	node: AstNode,
-	subject: string,
-	allBad: string[] = ctx.badFreeNames(node),
-): void => {
-	// A handler arg read is LTC081's (LT-461), not a second error here.
-	const bad = allBad.filter(name => !ctx.component.handlerArgs?.has(name))
-	if (bad.length === 0) return
-	const { component } = ctx
-	// Split by binding class — each has its own fix. A name the server
-	// binds takes precedence: a list body's setup-const class is only the
-	// residue `badListBodyNames` adds (LT-349).
-	const moduleNames = new Set(component.moduleBindings ?? [])
-	const serverNames = renderOnlyBindings(component)
-	const module = bad.filter(name => moduleNames.has(name))
-	const server = bad.filter(
-		name => !moduleNames.has(name) && serverNames.has(name),
-	)
-	const listBody = bad.filter(
-		name => !moduleNames.has(name) && !serverNames.has(name),
-	)
-	// `lang` stays server-only under the client message channel (ADR 0030
-	// s9): the locale reaches the client through the root attribute.
-	const lang = component.langBinding
-	// LT-358c: a record-spelled read (`i18n.t.<key>`) flags the RECORD
-	// binding, not a `messageTBindings` entry, so the plain find misses it
-	// and the report got the generic exposed-prop fix. The record spelling
-	// stays server-only (ADR 0030 s9), so the fix is the same literal-key
-	// sentence — spelled with the component's own `t` binding when it
-	// declares one, else the canonical `t` the destructure binds. The
-	// channel set keeps every message-channel name (t bindings + record
-	// bindings) out of that generic fix, which would contradict the
-	// literal-key sentence.
-	const tNames = component.messageTBindings ?? []
-	const recordNames = component.messageRecordBindings ?? []
-	const t =
-		server.find(name => tNames.includes(name)) ??
-		(recordNames.some(name => server.includes(name))
-			? (tNames[0] ?? 't')
-			: null)
-	const channel = [...tNames, ...recordNames].filter(name =>
-		server.includes(name),
-	)
-	ctx.diagnostics.push(
-		diagnostic.serverOnlyNames(
-			ctx.source,
-			node,
-			subject,
-			{ server, module, listBody },
-			lang !== null && server.includes(lang) ? lang : null,
-			t,
-			channel,
-		),
-	)
-}
 
 /**
  * The lazy-text emission gate (LT-114's root branch, mirrored onto the
