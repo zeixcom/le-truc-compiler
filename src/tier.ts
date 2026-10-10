@@ -1,0 +1,376 @@
+/**
+ * The server-evaluation tier classifier (ADR 0029, LT-165).
+ *
+ * `evaluability.ts` decides what the server can render; this module decides
+ * WHICH MECHANISM should try. The two are the same analysis with opposite
+ * polarity — every site that used to be a refusal (`LTC004`, non-severe
+ * `LTC034`, `LTC043`, and `LTC013`'s two server-evaluation factories) is
+ * now a *routing signal*, because "phase 1 cannot fold this" was never a
+ * statement about the author's code. It was a statement about the harness.
+ *
+ * ## Two facts, deliberately separate
+ *
+ * Conflating them produces wrong answers in both directions, so ADR 0029
+ * sub-design 1 defines them apart and so does this module:
+ *
+ * 1. **Unresolvability is a property of an EXPRESSION** — no server phase
+ *    can produce its value. Two limbs: `stubbed-api` (every read routes
+ *    through something `simulation/capabilities.ts` declares unanswerable) and
+ *    `not-a-server-fact` (the value is a function of the viewing moment or
+ *    the build machine's ambient state — the wall clock, the RNG, a
+ *    runtime-default locale). An unresolvable expression is omitted in
+ *    EVERY tier, the Simulated tier included: executing `Date.now()` in the
+ *    build's jsdom does not approximate the browser's answer, it bakes the
+ *    build machine's clock into the served HTML for the life of the page.
+ * 2. **Tier is a routing decision about a COMPONENT** — and the predicate
+ *    is not "can phase 1 resolve everything" but "is phase 2 worth running".
+ *
+ * They cannot be merged: picture a component that reads `Math.random()` at
+ * one rendered site and is otherwise realm-answerable (the synthetic pin in
+ * `suppression.test.ts`). Classified Static-tier as a whole it would discard
+ * everything the realm could resolve; classified Simulated-tier with the
+ * random read folded it would bake a seed into the page. It is
+ * Simulated-tier *with one suppressed expression*, an outcome that only
+ * exists because unresolvability is per-expression.
+ *
+ * ## The soundness posture is asymmetric on purpose
+ *
+ * A component is Folded-tier only when phase 1 is provably total; any doubt
+ * routes downward. A false Simulated classification costs ~1.1 ms. A false
+ * Folded classification ships wrong HTML with no diagnostic. So the
+ * classifier is sound, not complete, and the completeness gap is a build-time
+ * cost rather than a correctness one (ADR 0029 sub-design 2).
+ *
+ * ## Why limb (a) reads the capability table
+ *
+ * The stub posture and the tier assignment are the same data. When the driver
+ * gains a real capability, deleting that capability row re-routes the
+ * affected expressions from unresolvable to realm-answerable, and their
+ * components from the Static tier to the Simulated tier — automatically,
+ * with no second list to keep in sync. Limb (b) has no such escape hatch by
+ * construction: no driver capability can tell the build machine what time it
+ * will be when the page is read.
+ *
+ * The table it reads is `simulation/capabilities.ts`, compiler-side and
+ * substrate-free — NOT `sim/patch-table.ts` (LT-263, ADR 0035 sub-design 3
+ * limb 2). The classifier must answer with no substrate installed, so it
+ * cannot import from behind the seam; `SuppressedSite`, which the driver
+ * reads back, moved to `simulation/contract.ts` for the same reason.
+ */
+
+import type { AstNode } from './ast-node'
+import { forEachChild, isNode } from './ast-utils'
+import { type DiagnosticLocation, rangeOf, type Site } from './diagnostics'
+import { type ImpureAmbientCause, impureAmbientCauses } from './evaluability'
+import type { SourceRange } from './ir'
+import {
+	UNANSWERABLE_GLOBAL_NAMES,
+	UNANSWERABLE_MEMBERS,
+	unanswerableGlobalReason,
+	unanswerableMemberReason,
+} from './simulation/capabilities'
+
+/* === Types === */
+
+/**
+ * The three tiers of ADR 0029. Numbered in the ADR as 1/2/0 — the Static
+ * tier sits BELOW the Folded tier because it resolves less, not more.
+ */
+export type EvaluationTier =
+	/** Tier 1: template lowering + `runtime.ts`'s value harness. No jsdom. */
+	| 'folded'
+	/** Tier 2: phase-1 skeleton, then pre-play in the jsdom realm. */
+	| 'simulated'
+	/** Tier 0: phase-1 skeleton only; the client corrects at connect. */
+	| 'static'
+
+/**
+ * Which limb of sub-design 1 makes an expression unresolvable.
+ */
+export type UnresolvableLimb =
+	/** (a) Every read routes through something the capability table names. */
+	| 'stubbed-api'
+	/** (b) The input is the viewing moment or the build machine's state. */
+	| 'not-a-server-fact'
+
+/**
+ * The phase-1 refusal spellings a routing signal can carry (LT-223: a named
+ * union of its own, because most are NOT diagnostic codes — they are
+ * retired codes living on as provenance).
+ *
+ * - `LTC034` is the only spelling that is ALSO a live diagnostic (its
+ *   severe per-expression form, see `diagnostics.ts`).
+ * - `LTC004`, `LTC013`, `LTC043` were emitted diagnostics until LT-165
+ *   step 5 retired them; the refusals they named became routing signals,
+ *   and these spellings are their census provenance. The numbers stay
+ *   spent in `DiagnosticCode`'s numbering — they are not emitted codes.
+ * - `compose-read` was never a diagnostic: a compose site reading a
+ *   simulated-tier dependency.
+ * - `unavailable-substrate` was never a diagnostic either: the build found
+ *   no simulation substrate installed (ADR 0034 s5), so the Simulated
+ *   verdict stands in the signals but the routing degrades to the Static
+ *   tier and this origin records why.
+ */
+export type RoutingSignalOrigin =
+	| 'LTC004'
+	| 'LTC013'
+	| 'LTC034'
+	| 'LTC043'
+	| 'compose-read'
+	| 'unavailable-substrate'
+
+/** Whether some server phase can answer an unresolved expression. */
+export type Resolution =
+	/** The realm executes it for real against a simulated document. */
+	| { by: 'realm' }
+	/** No phase can answer it; omitted in every tier. */
+	| { by: 'none'; limb: UnresolvableLimb; reason: string }
+	/**
+	 * The realm WOULD answer it, but no substrate is installed (ADR 0034 s5).
+	 * Never counted realm-answerable — the classifier is substrate-blind by
+	 * design (ADR 0035 sub-design 4), so this variant only ever appears on a
+	 * signal the build pass appended AFTER classification, on a routing
+	 * override that sets the tier itself.
+	 */
+	| { by: 'substrate-unavailable' }
+
+/**
+ * One reason a component left the Folded tier.
+ *
+ * `origin` records which phase-1 refusal produced it, keeping the census
+ * traceable to the analysis that decided it — and keeping the retired
+ * diagnostic codes meaningful as provenance after they stop being
+ * diagnostics (ADR 0029 sub-design 5).
+ */
+export type RoutingSignal = {
+	origin: RoutingSignalOrigin
+	/** The name or expression the signal is about, for the census line. */
+	detail: string
+	/**
+	 * The construct the signal is about, in the authored file — the
+	 * diagnostic record's location shape (ADR 0044 s1, LT-371). Absent on
+	 * corpus-level signals (`compose-read`, `unavailable-substrate`), which
+	 * are about the component as a whole.
+	 */
+	location?: DiagnosticLocation
+	resolution: Resolution
+}
+
+/**
+ * A routing signal as the stages produce it, with its range local to the
+ * file being compiled (internal) — `locateSignal()` names the file in the
+ * pipeline, as `locate()` does for diagnostics.
+ */
+export type LocalRoutingSignal = Omit<RoutingSignal, 'location'> & {
+	range?: SourceRange
+}
+
+/** A component's tier and the reasons behind it — one census record. */
+export type TierClassification = {
+	tag: string
+	tier: EvaluationTier
+	signals: readonly RoutingSignal[]
+}
+
+/* === Internal Functions === */
+
+/** Census copy for each unresolvable impurity, in the table's own terms. */
+const IMPURITY_REASONS: Record<ImpureAmbientCause, string> = {
+	date: 'reads the wall clock, which is a fact about the viewing moment',
+	rng: 'reads the RNG, which has no server answer to bake in',
+	'locale-method':
+		'formats through a locale/timezone-reading method, so the value is the build machine’s',
+	'intl-default-locale':
+		'resolves its locale to the runtime default, which is the build machine’s own setting',
+	'intl-dom-locale':
+		'reads its locale from the DOM — realm-answerable, never unresolvable',
+}
+
+/* === Exported Functions === */
+
+/**
+ * A signal's `range` field, spread-ready: the construct `at` covers, or the
+ * whole file when nothing in range is known — the diagnostics' `rangeOf`,
+ * so a signal and a diagnostic about one construct agree.
+ */
+export const rangeFields = (
+	source: string,
+	at: Site,
+): { range: SourceRange } => ({ range: rangeOf(source, at) })
+
+/** Publish a stage's routing signal against `file` (ADR 0044 s1). */
+export const locateSignal = (
+	signal: LocalRoutingSignal,
+	file: string,
+): RoutingSignal => {
+	const { range, ...rest } = signal
+	return range === undefined ? rest : { ...rest, location: { file, ...range } }
+}
+
+/**
+ * Whether `node` reads something the realm cannot answer — limb (a).
+ *
+ * Two shapes, both sourced from `simulation/capabilities.ts`:
+ * - a free identifier naming a stubbed or closed global (`ResizeObserver`,
+ *   `matchMedia`, `fetch`);
+ * - a member read the realm answers WRONG rather than not at all
+ *   (`el.scrollWidth` → a silent zero, `internals.states` → absent).
+ *
+ * Returns the capability table's own `note` as the reason so the census
+ * explains itself in the table's words rather than a paraphrase that can
+ * drift.
+ */
+export const stubbedApiRead = (node: AstNode): string | null => {
+	let reason: string | null = null
+	const visit = (current: unknown): void => {
+		if (reason !== null) return
+		if (Array.isArray(current)) {
+			for (const child of current) visit(child)
+			return
+		}
+		if (!isNode(current)) return
+		if (
+			current.type === 'Identifier' &&
+			UNANSWERABLE_GLOBAL_NAMES.has(String(current.name))
+		) {
+			reason = unanswerableGlobalReason(String(current.name))
+			return
+		}
+		if (current.type === 'MemberExpression' && !current.computed) {
+			const property = current.property
+			if (isNode(property) && property.type === 'Identifier') {
+				const patch = UNANSWERABLE_MEMBERS.get(String(property.name))
+				// A capability row scoped to a receiver only fires on that
+				// receiver: `internals.states` is unanswerable, a component's own
+				// `states` const is not.
+				const object = current.object
+				const receiverMatches =
+					patch?.receiver === undefined ||
+					(isNode(object) &&
+						object.type === 'Identifier' &&
+						String(object.name) === patch.receiver)
+				if (patch && receiverMatches) {
+					reason = unanswerableMemberReason(patch)
+					return
+				}
+			}
+		}
+		// Type positions are skipped: a `ResizeObserver` annotation or a
+		// `typeof window` query reads nothing the realm would have to answer.
+		forEachChild(current, visit)
+	}
+	visit(node)
+	return reason
+}
+
+/**
+ * Decide whether an unresolved expression has a server answer anywhere.
+ *
+ * Limb (a) is checked before limb (b) only because its reason is more
+ * specific; an expression matching both is unresolvable either way.
+ */
+export const resolutionOf = (
+	node: AstNode,
+	scope: ReadonlySet<string>,
+): Resolution => {
+	const stubbed = stubbedApiRead(node)
+	if (stubbed !== null)
+		return { by: 'none', limb: 'stubbed-api', reason: stubbed }
+	const causes = impureAmbientCauses(node, scope)
+	// LT-142's three-way split (ADR 0029 sub-design 5): only SOME impurity is
+	// unresolvable. An `Intl` call whose locale is read from the DOM is impure
+	// for folding — the value harness has no document — but the realm executes
+	// that read against a real simulated element, so it is a Simulated-tier
+	// routing signal rather than an omitted expression.
+	const unresolvable = causes.filter(cause => cause !== 'intl-dom-locale')
+	if (unresolvable.length > 0)
+		return {
+			by: 'none',
+			limb: 'not-a-server-fact',
+			reason: IMPURITY_REASONS[unresolvable[0] as ImpureAmbientCause],
+		}
+	// Everything else the harness could not fold, the realm executes for real
+	// against a simulated document — which is the whole point of tier 2.
+	return { by: 'realm' }
+}
+
+/**
+ * Route a component from its routing signals — the conjunction of ADR 0029
+ * sub-design 1's table, not a single predicate.
+ *
+ * | | phase 1 resolves everything | realm can answer the rest | all unresolvable |
+ * | --- | --- | --- | --- |
+ * | tier | folded | simulated | static |
+ *
+ * The Static tier is the degenerate case: every unresolved expression is
+ * unresolvable, so no mechanism needs to run at all.
+ */
+export const classifyTier = (
+	signals: readonly { resolution: Resolution }[],
+): EvaluationTier => {
+	if (signals.length === 0) return 'folded'
+	return signals.some(signal => signal.resolution.by === 'realm')
+		? 'simulated'
+		: 'static'
+}
+
+/**
+ * Propagate composition contamination to a fixpoint — ADR 0029 sub-design 3.
+ *
+ * Contamination happens on READS, never on containment. A Folded-tier or
+ * Static-tier parent that merely embeds a Simulated-tier child stays in its
+ * own tier and splices the child's already-rendered markup: the compose
+ * graph renders children before parents (ADR 0027 sub-design 2), so the
+ * child's string exists by the time the parent needs it. Only a `first()`
+ * addressing a compose site, or a `truc:pass={{ }}` into it, leaves phase 1
+ * without an answer the child's markup alone supplies.
+ *
+ * Containment-based contamination was measured and rejected: with page
+ * chrome in the compose graph (`module-scrollarea` at 2,091 occurrences,
+ * `module-codeblock` at 299) it drags nearly the whole corpus into the realm
+ * and reproduces the unconditional cost tiering exists to avoid.
+ *
+ * A parent reading a Static-tier child becomes Simulated-tier, not
+ * Static-tier: the child's own expressions are unresolvable, but the
+ * parent's read of the rendered site is an ordinary DOM question the realm
+ * answers. Only a parent with no realm-answerable signal of its own stays
+ * Static.
+ *
+ * @param classifications - per-tag classification from the first pass
+ * @param composeReads - tags this tag READS at a compose site (not merely
+ *   contains), from the registry-aware pass where `analysis/compose-refs.ts`
+ *   already resolves compose-site references
+ */
+export const contaminateComposeReads = (
+	classifications: ReadonlyMap<string, TierClassification>,
+	composeReads: (tag: string) => readonly string[],
+): Map<string, TierClassification> => {
+	const result = new Map(classifications)
+	let changed = true
+	// Fixpoint rather than one pass: a read chain A → B → C only settles when
+	// C's tier has finished moving, and the compose graph is not ordered.
+	while (changed) {
+		changed = false
+		for (const [tag, classification] of result) {
+			if (classification.tier === 'simulated') continue
+			for (const child of composeReads(tag)) {
+				const childTier = result.get(child)?.tier
+				if (childTier === undefined || childTier === 'folded') continue
+				const signal: RoutingSignal = {
+					origin: 'compose-read',
+					detail: `reads composed <${child}> (${childTier}-tier) at a compose site`,
+					resolution: { by: 'realm' },
+				}
+				const signals = [...classification.signals, signal]
+				result.set(tag, {
+					...classification,
+					tier: classifyTier(signals),
+					signals,
+				})
+				changed = true
+				break
+			}
+		}
+	}
+	return result
+}

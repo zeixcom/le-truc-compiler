@@ -1,0 +1,55 @@
+{
+	"compilerOptions": {
+		"lib": ["ESNext", "DOM"],
+		"target": "ESNext",
+		"module": "ESNext",
+		"moduleDetection": "force",
+		"moduleResolution": "bundler",
+		"allowImportingTsExtensions": true,
+		"verbatimModuleSyntax": true,
+		"erasableSyntaxOnly": true,
+		"isolatedModules": true,
+		"resolveJsonModule": true,
+		"types": ["bun", "node"],
+		// The package's own subpaths resolve to SOURCE for every in-repo
+		// consumer (LT-442, LT-254): the package is never installed into
+		// this tree, so `@zeix/le-truc-compiler/macros` (the compile-time
+		// markers) and `@zeix/le-truc-compiler/runtime` (the value harness
+		// the generated server modules import under the published default)
+		// both point at `src/` — Bun honors these paths at runtime, not
+		// just under tsc. `@zeix/le-truc` resolves from `node_modules`
+		// (the sibling v3 checkout, installed as a file: dependency).
+		"paths": {
+			"@zeix/le-truc-compiler/macros": ["./src/macros.ts"],
+			"@zeix/le-truc-compiler/runtime": ["./src/runtime.ts"]
+		},
+
+		"noEmit": true,
+
+		"strict": true,
+		"skipLibCheck": true,
+		"noUncheckedIndexedAccess": true,
+		"exactOptionalPropertyTypes": true,
+		"useUnknownInCatchVariables": true,
+		"noUncheckedSideEffectImports": true,
+		"noFallthroughCasesInSwitch": true,
+		"forceConsistentCasingInFileNames": true,
+
+		"noUnusedLocals": false,
+		"noUnusedParameters": false,
+		"noPropertyAccessFromIndexSignature": false,
+
+		"incremental": true,
+		"tsBuildInfoFile": "./.tsbuildinfo"
+	},
+	"include": ["./src/**/*.ts", "./tests/**/*.ts"],
+	"exclude": [
+		"node_modules",
+		"dist",
+		// The .tsx host profile (ADR 0032) declares the same ambient
+		// vocabulary as src/frontend/tsrx/globals.d.ts in the GLOBAL scope —
+		// the two profiles are siblings, never roommates. Authored-.tsx
+		// tsconfigs include the profile; this program must not.
+		"src/frontend/tsx/host-profile.d.ts"
+	]
+}

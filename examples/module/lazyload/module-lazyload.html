@@ -1,0 +1,52 @@
+<!-- Regenerated from the compiled server render (LT-449 cutover):
+     renderModuleLazyload({...}) from server/generated/components/module-lazyload.server.ts —
+     the test page serves exactly the markup the compiled client hydrates (the LT-111
+     precedent): the boundary's pending arm live and the three arm templates inert beside
+     it. The variant set serves module-lazyload.tsx (ADR 0039); the hand-written
+     module-lazyload.ts stays as the twin. shake-hands (snippet.html) renders inert on the
+     compiled surface — its inline script is stripped by the 'truc:html' sanitizer until
+     the script-loading design (LT-448) rules. The twin's #missing-elements-test instance
+     (authored markup without the callout wrapper) is retired: the compiled component owns
+     its markup, so the twin's missing-required-element failure mode has no compiled
+     counterpart (LT-449 handoff). -->
+<module-lazyload src="./test/module-lazyload/mocks/simple-text.html"><card-callout data-key="nil"><p role="status" class="loading">Loading...</p></card-callout><template data-arms="0" data-key="ok"><div class="content"></div></template><template data-arms="0" data-key="nil"><card-callout><p role="status" class="loading">Loading...</p></card-callout></template><template data-arms="0" data-key="err"><card-callout class="danger"><p role="alert" aria-live="assertive" class="error"></p></card-callout></template></module-lazyload>
+
+<hr>
+
+<module-lazyload id="complex-content-test" src="./test/module-lazyload/mocks/with-styles.html"><card-callout data-key="nil"><p role="status" class="loading">Loading styled content...</p></card-callout><template data-arms="0" data-key="ok"><div class="content"></div></template><template data-arms="0" data-key="nil"><card-callout><p role="status" class="loading">Loading styled content...</p></card-callout></template><template data-arms="0" data-key="err"><card-callout class="danger"><p role="alert" aria-live="assertive" class="error"></p></card-callout></template></module-lazyload>
+
+<hr>
+
+<module-lazyload id="nested-components-test" src="./test/module-lazyload/mocks/nested-components.html"><card-callout data-key="nil"><p role="status" class="loading">Loading nested components...</p></card-callout><template data-arms="0" data-key="ok"><div class="content"></div></template><template data-arms="0" data-key="nil"><card-callout><p role="status" class="loading">Loading nested components...</p></card-callout></template><template data-arms="0" data-key="err"><card-callout class="danger"><p role="alert" aria-live="assertive" class="error"></p></card-callout></template></module-lazyload>
+
+<hr>
+
+<module-lazyload id="original-snippet-test" src="./test/module-lazyload/mocks/snippet.html" allow-scripts><card-callout data-key="nil"><p role="status" class="loading">Loading shake-hands...</p></card-callout><template data-arms="0" data-key="ok"><div class="content"></div></template><template data-arms="0" data-key="nil"><card-callout><p role="status" class="loading">Loading shake-hands...</p></card-callout></template><template data-arms="0" data-key="err"><card-callout class="danger"><p role="alert" aria-live="assertive" class="error"></p></card-callout></template></module-lazyload>
+
+<hr>
+
+<module-lazyload id="empty-content-test" src="./test/module-lazyload/mocks/empty.html"><card-callout data-key="nil"><p role="status" class="loading">Loading empty content...</p></card-callout><template data-arms="0" data-key="ok"><div class="content"></div></template><template data-arms="0" data-key="nil"><card-callout><p role="status" class="loading">Loading empty content...</p></card-callout></template><template data-arms="0" data-key="err"><card-callout class="danger"><p role="alert" aria-live="assertive" class="error"></p></card-callout></template></module-lazyload>
+
+<hr>
+
+<module-lazyload id="invalid-url-test" src="not-a-valid-url"><card-callout data-key="nil"><p role="status" class="loading">Loading invalid URL...</p></card-callout><template data-arms="0" data-key="ok"><div class="content"></div></template><template data-arms="0" data-key="nil"><card-callout><p role="status" class="loading">Loading invalid URL...</p></card-callout></template><template data-arms="0" data-key="err"><card-callout class="danger"><p role="alert" aria-live="assertive" class="error"></p></card-callout></template></module-lazyload>
+
+<hr>
+
+<module-lazyload id="not-found-test" src="./test/module-lazyload/mocks/does-not-exist.html"><card-callout data-key="nil"><p role="status" class="loading">Loading non-existent file...</p></card-callout><template data-arms="0" data-key="ok"><div class="content"></div></template><template data-arms="0" data-key="nil"><card-callout><p role="status" class="loading">Loading non-existent file...</p></card-callout></template><template data-arms="0" data-key="err"><card-callout class="danger"><p role="alert" aria-live="assertive" class="error"></p></card-callout></template></module-lazyload>
+
+<hr>
+
+<module-lazyload id="cross-origin-test" src="https://example.com/test.html"><card-callout data-key="nil"><p role="status" class="loading">Loading cross-origin...</p></card-callout><template data-arms="0" data-key="ok"><div class="content"></div></template><template data-arms="0" data-key="nil"><card-callout><p role="status" class="loading">Loading cross-origin...</p></card-callout></template><template data-arms="0" data-key="err"><card-callout class="danger"><p role="alert" aria-live="assertive" class="error"></p></card-callout></template></module-lazyload>
+
+<hr>
+
+<module-lazyload id="no-src-test"><card-callout data-key="nil"><p role="status" class="loading">Loading without src...</p></card-callout><template data-arms="0" data-key="ok"><div class="content"></div></template><template data-arms="0" data-key="nil"><card-callout><p role="status" class="loading">Loading without src...</p></card-callout></template><template data-arms="0" data-key="err"><card-callout class="danger"><p role="alert" aria-live="assertive" class="error"></p></card-callout></template></module-lazyload>
+
+<hr>
+
+<module-lazyload id="dynamic-src-test"><card-callout data-key="nil"><p role="status" class="loading">Loading dynamic src...</p></card-callout><template data-arms="0" data-key="ok"><div class="content"></div></template><template data-arms="0" data-key="nil"><card-callout><p role="status" class="loading">Loading dynamic src...</p></card-callout></template><template data-arms="0" data-key="err"><card-callout class="danger"><p role="alert" aria-live="assertive" class="error"></p></card-callout></template></module-lazyload>
+
+<hr>
+
+<module-lazyload id="recursive-test" src="./test/module-lazyload/mocks/recursive.html"><card-callout data-key="nil"><p role="status" class="loading">Loading recursive content...</p></card-callout><template data-arms="0" data-key="ok"><div class="content"></div></template><template data-arms="0" data-key="nil"><card-callout><p role="status" class="loading">Loading recursive content...</p></card-callout></template><template data-arms="0" data-key="err"><card-callout class="danger"><p role="alert" aria-live="assertive" class="error"></p></card-callout></template></module-lazyload>

@@ -1,0 +1,82 @@
+import { defineComponent } from '@zeix/le-truc'
+
+export type ModuleDialogProps = {
+	/** Whether the dialog is currently open. */
+	open: boolean
+}
+
+declare global {
+	interface HTMLElementTagNameMap {
+		'module-dialog': HTMLElement & ModuleDialogProps
+	}
+}
+
+const SCROLL_LOCK_CLASS = 'scroll-lock'
+
+/**
+ * A modal dialog with scroll-lock, focus management, and backdrop/Escape close support.
+ * Use it for modal interactions — provides ARIA dialog semantics, traps keyboard focus
+ * while open, and should restore focus to the trigger element when closed via Escape.
+ * @demo {https://zeixcom.github.io/le-truc/examples.html#module-dialog} Interactive preview and usage examples
+ **/
+export default defineComponent<ModuleDialogProps>(
+	'module-dialog',
+	({ expose, first, on, watch }) => {
+		expose({ open: false })
+
+		const openButton = first(
+			'button[aria-haspopup="dialog"]',
+			'Add a button to open the dialog.',
+		)
+		on(openButton, 'click', () => ({ open: true }))
+
+		const closeButton = first(
+			'dialog button.close',
+			'Add a close button in the dialog.',
+		)
+		on(closeButton, 'click', () => ({ open: false }))
+
+		const dialog = first('dialog', 'Add a native dialog element.')
+		on(dialog, 'click', ({ target }) => target === dialog && { open: false })
+		on(dialog, 'keydown', e => {
+			if (e.key !== 'Escape') return
+			e.preventDefault()
+			return { open: false }
+		})
+
+		let scrollTop = 0
+		let activeElement: HTMLElement | null = null
+		// Restore only after an actual open: the initial `open = false` run
+		// (and a disconnect while closed) must not scroll the page or close a
+		// dialog that never opened.
+		let opened = false
+		watch('open', open => {
+			if (open) {
+				opened = true
+				scrollTop = document.documentElement.scrollTop
+				activeElement = document.activeElement as HTMLElement | null
+				dialog.showModal()
+				document.body.classList.add(SCROLL_LOCK_CLASS)
+				document.body.style.setProperty('top', `-${scrollTop}px`)
+				closeButton.focus()
+			} else if (opened) {
+				opened = false
+				document.body.classList.remove(SCROLL_LOCK_CLASS)
+				window.scrollTo({
+					top: scrollTop,
+					left: 0,
+					behavior: 'instant',
+				})
+				document.body.style.removeProperty('top')
+				dialog.close()
+				if (activeElement) activeElement.focus()
+			}
+			return () => {
+				if (!opened) return
+				document.body.classList.remove(SCROLL_LOCK_CLASS)
+				document.body.style.removeProperty('top')
+				dialog.close()
+			}
+		})
+	},
+)

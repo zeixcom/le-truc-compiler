@@ -1,0 +1,33 @@
+import { expect, test } from '@playwright/test'
+
+test.describe('test-context: provideContexts() + requestContext() helpers', () => {
+	test.beforeEach(async ({ page }) => {
+		await page.goto('/test/test-context')
+		await page.waitForSelector('test-context-provider')
+	})
+
+	test('3A: provideContexts — provider attaches context listener', async ({
+		page,
+	}) => {
+		// The consumer inside the provider should receive the provider's count (0)
+		const consumerOutput = page.locator('#consumer #output')
+		await expect(consumerOutput).toHaveText('0')
+	})
+
+	test('3B: requestContext — consumer reflects provider value', async ({
+		page,
+	}) => {
+		await page.evaluate(() => {
+			const provider = document.querySelector('#provider') as any
+			provider.count = 42
+		})
+		const consumerOutput = page.locator('#consumer #output')
+		await expect(consumerOutput).toHaveText('42')
+	})
+
+	test('3B: requestContext — falls back when no provider', async ({ page }) => {
+		// The standalone consumer has no provider ancestor → fallback = -1
+		const noProviderOutput = page.locator('#no-provider #output')
+		await expect(noProviderOutput).toHaveText('-1')
+	})
+})

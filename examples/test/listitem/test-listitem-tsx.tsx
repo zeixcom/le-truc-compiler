@@ -1,0 +1,114 @@
+/**
+ * LT-423 fixture (.tsx surface): the Mount Scope twin of
+ * `test-listitem.tsrx` — a store item with a reactive attribute over a
+ * store field, a lazy text child, a handler reading the item, a dirty-flag
+ * property attribute, key-derived `id`/`for` over the keyed `map`'s key
+ * binding (`items.map((task, k) => …)`, ADR 0046 s4, LT-425), and a
+ * composed child with `truc:pass={{ get, set }}`, adopted from the server
+ * render and then cloned. The button logs instead of removing: removal
+ * through the key is pinned on the `.tsrx` twin.
+ */
+import { createList, createStore, type MutableStore } from '@zeix/le-truc'
+import { css } from '@zeix/le-truc-compiler/macros'
+import { FormCheckbox } from '../../form/checkbox/form-checkbox.tsx'
+
+export type TestListItemTask = {
+	id: string
+	label: string
+	done: boolean
+}
+
+export type TestListitemTsxProps = Record<string, never>
+
+declare global {
+	interface HTMLElementTagNameMap {
+		'test-listitem-tsx': HTMLElement
+	}
+}
+
+// biome-ignore lint/correctness/noEmptyPattern: the fixture takes no server args, and the compiler's params contract requires an (empty) destructured object pattern.
+export function TestListitemTsx({}: TestListitemTsxProps) {
+	const items = createList<TestListItemTask, MutableStore<TestListItemTask>>(
+		[
+			{ id: 'task-1', label: 'First task', done: true },
+			{ id: 'task-2', label: 'Second task', done: false },
+		],
+		{
+			keyConfig: task => task.id,
+			createItem: createStore,
+		},
+	)
+
+	return (
+		<test-listitem-tsx>
+			<ul class="tasks">
+				{items.map((task, k) => (
+					<li class={() => (task.done.get() ? 'done' : null)}>
+						<label for={k}>{task.label.get()}</label>
+						<input
+							type="text"
+							id={k}
+							value={() => task.label.get()}
+							onInput={(e: Event) =>
+								task.label.set((e.target as HTMLInputElement).value)
+							}
+						/>
+						<FormCheckbox
+							name="task"
+							truc:pass={{
+								checked: {
+									get: () => task.done.get(),
+									set: v => task.done.set(Boolean(v)),
+								},
+							}}
+						>
+							Done
+						</FormCheckbox>
+						<button type="button" onClick={() => console.log(task.done.get())}>
+							Log
+						</button>
+					</li>
+				))}
+			</ul>
+			<button
+				type="button"
+				class="add"
+				onClick={() => {
+					items.add({
+						id: `task-${Date.now()}`,
+						label: 'Added task',
+						done: true,
+					})
+				}}
+			>
+				Add
+			</button>
+			<style>{css`@scope {
+	:where(:scope) {
+		display: block;
+	}
+
+	ul {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-s);
+		list-style: none;
+		margin: 0;
+		padding: 0;
+
+		& li {
+			display: flex;
+			align-items: center;
+			gap: var(--space-s);
+			margin: 0;
+			padding: 0;
+
+			&.done {
+				color: var(--color-text-soft);
+			}
+		}
+	}
+}`}</style>
+		</test-listitem-tsx>
+	)
+}

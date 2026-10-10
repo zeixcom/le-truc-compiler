@@ -1,0 +1,153 @@
+// The docs site's own sanitizer (ADR 0010): the compiled `truc:html` path
+// fails closed — unconfigured, it renders fetched markup escaped. DOMPurify
+// keeps the rich content (markup) and strips scripts and event handlers,
+// which is the compiled surface's contract; the demo's `allow-scripts` stays
+// inert until the script-loading design (LT-448) rules. ES imports hoist, so
+// this runs after the component clients below register — the configured
+// default is read per update, never captured at bind time, so that ordering
+// is safe.
+//
+// Two policy options the partials' contract needs, both inside DOMPurify —
+// never split and re-concatenate around it, which voids its guarantee:
+// - `FORCE_BODY`: a partial's leading `<style>` would otherwise be hoisted
+//   into `<head>` by the body parse and dropped with it.
+// - `CUSTOM_ELEMENT_HANDLING`: the default allowlist has no custom elements
+//   and would unwrap every corpus tag a partial carries. Any valid custom
+//   element name passes — an undefined tag stays inert, so the demo
+//   partial's `shake-hands` renders without behavior until LT-448. The
+//   attribute check excludes `on*`: DOMPurify applies no separate handler
+//   filter to attributes admitted here, so `onfocus` plus `autofocus` on a
+//   custom element would run script on insertion.
+import { configureHtmlSanitizer } from '@zeix/le-truc'
+import DOMPurify from 'dompurify'
+
+configureHtmlSanitizer(html =>
+	DOMPurify.sanitize(html, {
+		FORCE_BODY: true,
+		CUSTOM_ELEMENT_HANDLING: {
+			tagNameCheck: /^[a-z][a-z0-9]*(-[a-z0-9]+)+$/,
+			attributeNameCheck: /^(?!on)[a-z][a-z0-9-]*$/,
+			allowCustomizedBuiltInElements: false,
+		},
+	}),
+)
+
+import '../server/generated/components/basic-blogmeta.client.ts'
+// Site cutover (LT-092): every migrated component mounts its COMPILED client
+// from server/generated/components (gitignored build output — scripts/build-corpus.ts
+// regenerates it; build:examples:js runs that compiler step before bundling,
+// and server/build.ts sequences the tsrx effect in phase 1 ahead of the js
+// bundle for the same reason). The hand-written .ts twins are deleted per the
+// card-blogpost/card-callout precedent.
+// basic-button cut over in LT-117 — it OWNS its template (the server
+// renders the button and its spans from the args) and harvests
+// label/badge/disabled back out of that same markup at connect, so a
+// page may also author the markup itself, in whole or in part.
+import '../server/generated/components/basic-button.client.ts'
+import '../server/generated/components/basic-counter.client.ts'
+// basic-gauge cut over in LT-115: the arg→DOM substitution now routes
+// derived signals through the exposed prop's Slot (a tracked source —
+// post-connect writes re-derive instead of freezing), and root harvest
+// sites read the ambient `host` instead of an illegal `first('<own-tag>')`
+// self-query. It was reshaped to its twin's contract (meter-fallback
+// harvest + observedAttributes) — see its .tsrx header. basic-pluralize
+// (cut over in the same task) was retired in LT-467.
+import '../server/generated/components/basic-gauge.client.ts'
+import '../server/generated/components/basic-number.client.ts'
+import '../server/generated/components/basic-hello.client.ts'
+import '../server/generated/components/card-collapsible.client.ts'
+import '../server/generated/components/card-colorscale.client.ts'
+import '../server/generated/components/card-mediaqueries.client.ts'
+import '../server/generated/components/context-media.client.ts'
+import './docs/lifecycle/docs-lifecycle.ts'
+import './docs/reconcile/docs-reconcile.ts'
+import './docs/task-states/docs-task-states.ts'
+import '../server/generated/components/form-checkbox.client.ts'
+import '../server/generated/components/form-colorgraph.client.ts'
+import '../server/generated/components/form-combobox.client.ts'
+import '../server/generated/components/form-inplace-edit.client.ts'
+import '../server/generated/components/form-listbox.client.ts'
+// form-radiogroup cut over in LT-116: the loop-body `checked` mirror lowers
+// to a property write (the compiler's dirty-flag dispatch widening), so the
+// compiled client restores the twin's mutual exclusion after interaction.
+import '../server/generated/components/form-radiogroup.client.ts'
+import '../server/generated/components/form-spinbutton.client.ts'
+import '../server/generated/components/form-textbox.client.ts'
+import '../server/generated/components/form-tokenbox.client.ts'
+// module-calctable serves its compiled client (the variant set's
+// selected surface). Until LT-485 this graph imported the hand-written
+// twin, which then held the tag on every page and in every
+// `test:variants` surface bundle, so the compiled spellings were never
+// the ones exercised. module-cem-list and module-ticker cut over in the
+// same task.
+import '../server/generated/components/module-calctable.client.ts'
+import '../server/generated/components/module-carousel.client.ts'
+import '../server/generated/components/module-catalog.client.ts'
+// module-cem-list serves its compiled client — cut over with
+// module-calctable in LT-485.
+import '../server/generated/components/module-cem-list.client.ts'
+import '../server/generated/components/module-codeblock.client.ts'
+import '../server/generated/components/module-coloreditor.client.ts'
+import '../server/generated/components/module-colorinfo.client.ts'
+import '../server/generated/components/module-dialog.client.ts'
+import '../server/generated/components/module-lazyload.client.ts'
+import '../server/generated/components/module-list.client.ts'
+import '../server/generated/components/module-listnav.client.ts'
+import '../server/generated/components/module-pagination.client.ts'
+import '../server/generated/components/module-scrollarea.client.ts'
+import '../server/generated/components/module-splitview.client.ts'
+import '../server/generated/components/module-tabgroup.client.ts'
+// module-ticker serves its compiled client — cut over with
+// module-calctable in LT-485.
+import '../server/generated/components/module-ticker.client.ts'
+// module-todo serves its compiled client (the variant set's selected
+// surface, LT-111). Until LT-467 this graph imported the hand-written twin,
+// which then held the tag on every page and in every `test:variants` surface
+// bundle, so the compiled spellings were never the ones exercised.
+import '../server/generated/components/module-todo.client.ts'
+// section-menu cut over in LT-469: the site's sidebar chrome serves its
+// compiled client (the variant set's selected surface), so the layout pages
+// run the compiled .tsx spelling; ?surface= and TEST_SURFACE reach the .ts
+// twin and the .tsrx variant. server/templates/menu.ts stays hand-written —
+// the markup contract SERVER.md documents, pinned by templates/menu.test.ts.
+import '../server/generated/components/section-menu.client.ts'
+import '../server/generated/components/test-listitem-tsx.client.ts'
+import '../server/generated/components/test-listitem.client.ts'
+import './test/audit/test-audit.ts'
+import './test/aria/test-aria.ts'
+import './test/context/test-context.ts'
+import './test/context/test-context-late-provider.ts'
+import './test/debug/test-debug.ts'
+import './test/debug/test-debug-collision.ts'
+import './test/security/test-security.ts'
+import './test/each/test-each.ts'
+import './test/expose/test-expose.ts'
+import './test/on/test-on.ts'
+import './test/pass/test-pass.ts'
+import './test/watch/test-watch.ts'
+
+// Structural-only custom elements — no behavior, just layout containers.
+// Declared as named classes (not inline expressions) so the CEM analyzer
+// extracts proper PascalCase names + descriptions for editor LSP awareness.
+//
+// card-blogpost and card-callout used to be stubs here too; both migrated to
+// .tsrx (fb06e37a, LT-033/LT-034) — same structural-only shape, now compiled
+// from examples/card/{blogpost,callout}/*.tsrx and read into the CEM
+// manifest from their generated client, so a stub here would double-declare
+// the tag (verify-cem.ts's duplicate-tag guard).
+
+/** Blog post archive, grouped by year into collapsible sections. */
+class ModuleBlogarchive extends HTMLElement {}
+customElements.define('module-blogarchive', ModuleBlogarchive)
+
+/** Wrapper around a live component preview in the docs. */
+class ModuleDemo extends HTMLElement {}
+customElements.define('module-demo', ModuleDemo)
+
+/** Table-of-contents container. */
+class ModuleToc extends HTMLElement {}
+customElements.define('module-toc', ModuleToc)
+
+/** Hero section at the top of a page. */
+class SectionHero extends HTMLElement {}
+customElements.define('section-hero', SectionHero)

@@ -1,0 +1,45 @@
+{
+	// The `@zeix/le-truc-compiler` package build (LT-254, ADR 0034).
+	//
+	// Emits JS plus declarations for the whole compiler — both front ends,
+	// the shared pipeline, the harness — from `src/` into `dist/`, the
+	// directory the package manifest's `exports` map points at. The sources
+	// are written for bundler-style extensionless imports;
+	// `scripts/build-compiler.ts` normalizes the emitted relative
+	// specifiers to `.js` after tsc runs, which is what makes the output
+	// node-runnable as plain ESM.
+	"compilerOptions": {
+		"lib": ["ESNext", "DOM"],
+		"target": "ES2022",
+		// `preserve` is the one module setting that allows bundler resolution
+		// AND emit: the emitted files keep their ESM import syntax.
+		"module": "preserve",
+		"moduleResolution": "bundler",
+		"verbatimModuleSyntax": true,
+		"erasableSyntaxOnly": true,
+		"isolatedModules": true,
+		"types": ["node"],
+
+		"strict": true,
+		"skipLibCheck": true,
+		"noUncheckedIndexedAccess": true,
+		"exactOptionalPropertyTypes": true,
+		"useUnknownInCatchVariables": true,
+		"noFallthroughCasesInSwitch": true,
+		"forceConsistentCasingInFileNames": true,
+
+		"noEmit": false,
+		"declaration": true,
+		"outDir": "./dist",
+		"rootDir": "./src"
+	},
+	"include": ["./src/**/*.ts"],
+	"exclude": [
+		"node_modules",
+		// The two authored-surface ambient profiles declare the same global
+		// JSX vocabulary as each other; the compiler's own program needs
+		// neither (they type authored sources, not compiler code).
+		"src/frontend/tsx/host-profile.d.ts",
+		"src/frontend/tsrx/globals.d.ts"
+	]
+}

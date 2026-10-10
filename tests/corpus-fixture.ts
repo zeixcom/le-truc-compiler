@@ -1,0 +1,79 @@
+/**
+ * Shared corpus fixture for tests that exercise the corpus runner
+ * (`compileCorpus`) the way the build does.
+ */
+
+import { readdirSync, readFileSync } from 'node:fs'
+import * as path from 'node:path'
+import { resolveCorpusConfig } from '../src/corpus-config'
+import type { CorpusFile } from '../src/corpus-scan'
+import { collectCorpusSources } from '../src/corpus-scan'
+import { compileSource } from '../src/frontend/tsrx/compiler'
+import { compileSourceTsx } from '../src/frontend/tsx/compiler-tsx'
+import type { FileInfo } from './file-signals'
+
+const ROOT = path.resolve(import.meta.dir, '..')
+
+/**
+ * The corpus under `examples/` — BOTH authored surfaces — as `FileInfo[]`,
+ * read through the CONFIGURED scan (LT-273): the same glob list, dedup and
+ * runtime-neutral order the build, `check:corpus` and `i18n:sync` get, so a
+ * test fixture cannot drift from what the pipeline actually compiles.
+ */
+export const loadCorpus = async (): Promise<CorpusFile[]> =>
+	collectCorpusSources(resolveCorpusConfig(ROOT))
+
+/** The `c-plural` fixture's repo-relative path (LT-467). */
+export const C_PLURAL_FIXTURE = 'tests/fixtures/plural/c-plural.tsrx'
+
+/**
+ * The `c-plural` compiler fixture as a `FileInfo` — the retired
+ * basic-pluralize example, kept outside the corpus for the i18n coverage it
+ * carried (LT-467). Compile it with `compileCorpus([cPluralFixture()], …)`.
+ */
+export const cPluralFixture = (): FileInfo => {
+	const full = path.join(ROOT, C_PLURAL_FIXTURE)
+	return {
+		path: full,
+		filename: C_PLURAL_FIXTURE,
+		content: readFileSync(full, 'utf8'),
+		hash: '',
+		lastModified: 0,
+		size: 0,
+		exists: true,
+	}
+}
+
+/**
+ * Front-end-only compile of one corpus file, the surface chosen by
+ * extension — the same dispatch `compileCorpus` makes (ADR 0039 variant
+ * sets put a `.tsx` beside a `.tsrx` in one folder, LT-237).
+ */
+export const compileCorpusSource = (content: string, filename: string) =>
+	filename.endsWith('.tsx')
+		? compileSourceTsx(content, filename)
+		: compileSource(content, filename)
+
+/**
+ * Every ICU pattern the corpus declares, with its render locale: each
+ * component's inline source string (`en`) and every non-empty catalog
+ * translation under `i18n/`. The oracle test (icu.test.ts) and the MF2
+ * exit (mf2-exit.test.ts) walk the same list.
+ */
+export const corpusPatterns = async (): Promise<[string, string][]> => {
+	const out: [string, string][] = []
+	for (const file of await loadCorpus()) {
+		const { component } = compileCorpusSource(file.content, file.path)
+		for (const pattern of Object.values(component?.i18nMessages ?? {}))
+			out.push(['en', pattern])
+	}
+	const dir = path.join(ROOT, 'i18n')
+	for (const file of readdirSync(dir)) {
+		if (!file.endsWith('.json') || file === 'manifest.json') continue
+		const locale = file.replace(/\.json$/, '')
+		const catalog = JSON.parse(readFileSync(path.join(dir, file), 'utf8'))
+		for (const value of Object.values(catalog as Record<string, unknown>))
+			if (typeof value === 'string' && value !== '') out.push([locale, value])
+	}
+	return out
+}

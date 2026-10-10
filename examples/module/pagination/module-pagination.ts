@@ -1,0 +1,94 @@
+import {
+	asClampedInteger,
+	bindProperty,
+	bindText,
+	defineComponent,
+} from '@zeix/le-truc'
+
+export type ModulePaginationProps = {
+	/** Total number of pages. Read from the `max` attribute at connect time. */
+	max: number
+	/** Current page number (1-based). Read from the `value` attribute at connect time. */
+	value: number
+}
+
+declare global {
+	interface HTMLElementTagNameMap {
+		'module-pagination': HTMLElement & ModulePaginationProps
+	}
+}
+
+/**
+ * A pagination control with prev/next buttons, a direct page input, and keyboard navigation.
+ * Use it for navigating paged data — provides ARIA navigation semantics, keyboard
+ * focus management, and Enter key support on the page input field.
+ * @demo {https://zeixcom.github.io/le-truc/examples.html#module-pagination} Interactive preview and usage examples
+ **/
+export default defineComponent<ModulePaginationProps>(
+	'module-pagination',
+	({ expose, first, host, on, watch }) => {
+		const input = first(
+			'input',
+			'Add an <input[type="number"]> to enter the page number to go to.',
+		)
+		const prev = first(
+			'button.prev',
+			'Add a <button.prev> to go to the previous page.',
+		)
+		const next = first(
+			'button.next',
+			'Add a <button.next> to go to the next page.',
+		)
+
+		expose({
+			max: asClampedInteger(Number(input.max) ?? 1),
+			value: asClampedInteger(input.valueAsNumber ?? 1, host.max),
+		})
+
+		on(host, 'keyup', e => {
+			const { key } = e
+			if (e.target instanceof HTMLInputElement) return
+
+			let nextPage = host.value
+			if ((key === 'ArrowLeft' || key === '-') && host.value > 1) nextPage--
+			else if ((key === 'ArrowRight' || key === '+') && host.value < host.max)
+				nextPage++
+			if (document.activeElement === prev && nextPage <= 1) next.focus()
+			else if (document.activeElement === next && nextPage >= host.max)
+				prev.focus()
+			host.value = nextPage
+		})
+		on(input, 'change', () => {
+			const numValue = input.valueAsNumber
+			const clamped = Number.isNaN(numValue)
+				? 1
+				: Math.max(1, Math.min(numValue, host.max))
+			input.valueAsNumber = clamped
+			host.value = clamped
+		})
+		on(prev, 'click', () => {
+			host.value--
+			if (host.value <= 1) next.focus()
+		})
+		on(next, 'click', () => {
+			host.value++
+			if (host.value >= host.max) prev.focus()
+		})
+
+		watch('value', value => {
+			host.setAttribute('value', String(value))
+			input.value = String(value)
+			prev.disabled = value <= 1
+		})
+		watch('max', max => {
+			host.hidden = max <= 1
+			host.setAttribute('max', String(max))
+			input.max = String(max)
+		})
+		watch(() => host.value >= host.max, bindProperty(next, 'disabled'))
+		const valueEl = first('.value')
+		if (valueEl) watch('value', bindText(valueEl))
+		const maxEl = first('.max')
+		if (maxEl) watch('max', bindText(maxEl))
+	},
+)

@@ -1,0 +1,59 @@
+<module-listnav>
+	<nav>
+		<h2 id="pages-label" class="visually-hidden">Pages</h2>
+		<form-listbox id="pages" value="./test/module-listnav/mocks/page1.html">
+			<input type="hidden" name="page">
+			<div role="listbox" aria-labelledby="pages-label">
+				<div role="group" aria-labelledby="pages-section1">
+					<div role="presentation" id="pages-section1">Section 1</div>
+					<button
+						type="button"
+						role="option"
+						tabindex="0"
+						data-value="./test/module-listnav/mocks/page1.html"
+						data-label="Page 1"
+					>Page 1</button>
+					<button
+						type="button"
+						role="option"
+						tabindex="-1"
+						data-value="./test/module-listnav/mocks/page2.html"
+						data-label="Page 2"
+					>Page 2</button>
+					<button
+						type="button"
+						role="option"
+						tabindex="-1"
+						data-value="./test/module-listnav/mocks/page3.html"
+						data-label="Page3"
+					>Page3</button>
+					<button
+						type="button"
+						role="option"
+						tabindex="-1"
+						data-value="./test/module-listnav/mocks/page4.html"
+						data-label="Page 4"
+					>Page 4</button>
+				</div>
+				<div role="group" aria-labelledby="pages-section2">
+					<div role="presentation" id="pages-section2">Section 2</div>
+					<button
+						type="button"
+						role="option"
+						tabindex="-1"
+						data-value="./test/module-listnav/mocks/page5.html"
+						data-label="Page 5"
+					>Page 5</button>
+					<button
+						type="button"
+						role="option"
+						tabindex="-1"
+						data-value="./test/module-listnav/mocks/page6.html"
+						data-label="Missing Page 6"
+					>Missing Page 6</button>
+				</div>
+			</div>
+		</form-listbox>
+	</nav>
+	<module-lazyload><card-callout data-key="nil"><p role="status" class="loading">Loading...</p></card-callout><template data-arms="0" data-key="ok"><div class="content"></div></template><template data-arms="0" data-key="nil"><card-callout><p role="status" class="loading">Loading...</p></card-callout></template><template data-arms="0" data-key="err"><card-callout class="danger"><p role="alert" aria-live="assertive" class="error"></p></card-callout></template></module-lazyload>
+</module-listnav>

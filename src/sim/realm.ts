@@ -1,0 +1,894 @@
+/**
+ * The simulation realm (ADR 0027 sub-design 2, LT-151; amended by LT-154,
+ * 2026-09-03 — see `boundary.ts`'s header for why).
+ *
+ * Applies `patch-table.ts` to `globalThis` for the duration of a simulated
+ * connect, so a generated client module — which reads `HTMLElement`,
+ * `customElements` and `document` as free globals — resolves them to the jsdom
+ * realm on Bun, Node and Deno alike. Everything runtime-specific lives in the
+ * table; this module is the uniform applier.
+ *
+ * ## The two phases
+ *
+ * A generated client module registers its element as an import side effect
+ * (`defineComponent()` at module top level), and importing is asynchronous.
+ * Sub-design 9 requires the instantiate→parse step to be synchronous, so the
+ * two are split:
+ *
+ * 1. `load()` — the resolution phase. Imports run with a RECORDING
+ *    `customElements` in place, which captures `define()` calls instead of
+ *    performing them. Awaiting here is legitimate (sub-design 9, "two phases,
+ *    and only the second is synchronous"). One module cache per process means
+ *    a component's client module registers its element exactly once — `load()`
+ *    THROWS when an import records no new definitions, because a fresh realm
+ *    re-importing an already-loaded bundle silently degrades to un-upgraded
+ *    SSR markup (sub-design 10) rather than erroring. **Load each component
+ *    once; render it many times.**
+ * 2. `render()` — parses the SSR'd markup into the document while the
+ *    elements are still undefined (the pre-parsed upgrade path sub-design 2
+ *    depends on), replays the recorded definitions onto the real registry
+ *    CHILDREN-FIRST (`childrenFirstOrder`, keyed off the compiler's compose
+ *    graph — `define()` call order decides upgrade order, not import order
+ *    or recording order) so the upgrade runs, then drains the realm's
+ *    microtask queue to quiescence (`drainToQuiescence`) and serializes.
+ *    Async, because draining is: the parse+upgrade step itself is still
+ *    asserted synchronous (`assertSynchronousWindow`), only the quiescence
+ *    wait after it is not.
+ *
+ * ## Disposal
+ *
+ * End-of-process, not per-realm (LT-152 review, LT-154). A disposed realm's
+ * deleted globals turn a contained component's lingering dependency-wait
+ * into a synchronous `customElements is not defined` flood that aborts the
+ * process — so `dispose()` must be called at most once, after every render
+ * the realm will ever do, never between them. One realm per build. Since
+ * LT-207 the realm also owns the host timers scheduled while it is open, and
+ * `dispose()` cancels those still pending — so a wait that outlives the
+ * realm (tests dispose per file or per test) never fires against its
+ * restored globals and lands as an uncaught error in whatever runs next.
+ *
+ * The LAST render's tree is settled by `dispose()` itself (LT-411): it runs
+ * the same teardown the next render's window performed for every earlier
+ * render, before the restores and before `window.close()` — so the final
+ * disconnect's output is captured and attributed like every other render's,
+ * and nothing it queued fires against the deleted globals. `dispose()` is
+ * therefore async; await it before reading `diagnostics` for the last time.
+ *
+ * ## Diagnostics
+ *
+ * jsdom's `virtualConsole` is the diagnostic channel (ADR 0027 Consequences).
+ * `jsdomError`s, realm console errors/warnings, attempted network calls,
+ * contained per-component throws and non-quiescent drains all land in
+ * `diagnostics`; the compiler-side channel (`../build-report.ts`) turns them
+ * into the build report (LT-163) — per-kind copy and the zero-unclassified
+ * baseline — against the standing entries this driver publishes in
+ * `classifications.ts` (LT-263).
+ *
+ * ## Attribution
+ *
+ * A diagnostic is attributed to `currentComponent` — the component whose
+ * synchronous window most recently opened. The marker is set when a render
+ * opens its window and is overwritten by the NEXT render; it is deliberately
+ * never reset in between, because the process-level channels report late:
+ * under Bun (and Node), an `unhandledRejection` fires in a macrotask AFTER
+ * `render()` has returned, and post-drain the realm's queue is quiescent —
+ * so a late rejection traces to the most recent connect, and clearing the
+ * marker would strip the warning of the component it belongs to. `load()`
+ * performs no connect, so an error during module evaluation attributes to
+ * whatever component rendered last.
+ *
+ * A render's live tree is torn down at the start of the NEXT `render()`,
+ * before that render's window opens and with the marker still naming the
+ * render that built it (`settlePreviousRender`, LT-335). Disconnect runs
+ * component code — a composing parent's `pass()` restore re-fires its
+ * child's effects — so a teardown left to the next window's `innerHTML`
+ * would blame an innocent component, depending only on page order.
+ *
+ * Note the scope of the rejection handler: registering `process.on(
+ * 'unhandledRejection')` suppresses the runtime's default crash-on-unhandled-
+ * rejection for the WHOLE process, for the realm's lifetime — not just
+ * rejections from inside the realm. That is the containment trade (tier 2):
+ * an unhandled rejection during a build becomes a diagnostic here instead of
+ * a dead build, and the build report is the only place it surfaces.
+ *
+ * ## Suppression (LT-165 step 7, ADR 0029 sub-design 1)
+ *
+ * A suppressed site is an expression NO server phase can answer (limb b:
+ * wall clock, RNG, runtime-default locale). The generated client still
+ * binds it — the realm cannot decline — so `render()` snapshots the site's
+ * skeleton state from an inert parse of the markup and restores it after
+ * the quiescence drain, before serializing. The ordering is load-bearing:
+ * the drain's stability comparison must observe the unsuppressed tree, and
+ * a revert inside the drain loop would either oscillate against the live
+ * binding or mask a genuine non-quiescence. Records come from the
+ * compiler's `RegistryEntry.suppressedSites` via the constructor's
+ * `suppressedSites` callback, keyed by the rendered tag.
+ */
+
+import { JSDOM, VirtualConsole } from 'jsdom'
+import {
+	type SimDiagnostic,
+	type SimRenderRequest,
+	type SimRenderResult,
+	type SimRuntime,
+	type SimulationRealm,
+	type SimulationRealmOptions,
+	SUPPRESSED_HOST_SELECTOR,
+	type SuppressedSite,
+} from '../simulation/contract'
+import { assertSynchronousWindow, drainToQuiescence } from './boundary'
+import {
+	detectRuntime,
+	NETWORK_GLOBALS,
+	type NetworkGlobalPatch,
+	patchesFor,
+	REALM_GLOBALS,
+	STUB_GLOBALS,
+	type StubShape,
+} from './patch-table'
+
+/* === Types === */
+
+/** A `customElements.define()` call captured during the resolution phase. */
+export type RecordedDefinition = {
+	name: string
+	elementConstructor: CustomElementConstructor
+	options?: ElementDefinitionOptions
+}
+
+/**
+ * One render, as the driver takes it. Structurally the seam's
+ * {@link SimRenderRequest}; kept as a local alias so the driver's own
+ * call sites read in its vocabulary.
+ */
+export type RenderOptions = SimRenderRequest
+
+/**
+ * The jsdom driver's own handle — the seam's {@link SimulationRealm} plus
+ * the substrate-shaped members its tests and the portability probe need.
+ *
+ * The split is the point (ADR 0035 sub-design 3 limb 3). `window`,
+ * `document` and the recorded constructors are jsdom's types, so they
+ * cannot appear on the interface the compiler programs against — a
+ * consumer who opted out of jsdom would not be able to typecheck it. They
+ * are still legitimate INSIDE the driver, which is where the substrate is
+ * known; when `@zeix/le-truc-simulation` splits out (sub-design 4), this
+ * type goes with it and the compiler is left holding the contract alone.
+ *
+ * Nothing compiler-side may widen to this type. `loadedTags` exists on the
+ * seam precisely so no caller needs `definitions` for the one thing it was
+ * ever read for.
+ */
+export type JsdomSimulationRealm = SimulationRealm & {
+	readonly window: JSDOM['window']
+	readonly document: Document
+	/** Definitions captured during the resolution phase, in recording order. */
+	readonly definitions: readonly RecordedDefinition[]
+}
+
+/* === Internal Functions === */
+
+const asRecord = (value: object) => value as unknown as Record<string, unknown>
+
+/** Resolve a possibly dotted patch name to its owner object and leaf key. */
+const resolveTarget = (
+	root: Record<string, unknown>,
+	name: string,
+): { owner: Record<string, unknown>; key: string } | null => {
+	const parts = name.split('.')
+	let owner: Record<string, unknown> = root
+	for (const part of parts.slice(0, -1)) {
+		const next = owner[part]
+		if (typeof next !== 'object' || next === null) return null
+		owner = next as Record<string, unknown>
+	}
+	const key = parts.at(-1)
+	return key === undefined ? null : { owner, key }
+}
+
+const stubFor = (shape: StubShape): unknown => {
+	switch (shape) {
+		case 'observer':
+			return class {
+				observe() {}
+				unobserve() {}
+				disconnect() {}
+				takeRecords() {
+					return []
+				}
+			}
+		case 'match-media':
+			return (query: string) => ({
+				matches: false,
+				media: query,
+				onchange: null,
+				addListener() {},
+				removeListener() {},
+				addEventListener() {},
+				removeEventListener() {},
+				dispatchEvent: () => false,
+			})
+		case 'animation-frame':
+			// Returns a handle but never calls back: anything it would have
+			// scheduled lands after the serialization boundary anyway.
+			return () => 0
+		case 'cancel':
+		case 'noop':
+			return () => {}
+		case 'history':
+			// The build has no session history: navigation calls are inert and
+			// the stack is the one entry being rendered.
+			return {
+				length: 1,
+				scrollRestoration: 'auto',
+				state: null,
+				back() {},
+				forward() {},
+				go() {},
+				pushState() {},
+				replaceState() {},
+			}
+	}
+}
+
+/**
+ * Order `definitions` so every entry's composed children (per
+ * `composesTags`) come before it — a DFS post-order topological sort,
+ * stable on the input order for unrelated entries.
+ *
+ * `define()` call order decides jsdom upgrade order (LT-154's correction to
+ * sub-design 2's "native bottom-up" claim): a composed child that its
+ * parent's client module never imports (pure server-splice composition, no
+ * `pass()`/`first()` binding) has no import-graph relationship to its
+ * parent, so nothing about import/recording order guarantees it is defined
+ * first. The compose graph is the only source of truth for that
+ * relationship, hence `composesTags` is threaded in rather than inferred.
+ */
+export function childrenFirstOrder(
+	definitions: readonly RecordedDefinition[],
+	composesTags: (tag: string) => readonly string[],
+): RecordedDefinition[] {
+	const byName = new Map(definitions.map(entry => [entry.name, entry]))
+	const visited = new Set<string>()
+	const ordered: RecordedDefinition[] = []
+	const visit = (name: string): void => {
+		if (visited.has(name)) return
+		visited.add(name)
+		for (const child of composesTags(name)) visit(child)
+		const entry = byName.get(name)
+		if (entry) ordered.push(entry)
+	}
+	for (const entry of definitions) visit(entry.name)
+	return ordered
+}
+
+/* === Exported Functions === */
+
+/**
+ * Build a simulation realm with the patch table applied to `globalThis`.
+ *
+ * The patches are process-global for the realm's lifetime, so a realm owns the
+ * process while it lives — `dispose()` restores every touched global to the
+ * descriptor it found. One realm per build (ADR 0027 sub-design 2), disposed
+ * only at end-of-process (LT-154; see module header).
+ *
+ * @param options.html - the shell document; defaults to an empty body
+ * @param options.composesTags - direct composed-child tags for a defined
+ *   tag, from the compiler's compose graph (`RegistryEntry.composesTags`).
+ *   Defaults to "no known children" — correct for the driver's own inline
+ *   test fixtures, which have no composition.
+ * @returns the realm handle
+ */
+export function createSimulationRealm(
+	options: SimulationRealmOptions = {},
+): JsdomSimulationRealm {
+	const composesTags = options.composesTags ?? (() => [])
+	const suppressedSites = options.suppressedSites ?? (() => [])
+	const runtime = detectRuntime()
+	const diagnostics: SimDiagnostic[] = []
+	const definitions: RecordedDefinition[] = []
+	/**
+	 * The component whose synchronous window is open, so realm-level channels
+	 * (jsdom errors, console, network) are attributed rather than anonymous.
+	 */
+	let currentComponent: string | undefined
+	const report = (diagnostic: SimDiagnostic) => {
+		diagnostics.push(
+			diagnostic.component === undefined && currentComponent !== undefined
+				? { ...diagnostic, component: currentComponent }
+				: diagnostic,
+		)
+	}
+
+	/**
+	 * Capture the HOST console for one load/render window (LT-180).
+	 *
+	 * jsdom's `virtualConsole` only sees what code running INSIDE the jsdom
+	 * window logs. A generated client module is imported into this process
+	 * and executes against patched globals, so the library's own containment
+	 * (ADR 0028 tier 2: `reportConnectFailure` catches a connect throw,
+	 * degrades the component to its server-rendered markup, and reports it)
+	 * writes to the process console and never reaches the virtual one. The
+	 * component then serializes as the un-enhanced skeleton with the report
+	 * completely silent — the build serves wrong HTML with no signal, which
+	 * is exactly what the report channel exists to prevent.
+	 *
+	 * Everything the window logs at `error`/`warn` is recorded, not just the
+	 * library's containment: the host console carries no marker that would
+	 * separate a contained connect failure from any other error logged
+	 * during a connect, and both mean the same thing here — something went
+	 * wrong while this component was being simulated. `kind` is therefore
+	 * `console`, the same kind the virtual console's own levels report; the
+	 * source differs, the meaning does not. Output is captured rather than
+	 * forwarded, so the report is the single place a failure is stated.
+	 */
+	const hostConsole = globalThis.console as unknown as Record<
+		string,
+		(...args: unknown[]) => void
+	>
+	const CAPTURED_LEVELS = ['error', 'warn'] as const
+	const captureHostConsole = (): (() => void) => {
+		const original = CAPTURED_LEVELS.map(
+			level => [level, hostConsole[level]] as const,
+		)
+		for (const level of CAPTURED_LEVELS)
+			hostConsole[level] = (...args: unknown[]) => {
+				const thrown = args.find(arg => arg instanceof Error) as
+					| Error
+					| undefined
+				report({
+					kind: 'console',
+					level,
+					message: args.map(String).join(' '),
+					...(thrown?.stack === undefined ? {} : { stack: thrown.stack }),
+				})
+			}
+		return () => {
+			for (const [level, fn] of original)
+				if (fn !== undefined) hostConsole[level] = fn
+		}
+	}
+
+	const virtualConsole = new VirtualConsole()
+	virtualConsole.on('jsdomError', (error: Error) => {
+		const cause = (error.cause as Error | undefined) ?? error
+		report({
+			kind: 'jsdom-error',
+			message: String(cause?.message ?? cause),
+			...(cause?.stack === undefined ? {} : { stack: cause.stack }),
+		})
+	})
+	for (const level of ['error', 'warn'] as const)
+		virtualConsole.on(level, (...args: unknown[]) => {
+			report({ kind: 'console', level, message: args.map(String).join(' ') })
+		})
+
+	const dom = new JSDOM(
+		options.html ?? '<!DOCTYPE html><html><body></body></html>',
+		{ virtualConsole, pretendToBeVisual: false },
+	)
+	const { window } = dom
+	const document = window.document as unknown as Document
+	const realRegistry = window.customElements as unknown as CustomElementRegistry
+
+	// --- Apply the patch table -------------------------------------------
+
+	const root = globalThis as unknown as Record<string, unknown>
+	const restores: Array<() => void> = []
+
+	const force = (name: string, value: unknown) => {
+		const target = resolveTarget(root, name)
+		if (!target) return
+		const { owner, key } = target
+		const previous = Object.getOwnPropertyDescriptor(owner, key)
+		try {
+			Object.defineProperty(owner, key, {
+				value,
+				writable: true,
+				configurable: true,
+				enumerable: previous?.enumerable ?? false,
+			})
+		} catch {
+			// Deno marks a few globals non-configurable; skip rather than abort,
+			// and let the probe's cross-runtime diff surface any consequence.
+			report({
+				kind: 'console',
+				message: `Could not patch global '${name}' under ${runtime}`,
+			})
+			return
+		}
+		restores.push(() => {
+			if (previous) Object.defineProperty(owner, key, previous)
+			else delete owner[key]
+		})
+	}
+
+	const windowRecord = asRecord(window as unknown as object)
+	for (const patch of patchesFor(REALM_GLOBALS, runtime)) {
+		const value = windowRecord[patch.from ?? patch.name]
+		if (value === undefined) continue
+		// Constructors go across verbatim — a bound copy breaks both `instanceof`
+		// and `class X extends HTMLElement`. Free functions (`getComputedStyle`)
+		// need their receiver.
+		const isConstructor =
+			typeof value === 'function' && /^[A-Z]/.test(patch.name)
+		force(
+			patch.name,
+			typeof value === 'function' && !isConstructor
+				? value.bind(window)
+				: value,
+		)
+	}
+
+	for (const patch of patchesFor(STUB_GLOBALS, runtime)) {
+		const present =
+			windowRecord[patch.name] !== undefined || root[patch.name] !== undefined
+		if (present && !patch.force) continue
+		force(patch.name, stubFor(patch.shape))
+	}
+
+	const denyNetwork = (patch: NetworkGlobalPatch) => {
+		const message =
+			`network access from a simulated connect (\`${patch.name}()\`) — the ` +
+			'build realm is closed (ADR 0027 sub-design 2d). Declare build-time ' +
+			'data as a resolution-phase dependency instead.'
+		// Never settles (amended sub-design 2d, LT-154): a rejection would route
+		// every fetching component to `@catch` under the quiescence drain, but
+		// the build cannot know the request failed — it never ran. A promise
+		// that never settles keeps the component's task at `nil`, which SSG
+		// requires (CHECKLIST §8/§9) and `match()` renders as `@pending`.
+		// Reported at CALL time, so "fails loudly" is unaffected either way.
+		const deny = () => {
+			report({ kind: 'network', message })
+			return new Promise<never>(() => {})
+		}
+		return patch.form === 'function'
+			? deny
+			: class {
+					constructor() {
+						report({ kind: 'network', message })
+						throw new Error(message)
+					}
+				}
+	}
+	for (const patch of patchesFor(NETWORK_GLOBALS, runtime)) {
+		force(patch.name, denyNetwork(patch))
+		const inRealm = resolveTarget(windowRecord, patch.name)
+		if (inRealm && inRealm.key in inRealm.owner) {
+			const previous = Object.getOwnPropertyDescriptor(
+				inRealm.owner,
+				inRealm.key,
+			)
+			try {
+				Object.defineProperty(inRealm.owner, inRealm.key, {
+					value: denyNetwork(patch),
+					writable: true,
+					configurable: true,
+				})
+				restores.push(() => {
+					if (previous)
+						Object.defineProperty(inRealm.owner, inRealm.key, previous)
+				})
+			} catch {
+				/* realm-side copy is best effort; the global is the load-bearing one */
+			}
+		}
+	}
+
+	// Timers scheduled while the realm is open are the realm's (LT-207). A
+	// contained component's dependency wait (`DEPENDENCY_TIMEOUT`) and context
+	// retries run on the HOST timer queue, which `window.close()` does not
+	// own — so a timer outliving `dispose()` fires against restored globals
+	// (`customElements is not defined`) and lands as an uncaught error in
+	// whatever runs next. Tracking wraps keep the host handles (`.unref()`
+	// and friends still work); `dispose()` cancels whatever is still pending.
+	const pendingTimers = new Map<unknown, (handle: unknown) => void>()
+	type TimerFn = (fn: unknown, delay?: number, ...args: unknown[]) => unknown
+	type ClearFn = (handle: unknown) => void
+	const ownTimers = (set: string, clear: string, repeats: boolean) => {
+		const hostSet = root[set] as TimerFn | undefined
+		const hostClear = root[clear] as ClearFn | undefined
+		if (typeof hostSet !== 'function' || typeof hostClear !== 'function') return
+		force(set, (fn: unknown, delay?: number, ...args: unknown[]) => {
+			if (typeof fn !== 'function') return hostSet(fn, delay, ...args)
+			const handle = hostSet(
+				(...fired: unknown[]) => {
+					if (!repeats) pendingTimers.delete(handle)
+					return (fn as (...a: unknown[]) => unknown)(...fired)
+				},
+				delay,
+				...args,
+			)
+			pendingTimers.set(handle, hostClear)
+			return handle
+		})
+		force(clear, (handle: unknown) => {
+			pendingTimers.delete(handle)
+			hostClear(handle)
+		})
+	}
+	ownTimers('setTimeout', 'clearTimeout', false)
+	ownTimers('setInterval', 'clearInterval', true)
+
+	const onRejection = (reason: unknown) => {
+		report({
+			kind: 'unhandled-rejection',
+			message: String((reason as { message?: string })?.message ?? reason),
+		})
+	}
+	type ProcessLike = {
+		on?: (event: string, handler: (reason: unknown) => void) => void
+		off?: (event: string, handler: (reason: unknown) => void) => void
+	}
+	const processLike = root.process as ProcessLike | undefined
+	processLike?.on?.('unhandledRejection', onRejection)
+
+	// --- Phases -----------------------------------------------------------
+
+	const recordingRegistry = {
+		define(
+			name: string,
+			elementConstructor: CustomElementConstructor,
+			elementOptions?: ElementDefinitionOptions,
+		) {
+			definitions.push({
+				name,
+				elementConstructor,
+				...(elementOptions === undefined ? {} : { options: elementOptions }),
+			})
+		},
+		get(name: string) {
+			return (
+				realRegistry.get(name) ??
+				definitions.find(entry => entry.name === name)?.elementConstructor
+			)
+		},
+		getName(elementConstructor: CustomElementConstructor) {
+			return (
+				definitions.find(
+					entry => entry.elementConstructor === elementConstructor,
+				)?.name ?? null
+			)
+		},
+		whenDefined: (name: string) => realRegistry.whenDefined(name),
+		upgrade: (node: Node) => realRegistry.upgrade(node),
+	}
+
+	/**
+	 * The live arm of arm set `armSet` in `container` (ADR 0037, LT-391):
+	 * the element immediately before the set's first `<template data-arms>`,
+	 * when its `data-key` names one of the set's arms and it is neither a
+	 * `<template>` nor a `[data-arms]` carrier — the rule `reconcile()`'s arm
+	 * form adopts by.
+	 */
+	const liveArmOf = (container: Element, armSet: number): Element | null => {
+		const templates = container.querySelectorAll(
+			`:scope > template[data-arms="${armSet}"]`,
+		)
+		const previous = templates[0]?.previousElementSibling ?? null
+		const key = previous?.getAttribute('data-key') ?? null
+		return previous !== null &&
+			key !== null &&
+			[...templates].some(t => t.getAttribute('data-key') === key) &&
+			previous.localName !== 'template' &&
+			!previous.hasAttribute('data-arms')
+			? previous
+			: null
+	}
+
+	/**
+	 * Snapshot each suppressed site's server-rendered state (ADR 0029
+	 * sub-design 1, LT-165 step 7) and return the closure that restores it.
+	 *
+	 * The snapshot is taken from an INERT parse of the same markup — not
+	 * from the live document — because an already-defined tag upgrades
+	 * DURING the `innerHTML` assignment that parses the markup (every
+	 * render after the component's first in a realm, the fixed-point second
+	 * pass included), so by the time the live tree exists its bindings have
+	 * already written. The inert document has no browsing context and
+	 * upgrades nothing, so its tree is the server-rendered skeleton
+	 * regardless of upgrade timing — provably the pre-connect state.
+	 *
+	 * Restoring that state after the drain — rather than enumerating
+	 * per-attribute revert operations — sidesteps the two ways a targeted
+	 * revert goes wrong: an attribute the binding REMOVED must become
+	 * present-with-value again, and a dirty-flag IDL property a
+	 * `bindProperty` write set must not survive the attribute revert (the
+	 * pre-connect property snapshot handles it). A site whose element did
+	 * not render (a guarded branch) contributes nothing.
+	 */
+	const snapshotSuppressedSites = (
+		component: string,
+		markup: string,
+	): (() => void) | null => {
+		const sites = suppressedSites(component)
+		if (sites.length === 0) return null
+		const skeleton = document.implementation.createHTMLDocument('')
+		skeleton.body.innerHTML = markup
+		const live = (site: SuppressedSite): Element | null =>
+			site.selector === SUPPRESSED_HOST_SELECTOR
+				? document.querySelector(component)
+				: document.querySelector(site.selector)
+		const undo: Array<() => void> = []
+		for (const site of sites) {
+			// Snapshot from the skeleton; restore onto the LIVE tree, resolved
+			// at restore time (the element exists by then — it was parsed).
+			const el =
+				site.selector === SUPPRESSED_HOST_SELECTOR
+					? skeleton.body.querySelector(component)
+					: skeleton.body.querySelector(site.selector)
+			if (!el) continue
+			if (site.kind === 'arms') {
+				// The skeleton holds no live arm for a recorded set (no tier
+				// picks its winner); should one be there, the skeleton state
+				// already matches and nothing is stripped.
+				if (liveArmOf(el, site.armSet)) continue
+				undo.push(() => {
+					const target = live(site)
+					if (target) liveArmOf(target, site.armSet)?.remove()
+				})
+			} else if (site.kind === 'text') {
+				const text = el.textContent
+				undo.push(() => {
+					const target = live(site)
+					if (target) target.textContent = text
+				})
+			} else {
+				const present = el.hasAttribute(site.attr)
+				const value = el.getAttribute(site.attr)
+				const property =
+					site.prop === undefined
+						? undefined
+						: (el as unknown as Record<string, unknown>)[site.prop]
+				undo.push(() => {
+					const target = live(site)
+					if (!target) return
+					if (present) target.setAttribute(site.attr, value ?? '')
+					else target.removeAttribute(site.attr)
+					if (site.prop !== undefined)
+						(target as unknown as Record<string, unknown>)[site.prop] = property
+				})
+			}
+		}
+		if (undo.length === 0) return null
+		return () => {
+			for (const restore of undo) restore()
+		}
+	}
+
+	const load = async (importer: () => Promise<unknown>) => {
+		const before = definitions.length
+		force('customElements', recordingRegistry)
+		const releaseConsole = captureHostConsole()
+		try {
+			await importer()
+		} finally {
+			releaseConsole()
+			force('customElements', realRegistry)
+		}
+		// Load-once is a driver assertion, not a convention (LT-152 review,
+		// LT-154): one module cache per process means a bundle imported by an
+		// EARLIER realm/load re-evaluates nothing here, and rendering would
+		// then silently degrade to un-upgraded SSR markup — invisible in the
+		// output, because it looks like ordinary un-upgraded markup.
+		if (definitions.length === before)
+			throw new Error(
+				'load() recorded no element definitions — the imported module was ' +
+					'served from the process module cache (one cache per process, ' +
+					'ADR 0027 sub-design 10). Load each component exactly once and ' +
+					'render it many times.',
+			)
+	}
+
+	const renderWindow = async ({
+		markup,
+		component,
+		locale,
+		maxTurns,
+	}: RenderOptions): Promise<string> => {
+		// Suppression (LT-165 step 7): the skeleton snapshot is a pure
+		// function of the markup — an inert parse upgrades nothing — so it is
+		// taken before the connect window opens at all. Restoring happens
+		// after the drain, below.
+		const restoreSuppressed = snapshotSuppressedSites(component, markup)
+		let degraded = false
+		const parsed = assertSynchronousWindow(() => {
+			currentComponent = component
+			try {
+				// Seed the page locale onto `<html>` BEFORE the markup parses, so
+				// a component reading `getLocale(host)` at connect sees the page's
+				// answer rather than the `'en'` fallback (ADR 0030 sub-design 7).
+				// This only narrows the gap — the realm parses one component's
+				// markup, so an ancestor `[lang]` BELOW `<html>` stays invisible;
+				// the reserved `i18n` parameter is the canonical route.
+				if (locale === undefined)
+					document.documentElement.removeAttribute('lang')
+				else document.documentElement.setAttribute('lang', locale)
+				// Parsed while still undefined: the pre-parsed upgrade path, which
+				// is what gives `connectedCallback` its child-before-parent order.
+				document.body.innerHTML = markup
+				// Children-first (LT-154): define() call order decides jsdom
+				// upgrade order, and the compose graph — not recording order —
+				// is the only source of truth for which tags contain which.
+				for (const entry of childrenFirstOrder(definitions, composesTags)) {
+					if (realRegistry.get(entry.name)) continue
+					realRegistry.define(
+						entry.name,
+						entry.elementConstructor,
+						entry.options as ElementDefinitionOptions,
+					)
+				}
+			} catch (error) {
+				// Sub-design 2c: a throwing component degrades to plain SSR output
+				// and never blocks the build.
+				report({
+					kind: 'component-throw',
+					component,
+					message: String((error as Error)?.message ?? error),
+					...((error as Error)?.stack === undefined
+						? {}
+						: { stack: (error as Error).stack as string }),
+				})
+				degraded = true
+				return markup
+			}
+			const rendered = document.querySelector(component)
+			return rendered?.outerHTML ?? document.body.innerHTML
+		}, component)
+
+		// Hermetic quiescence (sub-design 9, amended): drain the microtask
+		// queue — never a timer — until the component's own markup stops
+		// changing, or the bound expires. Skipped when the parse step already
+		// degraded to plain SSR output (nothing upgraded, nothing to settle).
+		if (degraded) return parsed
+		const readRendered = () =>
+			document.querySelector(component)?.outerHTML ?? parsed
+		const { value, quiescent, turns } = await drainToQuiescence(
+			readRendered,
+			maxTurns,
+		)
+		// Suppression is a serialization-time step (ADR 0029 sub-design 1's
+		// implementation constraint, LT-165 step 7), and the ordering is
+		// load-bearing: the revert runs strictly AFTER the drain has
+		// stabilized — the stability comparison must observe the unsuppressed
+		// tree, and a revert inside the drain loop would either oscillate
+		// against the live binding or mask a genuine non-quiescence — and the
+		// final serialization snapshot is taken only AFTER the revert, so the
+		// returned bytes never carry the build machine's reading.
+		let html = value
+		if (restoreSuppressed) {
+			restoreSuppressed()
+			html = readRendered()
+		}
+		if (!quiescent)
+			report({
+				kind: 'non-quiescent',
+				component,
+				message:
+					`did not settle within ${turns} microtask turns — a reactive ` +
+					'effect is re-triggering itself at connect (ADR 0027 sub-design ' +
+					'9). The build shipped the last observed state rather than hang. ' +
+					'Find the self-triggering effect before relying on this markup.',
+			})
+		return html
+	}
+
+	/**
+	 * Tear down the previous render's tree under ITS attribution, before the
+	 * next window opens (LT-335) — and, from `dispose()`, the LAST render's
+	 * tree before the realm retires, for which there is no next window
+	 * (LT-411).
+	 *
+	 * The live tree of a render stays in the document after `render()`
+	 * returns (callers and tests inspect it), so it used to be detached by
+	 * the next window's `innerHTML` assignment — and everything its
+	 * disconnect does ran inside that window and attributed to the next
+	 * component. Disconnect is not inert: a composing parent's `pass()`
+	 * restores its child's original signal on disconnect, and the child's
+	 * effects, still live until its own disconnect runs, re-fire — so
+	 * module-coloreditor's composed form-colorgraph redraws its canvas
+	 * synchronously during the teardown, and the `getContext` notice blamed
+	 * whichever component the page order rendered next (module-colorinfo
+	 * in the corpus, module-lazyload in the docs build).
+	 *
+	 * Detaching here, with `currentComponent` still the previous render's,
+	 * attributes the synchronous disconnect work correctly; draining the
+	 * microtask queue afterwards (until a turn reports nothing new) does the
+	 * same for anything the teardown queued. The diagnostics land in the
+	 * cumulative list before the next call's slice starts, so they are never
+	 * part of the next render's own result.
+	 */
+	const settlePreviousRender = async (): Promise<void> => {
+		if (!document.body.hasChildNodes()) return
+		document.body.replaceChildren()
+		await drainToQuiescence(() => String(diagnostics.length))
+	}
+
+	/**
+	 * The render window, with the host console captured for its duration
+	 * (LT-180) — the connect this drives is where the library's own
+	 * containment reports, and that report is the build's only signal that
+	 * a component degraded instead of enhancing.
+	 *
+	 * The returned `diagnostics` are the ones this call recorded, sliced off
+	 * the cumulative list by index. It is deliberately not the whole story:
+	 * the process-level channels report LATE (an `unhandledRejection` fires
+	 * in a macrotask after this has returned), so the build gate reads
+	 * {@link JsdomSimulationRealm.diagnostics} at the end of the pass. The
+	 * per-call slice answers "what did THIS render say", which is what a
+	 * caller rendering one occurrence at a time can act on.
+	 */
+	const render = async (
+		request: SimRenderRequest,
+	): Promise<SimRenderResult> => {
+		const releaseConsole = captureHostConsole()
+		try {
+			await settlePreviousRender()
+			const before = diagnostics.length
+			const html = await renderWindow(request)
+			return { html, diagnostics: diagnostics.slice(before) }
+		} finally {
+			releaseConsole()
+		}
+	}
+
+	/** The in-flight or completed disposal, for idempotence (LT-411). */
+	let disposal: Promise<void> | null = null
+
+	/**
+	 * Tear down the last render's tree, then retire the realm (LT-411).
+	 *
+	 * Until LT-411 `dispose()` went straight to `window.close()`, which tore
+	 * the last render's tree down AFTER the build report was computed and
+	 * with the patch table already gone: whatever its disconnect did was
+	 * uncaptured, unattributed, or — for a cleanup reading a free global
+	 * like `window` — an error against the deleted globals. That is the
+	 * shape LT-335 fixed between renders; this is the same teardown, given
+	 * the same treatment at end-of-process. `settlePreviousRender()` runs
+	 * FIRST, with `currentComponent` still naming the last render and the
+	 * globals still in place, under a host-console capture like any render
+	 * window; only then are the rejection handler retired, the realm's
+	 * timers cancelled (catching ones the disconnect itself scheduled —
+	 * LT-207's guarantee, extended to the final teardown), the globals
+	 * restored, and the window closed.
+	 *
+	 * Idempotent: a second call returns the first disposal's promise. The
+	 * simulation pass disposes before the report is computed (so the final
+	 * teardown is gated like every other render) and keeps a disposal in
+	 * its `finally` for the error path; the guard makes the two coincide.
+	 */
+	const dispose = (): Promise<void> => {
+		if (disposal) return disposal
+		disposal = (async () => {
+			const releaseConsole = captureHostConsole()
+			try {
+				await settlePreviousRender()
+			} finally {
+				releaseConsole()
+			}
+			processLike?.off?.('unhandledRejection', onRejection)
+			for (const [handle, clear] of pendingTimers) clear(handle)
+			pendingTimers.clear()
+			for (const restore of restores.reverse()) restore()
+			window.close()
+		})()
+		return disposal
+	}
+
+	return {
+		runtime,
+		window,
+		document,
+		diagnostics,
+		definitions,
+		// Live, because `load()` appends: a caller checking whether a composed
+		// child was already recorded by its parent's load must see the result
+		// of the load it just awaited.
+		get loadedTags() {
+			return definitions.map(entry => entry.name)
+		},
+		load,
+		render,
+		dispose,
+	}
+}

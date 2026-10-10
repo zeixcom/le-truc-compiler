@@ -1,0 +1,14 @@
+<h3>Recursive Content Test</h3>
+<p>
+	This snippet attempts to create recursive loading by including another
+	module-lazyload:
+</p>
+
+<module-lazyload src="./test/module-lazyload/mocks/recursive.html"><card-callout data-key="nil"><p role="status" class="loading">Loading...</p></card-callout><template data-arms="0" data-key="ok"><div class="content"></div></template><template data-arms="0" data-key="nil"><card-callout><p role="status" class="loading">Loading...</p></card-callout></template><template data-arms="0" data-key="err"><card-callout class="danger"><p role="alert" aria-live="assertive" class="error"></p></card-callout></template></module-lazyload>
+
+<p>
+	The above nested module-lazyload should show an error instead of loading
+	content. Its markup is the compiled server render (LT-449): a fetched
+	partial cannot carry a twin-shaped instance, because the compiled client
+	enhances only markup that carries the boundary's baked templates.
+</p>

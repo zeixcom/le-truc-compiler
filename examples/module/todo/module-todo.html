@@ -1,0 +1,112 @@
+<!-- Regenerated from the compiled server render (LT-111 cutover):
+     renderModuleTodo({}) from server/generated/components/module-todo.server.ts —
+     the demo serves exactly the markup the compiled client hydrates. The variant
+     set serves module-todo.tsx (ADR 0039); module-todo.tsrx and the
+     hand-written module-todo.ts stay as variants. The per-item steady state
+     (key-derived `id`/`for`, the item `data-key`) is clone-time: the client
+     sets it per cloned item, so the template carries none. Since LT-466 the
+     composed <form-inplace-edit> sits beside the <form-checkbox>, not inside
+     its label (interactive content in a label leaks activation); the label
+     keeps only a visually-hidden text bound to the item label, whose display
+     text arrives via module-todo's per-item truc:pass into host.value. Since
+     LT-467 the remaining count is module-todo's own ICU message (the `=0` arm
+     folds server-side); the root `lang` is the client evaluator's locale, and
+     at the source locale no `i18n` attribute is written. Since LT-489 the
+     remove button is the composed BasicButton — its render adds the
+     empty badge span (hidden by `.badge:empty`), and the `onClick`
+     handler arg binds per item in the client's bindItem scope. -->
+<module-todo lang="en">
+	<form action="#">
+		<form-textbox name="add-todo" value="">
+			<label for="add-todo-input">What needs to be done?</label>
+			<div class="input">
+				<input type="text" id="add-todo-input" value="" autocomplete="off">
+				<button type="button" class="clear" aria-label="Clear input" hidden>
+					✕
+				</button>
+			</div>
+		</form-textbox>
+		<basic-button class="submit">
+			<button type="submit" disabled class="constructive">
+				<span class="label">Add Todo</span>
+			</button>
+		</basic-button>
+	</form>
+	<span role="status" class="visually-hidden"></span>
+	<ol data-container></ol>
+	<template data-list="0">
+		<li>
+			<button
+				type="button"
+				class="reorder"
+				aria-label="Drag to reorder"
+				aria-pressed="false"
+			>
+				≡
+			</button>
+			<form-checkbox class="todo">
+				<input type="checkbox" class="visually-hidden">
+				<label class="label">
+					<span class="visually-hidden"></span>
+				</label>
+			</form-checkbox>
+			<form-inplace-edit name="" value="">
+				<span data-key="else" class="text"></span>
+				<template data-arms="0" data-key="then"><div class="edit">
+						<form-textbox name="" value="">
+							<label for="-input">Edit</label>
+							<div class="input">
+								<input
+									type="text"
+									id="-input"
+									value=""
+									autocomplete="off"
+								>
+							</div>
+						</form-textbox>
+					</div></template>
+				<template data-arms="0" data-key="else"><span class="text"></span></template>
+				<button type="button" aria-label="Edit">✎</button>
+			</form-inplace-edit>
+			<basic-button class="remove">
+				<button
+					type="button"
+					class="tertiary destructive small"
+					aria-label="Remove"
+				>
+					<span class="label">✕</span>
+					<span class="badge"></span>
+				</button>
+			</basic-button>
+		</li>
+	</template>
+	<footer>
+		<p class="remaining">Well done, all done!</p>
+		<!-- form-radiogroup serves its compiled client since LT-116 — the
+		     labels carry the item's value in data-value, the compiled each()
+		     addressing channel the hand-written enhancer didn't need. -->
+		<form-radiogroup value="all" class="split-button">
+			<fieldset>
+				<legend class="visually-hidden">Filter</legend>
+				<label data-value="all" class="selected">
+					<input type="radio" class="visually-hidden" value="all" checked tabindex="0">
+					<span>All</span>
+				</label>
+				<label data-value="active">
+					<input type="radio" class="visually-hidden" value="active" tabindex="-1">
+					<span>Active</span>
+				</label>
+				<label data-value="completed">
+					<input type="radio" class="visually-hidden" value="completed" tabindex="-1">
+					<span>Completed</span>
+				</label>
+			</fieldset>
+		</form-radiogroup>
+		<basic-button class="clear-completed">
+			<button type="button" class="tertiary destructive">
+				<span class="label">Clear Completed</span>
+				<span class="badge"></span>
+			</button>
+		</basic-button>
+	</footer>
+</module-todo>

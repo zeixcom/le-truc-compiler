@@ -1,0 +1,18 @@
+<!-- Regenerated from the compiled server render (LT-390):
+     renderFormInplaceEdit({ name: 'label', value: 'Edit me' }) — the page
+     serves exactly the markup the compiled client hydrates. Display and edit
+     mode are the arms of a reactive @if (ADR 0037): the display span is live,
+     and each arm ships as an inert template the client clones on a flip. -->
+<form-inplace-edit name="label" value="Edit me">
+	<span data-key="else" class="text">Edit me</span>
+	<template data-arms="0" data-key="then"><div class="edit">
+			<form-textbox name="" value="Edit me">
+				<label for="-input">Edit</label>
+				<div class="input">
+					<input type="text" id="-input" value="Edit me" autocomplete="off">
+				</div>
+			</form-textbox>
+		</div></template>
+	<template data-arms="0" data-key="else"><span class="text"></span></template>
+	<button type="button" aria-label="Edit">✎</button>
+</form-inplace-edit>

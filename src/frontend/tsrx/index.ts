@@ -1,0 +1,95 @@
+/**
+ * Inlined TSRX compiler — public API (ADR 0024).
+ *
+ * compileComponent runs the full pipeline for one `.tsrx` source: parse +
+ * extract (compiler.ts), then the SHARED pipeline (`pipeline.ts`, LT-202 —
+ * analyze for the client, emit the server render module, the generated
+ * client module, and the verbatim tag-scoped CSS). Warnings skip the file
+ * (milestone gates); errors fail it.
+ *
+ * The `.tsx` surface's `compileComponentTsx`
+ * (`server/compiler/frontend/tsx/index.ts`) is the same shell over the same pipeline
+ * with the front end swapped — the anti-drift contract of ADR 0032
+ * sub-design 6.
+ *
+ * Until TSRX reaches 1.0 this compiler lives in-repo (`server/compiler/`,
+ * ROADMAP "Packaging"); with Le Truc v3.0 it ships as `@tsrx/le-truc`.
+ */
+
+import { DEFAULT_EMIT_PATHS, type EmitPaths } from '../../emit-paths'
+import { type CompileFileResult, compileFromIR } from '../../pipeline'
+import type { InternalRegistryEntry } from '../../registry'
+import { compileSource } from './compiler'
+
+/* === Exported Functions === */
+
+export const compileComponent = (
+	source: string,
+	filename: string,
+	registry: ReadonlySet<string>,
+	childImports?: ReadonlyMap<string, string>,
+	/**
+	 * Composed (PascalCase) elements' targets, keyed by resolved source
+	 * path (ADR 0024 sub-design 10) — built corpus-wide from every
+	 * component's own registry entry (`server/effects/compile.ts`). Undefined
+	 * during registry-discovery passes (composition isn't validated yet, the
+	 * same tolerance an empty `registry` gets for raw-tag `pass()` dispatch).
+	 */
+	composeRegistry?: ReadonlyMap<string, InternalRegistryEntry>,
+	/**
+	 * What the CONFIGURED output root implies for the emitted specifiers
+	 * (LT-255, `emit-paths.ts`): the `../` prefix back to the project root for
+	 * rewritten relative plain imports, and the specifier the generated server
+	 * module imports the render harness from. Defaults to this repo's layout,
+	 * so an unconfigured call emits exactly what it emitted before.
+	 */
+	emitPaths: EmitPaths = DEFAULT_EMIT_PATHS,
+): CompileFileResult => {
+	const { component, diagnostics, routingSignals } = compileSource(
+		source,
+		filename,
+		emitPaths,
+	)
+	return compileFromIR(
+		component,
+		diagnostics,
+		routingSignals,
+		filename,
+		registry,
+		childImports,
+		composeRegistry,
+		emitPaths,
+	)
+}
+
+export type { ClientPlan } from '../../analysis/plan'
+export { analyzeClient } from '../../analysis/plan'
+export { dedentCss } from '../../css'
+export type { CompileDiagnostic, DiagnosticCode } from '../../diagnostics'
+export type { EmittedClientModule } from '../../emit-client'
+export { emitClientModule } from '../../emit-client'
+export type { EmitPaths } from '../../emit-paths'
+export { DEFAULT_EMIT_PATHS } from '../../emit-paths'
+export type { EmittedServerModule } from '../../emit-server'
+export { emitServerModule } from '../../emit-server'
+export type { ComponentIR } from '../../ir'
+export type {
+	CompiledComponent,
+	CompileFileResult,
+} from '../../pipeline'
+export type {
+	ComponentRegistry,
+	InternalComponentRegistry,
+	InternalRegistryEntry,
+	RegistryEntry,
+} from '../../registry'
+export { registryJson } from '../../registry'
+export type { SourceSpan } from '../../spans'
+export {
+	fileLineColToOffset,
+	fileOffsetToLineCol,
+	findSpanForGeneratedOffset,
+} from '../../spans'
+export { collectComposeElements } from '../../walk'
+export type { CompileResult } from './compiler'
+export { compileSource } from './compiler'

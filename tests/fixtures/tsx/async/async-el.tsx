@@ -1,0 +1,49 @@
+/**
+ * TSX §4.4 synthetic fixture (LT-183; three-arm boundary per LT-211,
+ * spelled `<truc:try pending catch>` per ADR 0041 / LT-303): the arm that
+ * won at render time renders live beside the inert arm templates, and the
+ * client switches arms as the task settles (ADR 0037 s4). `pending` is
+ * the no-value-yet arm (the `.tsrx` `@pending` arm's exact IR). There
+ * is no stale arm: the reactive idiom for the re-fetching state is the
+ * `isPending(data)` class binding beside the boundary — as an ARROW thunk,
+ * the reactive spelling (a bare expression is a render-time `server` attr
+ * and never updates) — which the compiler folds server-side (a fresh task
+ * is pending → the class renders) and the client's watch re-fires when the
+ * task settles. Mirrors features.test.ts's `asyncComponent` fixture (same
+ * signal shape, same arm markup); `async-el.tsrx` is its byte-parity twin.
+ */
+import { deriveCell, isPending } from '@zeix/le-truc'
+import type { FactoryContext } from '@zeix/le-truc'
+import { css } from '@zeix/le-truc-compiler/macros'
+
+export type AsyncElProps = {
+	/** The async result once the task settles; empty until then. */
+	data: string
+}
+
+export function AsyncEl(
+	{}: {},
+	{ expose }: FactoryContext<AsyncElProps>,
+) {
+	const data = deriveCell(async () => 'loaded')
+	expose({ data: data.get })
+
+	return (
+			<async-el>
+				<truc:try
+					pending={<p class="loading">Loading</p>}
+					catch={e => <p class="error">{e.message}</p>}
+				>
+					<div class="content">{data}</div>
+				</truc:try>
+				<p role="status" class={() => (isPending(data) ? 'pending' : null)}>
+					status
+				</p>
+				<style>{css`@scope {
+	:scope {
+		  color: red;
+		}
+}`}</style>
+			</async-el>
+	)
+}

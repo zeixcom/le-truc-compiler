@@ -1,0 +1,53 @@
+<h3>Nested Components</h3>
+<p>
+	This snippet contains nested custom components to test initialization order:
+</p>
+
+<card-callout>
+	<h4>Nested Card</h4>
+	<p>This is a card-callout component nested inside the lazy-loaded content.</p>
+
+	<basic-counter class="counter">
+		<button type="button">💐 <span class="value">42</span></button>
+	</basic-counter>
+</card-callout>
+
+<basic-hello>
+	<label for="name">Your name</label>
+	<input id="name" name="name" type="text" autocomplete="given-name">
+	<p>Hello, <output for="name">World</output>!</p>
+</basic-hello>
+
+<style>
+	.counter {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		/* No margin here: the counter is the callout's last child, and the
+		   component's zero trailing-margin rule no longer out-specifies a
+		   page class rule under the scoped emission's :where() lead
+		   (ADR 0033 s7, LT-397). */
+	}
+
+	.counter button {
+		background: #3b82f6;
+		color: white;
+		border: none;
+		border-radius: 0.25rem;
+		height: 2rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+	}
+
+	.counter button:hover {
+		background: #2563eb;
+	}
+
+	.counter .value {
+		font-weight: 600;
+		min-width: 2rem;
+		text-align: center;
+	}
+</style>

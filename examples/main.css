@@ -1,0 +1,61 @@
+/*
+ * Page CSS. A folder whose served surface is compiled imports the
+ * compiler's EMITTED stylesheet (ADR 0033 s10, LT-397); runtime-only
+ * folders import their hand-written sheet. css-probe stays out (its spec
+ * injects the emitted sheet itself).
+ *
+ * Page CSS comes first: `_global.css` before every component sheet. The
+ * lowered emission has no scope proximity, so a tie native `@scope` breaks
+ * by proximity falls to source order here, and page-first lets a component
+ * win a tie with the page (ADR 0033 s4). The order between components is
+ * unspecified — no order is right for every composition.
+ */
+@import "./_global.css";
+@import "../server/generated/components/basic-blogmeta.css";
+@import "../server/generated/components/basic-button.css";
+@import "../server/generated/components/basic-counter.css";
+@import "../server/generated/components/basic-gauge.css";
+@import "../server/generated/components/basic-hello.css";
+@import "../server/generated/components/basic-number.css";
+@import "../server/generated/components/card-blogpost.css";
+@import "../server/generated/components/card-callout.css";
+@import "../server/generated/components/card-collapsible.css";
+@import "../server/generated/components/card-colorscale.css";
+@import "../server/generated/components/card-mediaqueries.css";
+@import "./docs/lifecycle/docs-lifecycle.css";
+@import "./docs/reconcile/docs-reconcile.css";
+@import "./docs/task-states/docs-task-states.css";
+@import "../server/generated/components/form-checkbox.css";
+@import "../server/generated/components/form-colorgraph.css";
+@import "../server/generated/components/form-combobox.css";
+@import "../server/generated/components/form-inplace-edit.css";
+@import "../server/generated/components/form-listbox.css";
+@import "../server/generated/components/form-radiogroup.css";
+@import "../server/generated/components/form-spinbutton.css";
+@import "../server/generated/components/form-textbox.css";
+@import "../server/generated/components/form-tokenbox.css";
+@import "./module/blogarchive/module-blogarchive.css";
+@import "../server/generated/components/module-calctable.css";
+@import "../server/generated/components/module-carousel.css";
+@import "../server/generated/components/module-catalog.css";
+@import "../server/generated/components/module-cem-list.css";
+@import "../server/generated/components/module-codeblock.css";
+@import "../server/generated/components/module-coloreditor.css";
+@import "../server/generated/components/module-colorinfo.css";
+@import "./module/demo/module-demo.css";
+@import "../server/generated/components/module-dialog.css";
+@import "../server/generated/components/module-lazyload.css";
+@import "../server/generated/components/module-list.css";
+@import "../server/generated/components/module-listnav.css";
+@import "../server/generated/components/module-pagination.css";
+@import "../server/generated/components/module-scrollarea.css";
+@import "../server/generated/components/module-splitview.css";
+@import "../server/generated/components/module-tabgroup.css";
+@import "../server/generated/components/module-ticker.css";
+@import "../server/generated/components/module-todo.css";
+/* section-menu cut over in LT-469: the folder's hand-written
+   section-menu.css stays as the twin-era sheet (unimported, like
+   module-todo.css); the page bundles the set's emitted stylesheet. */
+@import "../server/generated/components/section-menu.css";
+@import "./section/hero/section-hero.css";
+@import "./section/menu/chapter-nav.css";

@@ -1,0 +1,1002 @@
+/**
+ * Language-feature tests (tsrx.dev/features parity): every construct the
+ * pinned @tsrx/core 0.1.63 can parse must lower deliberately — supported or
+ * gated with a diagnostic — never silently dropped. Covers @switch arms,
+ * @try error boundaries, @pending async boundaries (gated), truc:html={expr}
+ * dynamic rendering, and parse-error hints for the newer-grammar constructs
+ * (statement-form switch, {html}/{text}/{ref} keywords, await).
+ */
+import { afterAll, afterEach, describe, expect, test } from 'bun:test'
+import createDOMPurify, { type WindowLike } from 'dompurify'
+import { JSDOM } from 'jsdom'
+import { sanitizeHtml as librarySanitizeHtml } from '../node_modules/@zeix/le-truc/src/bindings'
+import { compileComponent } from '../src/frontend/tsrx'
+import { compileComponentTsx } from '../src/frontend/tsx'
+import { configureHtmlSanitizer } from '../src/runtime'
+import { createGeneratedDir } from './helpers/generated-corpus'
+
+// `configureHtmlSanitizer` is process-wide and shared with the library's
+// client half (LT-138): tests that configure one must restore the
+// unconfigured, fail-closed default (escape everything) afterward.
+const unconfigure = (): void => configureHtmlSanitizer(undefined)
+
+// A stand-in "consumer-supplied" sanitizer (what a host wires up via
+// `configureHtmlSanitizer`) — DOMPurify on a jsdom window, its documented
+// Node path, since the library ships no sanitizer (ADR 0010). The same
+// DOMPurify serves the browser half, so the two cannot disagree (LT-152).
+const purify = createDOMPurify(new JSDOM('').window as unknown as WindowLike)
+const stripDangerousMarkup = (html: string): string => purify.sanitize(html)
+
+const wrap = (
+	template: string,
+	params = '{ status, markup }: { status?: string; markup?: string }',
+): string =>
+	`export function C(${params})
+	@{
+		expose({})
+			<c-el>
+				${template}
+				<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+			</c-el>
+	}`
+
+const compiled = (template: string) =>
+	compileComponent(wrap(template), 'c.tsrx', new Set())
+
+// A per-run directory, not the build pipeline's own output (LT-140).
+const generated = createGeneratedDir('features')
+afterAll(() => generated.cleanup())
+
+const ensureEmitted = (tag: string, code: string): void => {
+	generated.emit(`${tag}.server.ts`, code)
+}
+
+const render = async (tag: string, args: unknown): Promise<string> => {
+	const mod = await generated.importModule<{
+		renderC: (args: unknown) => string
+	}>(`${tag}.server.ts`)
+	return mod.renderC(args)
+}
+
+describe('@switch — multi-branch conditional rendering', () => {
+	const source = `@switch (status) {
+		@case "loading": {
+			<p>Loading</p>
+		}
+		@case "success": {
+			<p class="success">Done</p>
+		}
+		@default: {
+			<p>Unknown</p>
+		}
+	}`
+	const { component, diagnostics } = compiled(source)
+
+	test('compiles cleanly and renders each arm per args', async () => {
+		expect(diagnostics).toEqual([])
+		if (!component) throw new Error('switch fixture must compile')
+		ensureEmitted('feat-switch', component.serverCode)
+		expect(await render('feat-switch', { status: 'loading' })).toBe(
+			'<c-el><p>Loading</p></c-el>',
+		)
+		expect(await render('feat-switch', { status: 'success' })).toBe(
+			'<c-el><p class="success">Done</p></c-el>',
+		)
+		expect(await render('feat-switch', { status: 'other' })).toBe(
+			'<c-el><p>Unknown</p></c-el>',
+		)
+	})
+
+	test('arm renders exactly one match (break inside each case block)', async () => {
+		expect(await render('feat-switch', { status: 'loading' })).not.toContain(
+			'Unknown',
+		)
+	})
+
+	test('client constructs inside arms are LTC005 (exclusive rendering)', () => {
+		const { diagnostics: d } = compiled(`@switch (status) {
+			@case "a": {
+				<button type="button" onClick={() => {}}>a</button>
+			}
+			@default: {
+				<p>other</p>
+			}
+		}`)
+		expect(d.some(diag => diag.message.includes('in `@switch` arms'))).toBe(
+			true,
+		)
+	})
+
+	test('a signal discriminant compiles to template-cloned arms (ADR 0037)', () => {
+		const source2 = `export function C({}: {})
+	@{
+		const mode = createCell('a')
+		expose({})
+			<c-el>
+				@switch (mode.get()) {
+					@case "a": {
+						<p>a</p>
+					}
+				}
+				<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+			</c-el>
+	}
+import { createCell } from '@zeix/le-truc'`
+		const { component, diagnostics: d } = compileComponent(
+			source2,
+			'c.tsrx',
+			new Set(),
+		)
+		expect(d).toEqual([])
+		// LT-385d: string case keys are the literal's JSON, escaped in the
+		// attribute.
+		expect(component?.serverCode).toContain(
+			'<template data-arms=\\"0\\" data-key=\\"case:&quot;a&quot;\\">',
+		)
+	})
+})
+
+describe('@try — error boundaries', () => {
+	const source = `@try {
+		<p>{status.length}</p>
+	} @catch (error) {
+		<p class="error">Failed</p>
+	}`
+	const { component, diagnostics } = compiled(source)
+
+	test('body renders when it evaluates; catch renders on throw, no partial leak', async () => {
+		expect(diagnostics).toEqual([])
+		if (!component) throw new Error('try fixture must compile')
+		ensureEmitted('feat-try', component.serverCode)
+		expect(await render('feat-try', { status: 'abc' })).toBe(
+			'<c-el><p>3</p></c-el>',
+		)
+		expect(await render('feat-try', {})).toBe(
+			'<c-el><p class="error">Failed</p></c-el>',
+		)
+	})
+
+	test('client constructs on the body root are optionally addressed (LT-025) — guarded first(), not thrown', async () => {
+		const { component, diagnostics: d } = compiled(`@try {
+			<button type="button" class="go" data-len={status.length} onClick={() => {}}>go</button>
+		} @catch (error) {
+			<p>Failed</p>
+		}`)
+		expect(d).toEqual([])
+		if (!component) throw new Error('optional @try body fixture must compile')
+		expect(component.clientCode).toContain("first('button')")
+		expect(component.clientCode).toContain('if (button)')
+		ensureEmitted('feat-try-optional-body', component.serverCode)
+		expect(await render('feat-try-optional-body', { status: 'abc' })).toContain(
+			'<button type="button" data-len="3" class="go">go</button>',
+		)
+		expect(await render('feat-try-optional-body', {})).toBe(
+			'<c-el><p>Failed</p></c-el>',
+		)
+	})
+
+	test('client constructs on the catch-arm root are optionally addressed too (LT-025)', async () => {
+		const { component, diagnostics: d } = compiled(`@try {
+			<p>{status.length}</p>
+		} @catch (error) {
+			<button type="button" class="retry" onClick={() => {}}>retry</button>
+		}`)
+		expect(d).toEqual([])
+		if (!component) throw new Error('optional @catch arm fixture must compile')
+		expect(component.clientCode).toContain("first('button')")
+		ensureEmitted('feat-try-optional-catch', component.serverCode)
+		expect(await render('feat-try-optional-catch', { status: 'abc' })).toBe(
+			'<c-el><p>3</p></c-el>',
+		)
+		expect(await render('feat-try-optional-catch', {})).toContain(
+			'<button type="button" class="retry">retry</button>',
+		)
+	})
+
+	test('deeper (non-root) constructs inside a @try arm are still LTC005', () => {
+		const { diagnostics: d } = compiled(`@try {
+			<div class="wrap"><button type="button" onClick={() => {}}>go</button></div>
+		} @catch (error) {
+			<p>Failed</p>
+		}`)
+		expect(
+			d.some(diag => diag.message.includes('below the root element of')),
+		).toBe(true)
+	})
+})
+
+describe('@pending — async boundaries (ADR 0024 sub-design 13, LT-012)', () => {
+	const asyncComponent = (deriveExpr: string): string =>
+		`import { deriveCell } from '@zeix/le-truc'
+export function C({}: {})
+	@{
+		const data = deriveCell(${deriveExpr})
+		expose({ data: data.get })
+			<c-el>
+				@try {
+					<div class="content">{data}</div>
+				} @pending {
+					<p class="loading">Loading</p>
+				} @catch (e) {
+					<p class="error">{e.message}</p>
+				}
+				<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+			</c-el>
+	}`
+
+	test('no @catch is diagnosed — an async boundary needs all three arms routed together', () => {
+		const { diagnostics } = compileComponent(
+			`export function C({}: {})
+	@{
+		const data = deriveCell(async () => 'x')
+		expose({ data: data.get })
+			<c-el>
+				@try {
+					<div class="content">{data}</div>
+				} @pending {
+					<p class="loading">Loading</p>
+				}
+				<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+			</c-el>
+	}
+import { deriveCell } from '@zeix/le-truc'`,
+			'c.tsrx',
+			new Set(),
+		)
+		expect(
+			diagnostics.some(d => d.message.includes('without a `@catch (e)` arm')),
+		).toBe(true)
+	})
+
+	test('a @try body with no lazy reference to a deriveCell signal is diagnosed', () => {
+		const { diagnostics } = compileComponent(
+			`export function C({}: {})
+	@{
+		const data = deriveCell(async () => 'x')
+		expose({ data: data.get })
+			<c-el>
+				@try {
+					<div class="content">static</div>
+				} @pending {
+					<p class="loading">Loading</p>
+				} @catch (e) {
+					<p class="error">{e.message}</p>
+				}
+				<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+			</c-el>
+	}
+import { deriveCell } from '@zeix/le-truc'`,
+			'c.tsrx',
+			new Set(),
+		)
+		expect(
+			diagnostics.some(d =>
+				d.message.includes('drives the `isPending()` routing'),
+			),
+		).toBe(true)
+	})
+
+	test('pending arm renders live when the async signal has no { initial } seed (isPending at render time)', async () => {
+		const { component, diagnostics } = compileComponent(
+			asyncComponent("async () => 'loaded'"),
+			'c.tsrx',
+			new Set(),
+		)
+		expect(diagnostics).toEqual([])
+		if (!component) throw new Error('async fixture must compile')
+		ensureEmitted('feat-async', component.serverCode)
+		const html = await render('feat-async', {})
+		// ADR 0037 s4: only the winner is live; every arm is an inert
+		// template keyed `ok`/`nil`/`err`, after the winner.
+		expect(html).toBe(
+			'<c-el><p data-key="nil" class="loading">Loading</p>' +
+				'<template data-arms="0" data-key="ok"><div class="content"></div></template>' +
+				'<template data-arms="0" data-key="nil"><p class="loading">Loading</p></template>' +
+				'<template data-arms="0" data-key="err"><p class="error"></p></template></c-el>',
+		)
+		expect(html).not.toContain('hidden')
+		expect(html).not.toContain('fieldset')
+	})
+
+	test('the try body renders live (ok) when { initial } seeds a retained value', async () => {
+		const { component, diagnostics } = compileComponent(
+			asyncComponent("async () => 'loaded', { initial: 'seed' }"),
+			'c.tsrx',
+			new Set(),
+		)
+		expect(diagnostics).toEqual([])
+		if (!component) throw new Error('async fixture must compile')
+		ensureEmitted('feat-async-ok', component.serverCode)
+		const html = await render('feat-async-ok', {})
+		expect(html).toStartWith(
+			'<c-el><div data-key="ok" class="content">seed</div><template',
+		)
+		expect(html).not.toContain('data-key="nil" class')
+		expect(html).not.toContain('data-key="err" class')
+	})
+
+	test('client codegen: reconcile() switches the arms by the task state, and the ok/err mounts write their text', () => {
+		const { component, diagnostics } = compileComponent(
+			asyncComponent("async () => 'loaded', { initial: 'seed' }"),
+			'c.tsrx',
+			new Set(),
+		)
+		expect(diagnostics).toEqual([])
+		const code = component?.clientCode ?? ''
+		expect(code).toContain('({ expose, host, watch }) => {')
+		expect(code).toContain(
+			`reconcile(host, host.querySelectorAll<HTMLTemplateElement>(':scope > template[data-arms="0"]'), () => {`,
+		)
+		expect(code).toContain(
+			"return error instanceof UnsetSignalValueError ? 'nil' : 'err'",
+		)
+		expect(code).toContain("return 'ok'")
+		expect(code).toContain(
+			'watch(data, { ok: bindText(armElement), err: () => {} })',
+		)
+		expect(code).toContain(
+			'watch(data, { ok: () => {}, err: error => bindText(armElement)(error.message) })',
+		)
+		// The toggled-arm machinery is gone (LT-276).
+		expect(code).not.toContain('.hidden')
+		expect(code).not.toContain('parentElement')
+		expect(code).not.toContain('HTMLFieldSetElement')
+	})
+
+	// LT-077 (CHECKLIST §8), structural since LT-276: `hidden` excludes
+	// nothing from form submission, which is why the toggled arms needed a
+	// `<fieldset disabled>` per arm. Template-cloned arms put exactly one
+	// arm in the document — the others are template content, which is not
+	// form-associated — so a named control in a non-active arm cannot
+	// submit. Pinned anyway, against the browser's own FormData.
+	const namedControlComponent = (deriveExpr: string): string =>
+		`import { deriveCell } from '@zeix/le-truc'
+export function C({}: {})
+	@{
+		const data = deriveCell(${deriveExpr})
+		expose({ data: data.get })
+			<c-el>
+				@try {
+					<div class="content"><input name="x" value="ok" />{data}</div>
+				} @pending {
+					<p class="loading"><input name="x" value="pending" />Loading</p>
+				} @catch (e) {
+					<p class="error"><input name="x" value="error" />{e.message}</p>
+				}
+				<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+			</c-el>
+	}`
+
+	const submitted = (html: string): string[] => {
+		const { document, FormData } = new JSDOM(`<form>${html}</form>`).window
+		const form = document.querySelector('form') as HTMLFormElement
+		return new FormData(form).getAll('x').map(String)
+	}
+
+	test("only the live arm's named control submits (pending step)", async () => {
+		const { component, diagnostics } = compileComponent(
+			namedControlComponent("async () => 'loaded'"),
+			'c.tsrx',
+			new Set(),
+		)
+		expect(diagnostics).toEqual([])
+		if (!component) throw new Error('named-control fixture must compile')
+		ensureEmitted('feat-async-named-pending', component.serverCode)
+		const html = await render('feat-async-named-pending', {})
+		expect(submitted(html)).toEqual(['pending'])
+	})
+
+	test("only the live arm's named control submits (ok step)", async () => {
+		const { component, diagnostics } = compileComponent(
+			namedControlComponent("async () => 'loaded', { initial: 'seed' }"),
+			'c.tsrx',
+			new Set(),
+		)
+		expect(diagnostics).toEqual([])
+		if (!component) throw new Error('named-control fixture must compile')
+		ensureEmitted('feat-async-named-ok', component.serverCode)
+		const html = await render('feat-async-named-ok', {})
+		expect(submitted(html)).toEqual(['ok'])
+		expect(html).not.toContain('fieldset')
+	})
+})
+
+describe('bare html={} is rejected, not silently reclassified (LT-137)', () => {
+	// `html` is not a real HTML attribute. If the rename let the bare spelling
+	// fall through to the ordinary-attribute path, the compiler would emit a
+	// dead `html="…"` and drop the sanitize + client-bind behaviour entirely —
+	// a silent downgrade of the one attribute where that matters most.
+	test('bare html={markup} reports and names the new spelling', () => {
+		const { diagnostics } = compiled('<article html={markup} />')
+		const hit = diagnostics.find(d => d.message.includes('truc:html'))
+		expect(hit).toBeDefined()
+		expect(hit?.severity).toBe('error')
+	})
+})
+
+describe('truc:html={expr} — dynamic rendering', () => {
+	const { component, diagnostics } = compiled('<article truc:html={markup} />')
+
+	afterEach(unconfigure)
+
+	test('escapes markup by default when no sanitizer is configured', async () => {
+		expect(diagnostics).toEqual([])
+		if (!component) throw new Error('html fixture must compile')
+		ensureEmitted('feat-html', component.serverCode)
+		expect(
+			await render('feat-html', { markup: '<p>Rich <em>content</em></p>' }),
+		).toBe(
+			'<c-el><article>&lt;p&gt;Rich &lt;em&gt;content&lt;/em&gt;&lt;/p&gt;</article></c-el>',
+		)
+	})
+
+	test('a configured sanitizer strips scripts, event handlers, and unsafe URLs', async () => {
+		configureHtmlSanitizer(stripDangerousMarkup)
+		expect(
+			await render('feat-html', {
+				markup:
+					'<p onclick="steal()">hi</p><script>alert(1)</script><a href="javascript:x">c</a>',
+			}),
+		).toBe('<c-el><article><p>hi</p><a>c</a></article></c-el>')
+	})
+
+	test('reactive thunk form (LT-025) lowers to a dangerouslyBindInnerHTML watch', async () => {
+		const source = `export function C({}: {})
+	@{
+		expose({})
+		const body = createState('<b>seed</b>')
+			<c-el>
+				<article class="target" truc:html={() => body.get()}></article>
+				<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+			</c-el>
+	}
+import { createState } from '@zeix/le-truc'`
+		const { component, diagnostics: d } = compileComponent(
+			source,
+			'c.tsrx',
+			new Set(),
+		)
+		expect(d).toEqual([])
+		if (!component) throw new Error('reactive html fixture must compile')
+		expect(component.clientCode).toContain(
+			'watch(() => body.get(), dangerouslyBindInnerHTML(article, { sanitize: sanitizeHtml }))',
+		)
+		ensureEmitted('feat-html-reactive', component.serverCode)
+		expect(await render('feat-html-reactive', {})).toBe(
+			'<c-el><article class="target">&lt;b&gt;seed&lt;/b&gt;</article></c-el>',
+		)
+	})
+
+	// LT-138: the server render and the client's first `watch` run must land
+	// on the same DOM. Before, the server escaped while the client's
+	// `dangerouslyBindInnerHTML(article)` assigned raw — escaped text flipping
+	// to live markup at hydration. Both now go through one `sanitizeHtml`.
+	const hydrate = (serverHtml: string, seed: string) => {
+		const { document } = new JSDOM(serverHtml).window
+		const article = document.querySelector('article')
+		if (!article) throw new Error('server render must contain the article')
+		const served = article.innerHTML
+		article.innerHTML = String(librarySanitizeHtml(seed))
+		return { served, hydrated: article.innerHTML }
+	}
+
+	test('reactive form: server render and client bind agree when unconfigured', async () => {
+		const seed = '<b>seed</b>'
+		const { served, hydrated } = hydrate(
+			await render('feat-html-reactive', {}),
+			seed,
+		)
+		expect(hydrated).toBe(served)
+		expect(served).toBe('&lt;b&gt;seed&lt;/b&gt;')
+	})
+
+	test('reactive form: one configureHtmlSanitizer call switches both halves', async () => {
+		configureHtmlSanitizer(stripDangerousMarkup)
+		const { served, hydrated } = hydrate(
+			await render('feat-html-reactive', {}),
+			'<b>seed</b>',
+		)
+		expect(hydrated).toBe(served)
+		expect(served).toBe('<b>seed</b>')
+	})
+})
+
+describe('async boundary, attribute channels (LT-449) — the ok root reads its driver through `truc:html`', () => {
+	// The ruled lazyload shape (LT-334's ruling, implemented in LT-449): the
+	// ok arm's root reads the driver through a reactive `truc:html` thunk and
+	// carries the arm's own client constructs (the html watch is the value
+	// channel; a reactive style map rides beside it), and the catch arm nests
+	// its message one element below the root — the per-arm callout shape.
+	const component = (driver: 'deriveCell' | 'createTask'): string =>
+		`import { ${driver}, isPending } from '@zeix/le-truc'
+export function C({}: {})
+	@{
+		${driver === 'deriveCell' ? "const data = deriveCell(async () => 'loaded')" : "const data = createTask<string>(async () => 'loaded')"}
+		expose({ data: data.get })
+			<c-el>
+				@try {
+					<div class="content" style={() => ({ opacity: isPending(data) ? 'var(--dim)' : null })} truc:html={() => data.get()}></div>
+				} @pending {
+					<card-callout><p class="loading">Loading</p></card-callout>
+				} @catch (e) {
+					<card-callout class="danger"><p class="error">{e.message}</p></card-callout>
+				}
+				<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+			</c-el>
+	}`
+
+	test('the html thunk drives the routing, and the ok root constructs are the ok arm’s effects', () => {
+		const { component: compiled, diagnostics } = compileComponent(
+			component('deriveCell'),
+			'c.tsrx',
+			new Set(),
+		)
+		expect(diagnostics).toEqual([])
+		const code = compiled?.clientCode ?? ''
+		// The ok branch binds the arm root and mounts its watches — the html
+		// watch IS the value channel, so there is no text write.
+		expect(code).toContain("if (armKey === 'ok') {")
+		expect(code).toContain(
+			"const div = armElement as ElementFromSelector<'div'>",
+		)
+		expect(code).toContain('bindStyle(div, ')
+		expect(code).toContain(
+			'watch(() => data.get(), dangerouslyBindInnerHTML(div, { sanitize: sanitizeHtml }))',
+		)
+		expect(code).not.toContain(`ok: bindText(armElement)`)
+	})
+
+	test('the nested catch message writes through an arm-scoped local', () => {
+		const { component: compiled, diagnostics } = compileComponent(
+			component('deriveCell'),
+			'c.tsrx',
+			new Set(),
+		)
+		expect(diagnostics).toEqual([])
+		const code = compiled?.clientCode ?? ''
+		expect(code).toContain("} else if (armKey === 'err') {")
+		expect(code).toContain(
+			"const errMessage = first('p', \"the `@catch` arm's message element\")",
+		)
+		expect(code).toContain('err: error => bindText(errMessage)(error.message)')
+	})
+
+	test('the server bakes the arm roots inert and renders the message live on the err arm', async () => {
+		const { component: compiled, diagnostics } = compileComponent(
+			component('deriveCell'),
+			'c.tsrx',
+			new Set(),
+		)
+		expect(diagnostics).toEqual([])
+		if (!compiled) throw new Error('fixture must compile')
+		ensureEmitted('feat-async-html-channel', compiled.serverCode)
+		const html = await render('feat-async-html-channel', {})
+		// The pending arm is the live winner; the templates bake the html
+		// and style constructs empty (LT-385c) and the err message empty.
+		expect(html).toContain(
+			'<card-callout data-key="nil"><p class="loading">Loading</p></card-callout>',
+		)
+		expect(html).toContain(
+			'<template data-arms="0" data-key="err"><card-callout class="danger"><p class="error"></p></card-callout></template>',
+		)
+		expect(html).toContain(
+			'<template data-arms="0" data-key="ok"><div class="content"></div></template>',
+		)
+	})
+
+	test('a createTask driver routes to the pending arm server-side (the runtime shim never invokes the callback)', async () => {
+		const { component: compiled, diagnostics } = compileComponent(
+			component('createTask'),
+			'c.tsrx',
+			new Set(),
+		)
+		expect(diagnostics).toEqual([])
+		if (!compiled) throw new Error('fixture must compile')
+		// The server module never imports the runtime library itself — its
+		// harness import is the compiler package's `./runtime` subpath
+		// (LT-254), so the bare-package specifier with its closing quote is
+		// the exact needle.
+		expect(compiled.serverCode).not.toContain("from '@zeix/le-truc'")
+		expect(compiled.serverCode).toContain(
+			"from '@zeix/le-truc-compiler/runtime'",
+		)
+		ensureEmitted('feat-async-task-driver', compiled.serverCode)
+		const html = await render('feat-async-task-driver', {})
+		expect(html).toContain('data-key="nil"')
+		// The err arm exists only as its inert template — the live winner is
+		// the pending arm (the shim's pending box never routes 'err').
+		expect(html).not.toContain('<p class="error" data-key="err"')
+		expect(html).not.toContain('<card-callout data-key="err"')
+	})
+
+	test('a catch read on the root beside a nested message element is refused (one text target per arm)', () => {
+		// Admitted, the err branch would write the root's `e.message` into
+		// the nested `<p>` and never write `e.name` (LT-449 review).
+		const source = component('deriveCell').replace(
+			'<card-callout class="danger"><p class="error">{e.message}</p></card-callout>',
+			'<card-callout class="danger">{e.message}<p class="error">{e.name}</p></card-callout>',
+		)
+		const { component: compiled, diagnostics } = compileComponent(
+			source,
+			'c.tsrx',
+			new Set(),
+		)
+		expect(compiled).toBeNull()
+		expect(diagnostics.map(d => d.code)).toEqual(['LTC005'])
+		expect(diagnostics[0]?.message).toContain(
+			'reads the catch parameter `e` both on its root and in a nested element',
+		)
+		expect(diagnostics[0]?.message).toContain('Keep one read of `e` per arm')
+
+		const tsx = compileComponentTsx(
+			`import { deriveCell } from '@zeix/le-truc'
+export function C({}: {}) {
+	const data = deriveCell(async () => 'loaded')
+	expose({ data: data.get })
+	return (
+		<c-el>
+			<truc:try
+				pending={<card-callout><p class="loading">Loading</p></card-callout>}
+				catch={e => (
+					<card-callout class="danger">{e.message}<p class="error">{e.name}</p></card-callout>
+				)}
+			>
+				<div class="content" truc:html={() => data.get()}></div>
+			</truc:try>
+		</c-el>
+	)
+}`,
+			'c.tsx',
+			new Set(),
+		)
+		expect(tsx.component).toBeNull()
+		expect(tsx.diagnostics.map(d => d.code)).toEqual(['LTC005'])
+		expect(tsx.diagnostics[0]?.message).toContain(
+			'reads the catch parameter `e` both on its root and in a nested element',
+		)
+	})
+})
+
+describe('createMemo — recognized signal constructor (LT-025)', () => {
+	test('derives from a rendered signal; server evaluates once, client re-derives', async () => {
+		const source = `export function C({}: {})
+	@{
+		expose({})
+		const value = createState(3)
+		const doubled = createMemo(() => value.get() * 2)
+			<c-el>
+				<span class="value">{value}</span>
+				<span class="doubled">{doubled}</span>
+				<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+			</c-el>
+	}
+import { createState, createMemo } from '@zeix/le-truc'`
+		const { component, diagnostics } = compileComponent(
+			source,
+			'c.tsrx',
+			new Set(),
+		)
+		expect(diagnostics).toEqual([])
+		if (!component) throw new Error('createMemo fixture must compile')
+		expect(component.clientCode).toContain(
+			'const doubled = createMemo(() => value.get() * 2)',
+		)
+		ensureEmitted('feat-create-memo', component.serverCode)
+		expect(await render('feat-create-memo', {})).toBe(
+			'<c-el><span class="value">3</span><span class="doubled">6</span></c-el>',
+		)
+	})
+
+	test('a compute function reading host/internals routes Simulated when unrendered (LT-165 step 5)', () => {
+		// ADR 0029 s5: the shape the harness cannot run (`createMemo` invokes
+		// its compute at render time, where `host` doesn't exist) is a routing
+		// signal. The Simulated-tier server module drops the const; the client
+		// declares it when something client-side reads it.
+		const source = `export function C({}: {})
+	@{
+		expose({ filter: asString('') })
+		const lowerFilter = createMemo(() => host.filter.toLowerCase())
+			<c-el>
+				<p>static</p>
+				<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+			</c-el>
+	}
+import { asString, createMemo } from '@zeix/le-truc'`
+		const { component } = compileComponent(source, 'c.tsrx', new Set())
+		expect(component).not.toBeNull()
+		const hit = component?.entry.routingSignals.find(s => s.origin === 'LTC013')
+		expect(hit?.detail).toContain('`lowerFilter`')
+		expect(component?.entry.tier).toBe('simulated')
+		expect(component?.serverCode).not.toContain('createMemo')
+	})
+
+	test('the same compute rendered into the markup is a hard error (LTC046, LT-165 step 5)', () => {
+		// The residue the reclassification must not paper over: `{lowerFilter}`
+		// is a static server splice, and no tier can produce its value — the
+		// fold cannot run the read and no client binding ever corrects a
+		// static splice. Unrendered consts route (above); rendered ones error.
+		const source = `export function C({}: {})
+	@{
+		expose({ filter: asString('') })
+		const lowerFilter = createMemo(() => host.filter.toLowerCase())
+			<c-el>
+				<span>{lowerFilter}</span>
+				<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+			</c-el>
+	}
+import { asString, createMemo } from '@zeix/le-truc'`
+		const { component, diagnostics } = compileComponent(
+			source,
+			'c.tsrx',
+			new Set(),
+		)
+		expect(component).toBeNull()
+		const hit = diagnostics.find(d => d.code === 'LTC046')
+		expect(hit).toBeDefined()
+		expect(hit?.severity).toBe('error')
+		expect(hit?.message).toContain('`lowerFilter`')
+		expect(hit?.message).toContain('`host`')
+	})
+})
+
+describe('review fixes (2026-08-22 architect pass)', () => {
+	test('nested directives in branch bodies render (no silent drop)', async () => {
+		const { component, diagnostics } = compiled(`@if (status) {
+			<div class="outer">
+				@if (status === 'a') {
+					<p class="inner">A</p>
+				} @else {
+					@try {
+						<p>{status.length}</p>
+					} @catch (e) {
+						<p>err</p>
+					}
+				}
+			</div>
+		}`)
+		expect(diagnostics).toEqual([])
+		if (!component) throw new Error('nested fixture must compile')
+		ensureEmitted('feat-nested', component.serverCode)
+		expect(await render('feat-nested', { status: 'a', markup: '' })).toBe(
+			'<c-el><div class="outer"><p class="inner">A</p></div></c-el>',
+		)
+		// else-branch try renders its body
+		expect(await render('feat-nested', { status: 'xy', markup: '' })).toBe(
+			'<c-el><div class="outer"><p>2</p></div></c-el>',
+		)
+	})
+
+	test('nested @try joins into the outer arm buffer (order + isolation)', async () => {
+		const { component, diagnostics } = compiled(`@try {
+			<div class="outer">
+				@try {
+					<p class="inner">{markup.length}</p>
+				} @catch (e) {
+					<p>inner-err</p>
+				}
+				<p class="tail">{status.length}</p>
+			</div>
+		} @catch (error) {
+			<p>outer-err</p>
+		}`)
+		expect(diagnostics).toEqual([])
+		if (!component) throw new Error('nested try fixture must compile')
+		ensureEmitted('feat-nested-try', component.serverCode)
+		// inner content renders IN PLACE inside the outer body, tail after it
+		expect(
+			await render('feat-nested-try', { status: 'abc', markup: 'xy' }),
+		).toBe(
+			'<c-el><div class="outer"><p class="inner">2</p><p class="tail">3</p></div></c-el>',
+		)
+		// the tail throws AFTER the nested try already buffered its content:
+		// the outer catch discards the WHOLE arm — no partial inner leak
+		expect(await render('feat-nested-try', { markup: 'xy' })).toBe(
+			'<c-el><p>outer-err</p></c-el>',
+		)
+	})
+
+	test('a configured sanitizer strips unquoted event handlers', async () => {
+		configureHtmlSanitizer(stripDangerousMarkup)
+		try {
+			expect(
+				await render('feat-html', {
+					markup: '<img src=x onerror=alert(1)>',
+				}),
+			).toBe('<c-el><article><img src="x"></article></c-el>')
+		} finally {
+			unconfigure()
+		}
+	})
+
+	test('keyConfig-function returning empty string falls back like cause-effect', async () => {
+		// Server/client key parity: cause-effect uses `keyConfig(item) || auto`
+		// — an empty-string key must regenerate, not seed data-key="".
+		const { createList } = await import('../src/runtime')
+		const list = createList(['a', 'b'], {
+			keyConfig: () => '',
+		})
+		expect(list.entries().map(([key, cell]) => [key, cell.get()])).toEqual([
+			['0', 'a'],
+			['1', 'b'],
+		])
+	})
+
+	test('arg-seeded harvest filters to data-key children only', () => {
+		const source = `export function Seeded({ initial }: { initial?: string[] })
+	@{
+		const items = createList<string>(initial, { keyConfig: 'item' })
+			<c-el>
+				<ul data-container>
+					<li class="header" data-unreconciled>static header</li>
+					@for (const item of items; key k) {
+						<li><span>{item}</span></li>
+					}
+				</ul>
+				<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+			</c-el>
+	}
+import { createList } from '@zeix/le-truc'`
+		const { component, diagnostics } = compileComponent(
+			source,
+			'seeded.tsrx',
+			new Set(),
+		)
+		expect(diagnostics).toEqual([])
+		expect(component?.clientCode).toContain(
+			".filter(el => el.hasAttribute('data-key')).map(el =>",
+		)
+	})
+
+	test('a second reactive list in one component compiles (LT-423)', () => {
+		// ADR 0046 s2: the extracted templates are stamped `data-list` and
+		// queried from their own container's parent, so the old
+		// one-list-per-component limit is lifted.
+		const source = `export function C({}: {})
+	@{
+		const a = createList<string>(['x'], { keyConfig: 'a' })
+		const b = createList<string>(['y'], { keyConfig: 'b' })
+			<c-el>
+				<ul class="a-list">
+					@for (const item of a; key k) {
+						<li><span>{item}</span></li>
+					}
+				</ul>
+				<ul class="b-list">
+					@for (const item of b; key k2) {
+						<li><span>{item}</span></li>
+					}
+				</ul>
+				<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+			</c-el>
+	}
+import { createList } from '@zeix/le-truc'`
+		const { component, diagnostics } = compileComponent(
+			source,
+			'c.tsrx',
+			new Set(),
+		)
+		expect(diagnostics).toEqual([])
+		expect(component?.clientCode).toContain('data-list="0"')
+		expect(component?.clientCode).toContain('data-list="1"')
+		expect(component?.serverCode).toContain('<template data-list="0">')
+		expect(component?.serverCode).toContain('<template data-list="1">')
+	})
+
+	test('truc:html={dataRef} inside an @if branch is not a client construct', () => {
+		const { diagnostics } = compiled(`@if (status) {
+			<article truc:html={markup} />
+		} @else {
+			<article />
+		}`)
+		expect(diagnostics.filter(d => d.severity === 'error')).toEqual([])
+	})
+})
+
+describe('newer-grammar constructs — parse-error hints', () => {
+	test('statement-form switch gets the pinned-grammar hint', () => {
+		const { component, diagnostics } = compileComponent(
+			wrap(`switch (status) {
+			case 'loading':
+				<p>Loading</p>
+				break
+			default:
+				<p>Unknown</p>
+		}`),
+			'c.tsrx',
+			new Set(),
+		)
+		expect(component).toBeNull()
+		const hit = diagnostics.find(d => d.code === 'LTC008')
+		expect(hit).toBeDefined()
+		expect(hit?.message).toContain('not parseable by the pinned')
+		expect(hit?.message).toContain('statement-form switch')
+	})
+
+	test('`{html markup}` gets NO phantom-keyword hint (LT-137)', () => {
+		// The hint used to say "{html expr} keyword is newer TSRX grammar than
+		// @tsrx/core 0.1.63". No such keyword exists in any published upstream
+		// release — verified against @tsrx/core 0.1.60/0.1.63, @tsrx/ripple and
+		// ripple — so the hint sent the author looking for a pin upgrade that
+		// would not have helped. It still fails to parse; it just no longer
+		// claims a false cause.
+		const { diagnostics } = compileComponent(
+			wrap('<article>{html markup}</article>'),
+			'c.tsrx',
+			new Set(),
+		)
+		expect(diagnostics.some(d => d.code === 'LTC008')).toBe(true)
+		expect(
+			diagnostics.some(d => d.message.includes('{html expr} keyword')),
+		).toBe(false)
+	})
+
+	test('setup await gets the hint', () => {
+		const source = `export function C({ id }: { id?: string })
+	@{
+		const data = await load(id)
+		expose({})
+		<c-el><p>{data}</p>
+			<style>@scope {
+	:scope {
+	  color: red;
+	}
+}</style>
+		</c-el>}`
+		const { diagnostics } = compileComponent(source, 'c.tsrx', new Set())
+		expect(
+			diagnostics.some(d => d.code === 'LTC008' && d.message.includes('await')),
+		).toBe(true)
+	})
+})

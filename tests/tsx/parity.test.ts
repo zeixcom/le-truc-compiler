@@ -1,0 +1,971 @@
+/**
+ * Cross-surface parity for every corpus variant set (LT-183, LT-237,
+ * ADR 0039 s1).
+ *
+ * The suite DISCOVERS its pairs: every folder in the corpus holding a
+ * `.tsrx` and a `.tsx` spelling of one tag is a variant set, and each is
+ * compiled on both front ends with identical registries, compose
+ * registries and args, then compared:
+ *
+ * - server renders through the VALUE HARNESS byte-for-byte (the bar: ADR
+ *   0029's markup-identical-across-tiers invariant extends across surfaces
+ *   for identically-authored components) — the build serves ONE member, so
+ *   this is the only place the unserved member's render is proven equal;
+ * - CSS artifacts byte-for-byte (the build's own LTC051 check covers CSS
+ *   only);
+ * - the registry entry (`exposedProps`, `propsType`, tier) — the compose
+ *   registry validates `pass()` against whichever member a parent imports;
+ * - Simulated-tier sets render through the UNMODIFIED `sim/` realm
+ *   byte-for-byte;
+ * - client modules structurally (snapshot review, not bytes — naming and
+ *   import placement may differ);
+ * - the §4.4 synthetic fixtures (`tests/fixtures/tsx/`)
+ *   compile through the unmodified analysis and render (async boundary:
+ *   pending arm; control-flow shapes: taken arms).
+ *
+ * The comparison runs BOTH-SIDES LIVE (the .tsrx originals compile in the
+ * same process) rather than against copied golden strings — the repo's
+ * golden tests already pin those bytes; live comparison additionally proves
+ * the two front ends agree under the same registry state.
+ */
+import { afterAll, describe, expect, test } from 'bun:test'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { compileComponent } from '../../src/frontend/tsrx'
+import { compileComponentTsx } from '../../src/frontend/tsx'
+import { collectI18n, writeI18nModule } from '../../src/i18n-catalog'
+import type { InternalRegistryEntry } from '../../src/registry'
+import { createSimulationRealm } from '../../src/sim/realm'
+import { CORPUS_ARGS, renderName } from '../corpus-args'
+import { loadCorpus } from '../corpus-fixture'
+import { createGeneratedDir } from '../helpers/generated-corpus'
+import { lineAt, textAt } from '../located'
+
+const ROOT = path.resolve(import.meta.dir, '../..')
+/** Synthetic `.tsx` shapes and tsc probes — test fixtures, not examples (LT-237). */
+const FIXTURES_TSX = 'tests/fixtures/tsx'
+const read = (rel: string): string =>
+	fs.readFileSync(path.join(ROOT, rel), 'utf8')
+
+type Fixture = {
+	tag: string
+	name: string
+	tsrx: string
+	tsxx: string
+	args: Record<string, unknown>
+}
+
+const pascal = (tag: string): string => renderName(tag).slice('render'.length)
+
+/**
+ * Every folder-local variant set in the configured corpus scan — a `.tsrx`
+ * and a `.tsx` in ONE directory, named for one tag (ADR 0039). A new set
+ * joins the suite by existing; none can escape it.
+ */
+const CORPUS = await loadCorpus()
+
+const discoverVariantSets = async (): Promise<Fixture[]> => {
+	const byStem = new Map<string, { tsrx?: string; tsxx?: string }>()
+	for (const { filename } of CORPUS) {
+		const match = /^(.*)\.(tsrx|tsx)$/.exec(filename)
+		if (!match?.[1]) continue
+		const pair = byStem.get(match[1]) ?? {}
+		if (match[2] === 'tsx') pair.tsxx = filename
+		else pair.tsrx = filename
+		byStem.set(match[1], pair)
+	}
+	return [...byStem.values()]
+		.filter(
+			(pair): pair is { tsrx: string; tsxx: string } =>
+				pair.tsrx !== undefined && pair.tsxx !== undefined,
+		)
+		.map(({ tsrx, tsxx }) => {
+			const tag = path.basename(tsrx, '.tsrx')
+			return {
+				tag,
+				name: pascal(tag),
+				tsrx,
+				tsxx,
+				args: CORPUS_ARGS[tag] ?? {},
+			}
+		})
+		.sort((a, b) => a.tag.localeCompare(b.tag))
+}
+
+const FIXTURES = await discoverVariantSets()
+
+const MEMBERS = new Set(FIXTURES.flatMap(fx => [fx.tsrx, fx.tsxx]))
+
+/**
+ * The corpus components outside every variant set, which a set may compose
+ * (module-list composes `form-textbox` and authors `basic-button` raw):
+ * their tags join the registry and their entries the compose registry.
+ */
+const OTHERS = CORPUS.filter(
+	({ filename }) => /\.(tsrx|tsx)$/.test(filename) && !MEMBERS.has(filename),
+).map(({ filename }) => filename)
+
+const tagOf = (filename: string): string =>
+	path.basename(filename).replace(/\.(tsrx|tsx)$/, '')
+
+const registry = new Set<string>([
+	...FIXTURES.map(fx => fx.tag),
+	...OTHERS.map(tagOf),
+])
+
+const compileOne = (filename: string, entries: InternalRegistryEntry[]) => {
+	const composeRegistry = new Map<string, InternalRegistryEntry>(
+		entries.map(e => [e.source, e]),
+	)
+	const compile = filename.endsWith('.tsx')
+		? compileComponentTsx
+		: compileComponent
+	return compile(
+		read(filename),
+		filename,
+		new Set([...registry]),
+		undefined,
+		composeRegistry.size > 0 ? composeRegistry : undefined,
+	)
+}
+
+/** Both front ends get the same compose graph (e.g. combobox composes listbox). */
+const compilePair = (fx: Fixture, entries: InternalRegistryEntry[]) => {
+	const composeRegistry = new Map<string, InternalRegistryEntry>(
+		entries.map(e => [e.source, e]),
+	)
+	const tsrx = compileComponent(
+		read(fx.tsrx),
+		fx.tsrx,
+		new Set([...registry]),
+		undefined,
+		composeRegistry.size > 0 ? composeRegistry : undefined,
+	)
+	const tsxx = compileComponentTsx(
+		read(fx.tsxx),
+		fx.tsxx,
+		new Set([...registry]),
+		undefined,
+		composeRegistry.size > 0 ? composeRegistry : undefined,
+	)
+	return { tsrx, tsxx }
+}
+
+/**
+ * What a client module derives from the authored types (LT-298): the
+ * `defineComponent<Props>` type argument and every Parser call, in order.
+ * Author comments are copied verbatim and may legitimately differ.
+ */
+const clientTypeFacts = (code: string | undefined): string[] =>
+	[
+		...(code ?? '').matchAll(
+			/defineComponent(?:<\w+>)?\(|\bas(?:String|Integer|Boolean|Number)\(/g,
+		),
+	].map(m => m[0])
+
+/** A server module's `argsFromAttrs` export, or '' where it is withheld. */
+const argsFromAttrsOf = (code: string | undefined): string =>
+	/export function argsFromAttrs[\s\S]*?\n}\n/.exec(code ?? '')?.[0] ?? ''
+
+/**
+ * A server module's render function signature (`paramsText`), compared
+ * token-wise: comments, whitespace and separator punctuation are layout,
+ * not the args contract. The `.tsx` members are Biome-formatted and their
+ * `.tsrx` twins are not (Biome skips `.tsrx`), so byte equality would pin
+ * formatting rather than the authored args (LT-237 review).
+ */
+const renderSignatureOf = (code: string | undefined): string =>
+	(
+		/export function render\w+\([\s\S]*?\): string \{/.exec(code ?? '')?.[0] ??
+		''
+	)
+		.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '')
+		.replace(/\s+/g, ' ')
+		.replace(/\s*([{}()[\]:;,=|&<>?])\s*/g, '$1')
+		.replace(/[,;]+([}\])\]])/g, '$1')
+		.replace(/;/g, ',')
+
+/**
+ * Pairs whose `.tsx` member authors different args than its `.tsrx` twin:
+ * listbox's `'truc:pass'` compose surface sits on the `.tsx` ARGS type (a
+ * JSX parent type-checks against the child's first parameter) but on the
+ * `.tsrx` Props type. The `i18n` drift was reconciled in the LT-237 move.
+ */
+const AUTHORED_ARGS_DRIFT = new Set(['form-listbox'])
+
+const generated = createGeneratedDir('tsx-parity')
+afterAll(() => generated.cleanup())
+
+const renderOf =
+	(tag: string, name: string) =>
+	async (code: string, args: unknown): Promise<string> => {
+		generated.emit(`${tag}.server.ts`, code)
+		const mod = (await generated.importModule(`${tag}.server.ts`)) as Record<
+			string,
+			unknown
+		>
+		const fn = mod[`render${name}`] as (args: unknown) => string
+		if (typeof fn !== 'function')
+			throw new Error(`render${name} missing for ${tag}`)
+		return fn(args)
+	}
+
+// Pass 1: every set alone — the registry-discovery pass that feeds the
+// compose registry — then each set again with every member's entry, the
+// same two-pass shape as `compileCorpus`. Hoisted to module scope because
+// the generated i18n module write below is top-level await (describe
+// callbacks are sync).
+const discoveryEntries = [
+	...FIXTURES.flatMap(fx => {
+		const { tsrx, tsxx } = compilePair(fx, [])
+		return [tsrx, tsxx]
+	}),
+	...OTHERS.map(filename => compileOne(filename, [])),
+].flatMap(compiled => (compiled.component ? [compiled.component.entry] : []))
+
+// A composing set's server module supplies its composed children's reserved
+// records (`i18n: i18nRecord("form-listbox", …)`), which import './i18n' —
+// write the generated i18n module from the compiled .tsrx entries, the same
+// derivation the real corpus pipeline performs (ADR 0030 sub-design 2).
+await writeI18nModule(
+	generated.path,
+	await collectI18n(
+		discoveryEntries.filter(entry => entry.source.endsWith('.tsrx')),
+		undefined,
+		path.join(ROOT, 'i18n'),
+	),
+)
+
+// Pass 2, compiled once. Every set's `.tsrx` server module is on disk
+// before any render, so a composing set's import of its child's module
+// ('./form-listbox.server') resolves whatever order the sets run in.
+const COMPILED = new Map(
+	FIXTURES.map(fx => [fx.tag, compilePair(fx, discoveryEntries)]),
+)
+for (const [tag, { tsrx }] of COMPILED)
+	if (tsrx.component)
+		generated.emit(`${tag}.server.ts`, tsrx.component.serverCode)
+// A set's composed non-member children render through their own modules.
+for (const filename of OTHERS) {
+	const { component } = compileOne(filename, discoveryEntries)
+	if (component)
+		generated.emit(`${tagOf(filename)}.server.ts`, component.serverCode)
+}
+
+describe('variant sets — front-end parity (§4.3, ADR 0039 s1)', () => {
+	test('discovers every corpus variant set (non-vacuous)', () => {
+		expect(FIXTURES.map(fx => fx.tag)).toEqual(
+			expect.arrayContaining([
+				'basic-counter',
+				'form-combobox',
+				'form-listbox',
+				'module-todo',
+			]),
+		)
+	})
+
+	for (const fx of FIXTURES) {
+		describe(fx.tag, () => {
+			const { tsrx, tsxx } =
+				COMPILED.get(fx.tag) ?? compilePair(fx, discoveryEntries)
+
+			test('compiles clean on the .tsx front end (no errors/warnings)', () => {
+				expect(tsxx.diagnostics).toEqual([])
+				expect(tsxx.component).not.toBeNull()
+			})
+
+			test('lands in the same tier', () => {
+				expect(tsxx.component?.entry.tier).toBe(tsrx.component?.entry.tier)
+			})
+
+			test('server render byte-identical to the .tsrx original (value harness)', async () => {
+				if (!tsrx.component || !tsxx.component)
+					throw new Error('compile failed')
+				const render = renderOf(fx.tag, fx.name)
+				const a = await render(tsrx.component.serverCode, fx.args)
+				const b = await render(tsxx.component.serverCode, fx.args)
+				expect(b).toBe(a)
+				// The render must also be non-trivial markup for its own tag.
+				expect(a).toContain(`<${fx.tag}`)
+			})
+
+			test('CSS byte-identical', () => {
+				expect(tsxx.component?.css).toBe(tsrx.component?.css)
+			})
+
+			// LT-298: the `.tsx` converter once dropped the args annotation, so
+			// every arg read as untyped — `asString` harvests, all args
+			// optional, no `string` channels — and the snapshot above pinned
+			// it. Pin the two surfaces' derived facts against each other.
+			test('client facts derived from the args type identical (props type argument, harvest parsers)', () => {
+				expect(clientTypeFacts(tsxx.component?.clientCode)).toEqual(
+					clientTypeFacts(tsrx.component?.clientCode),
+				)
+			})
+
+			test('page-occurrence helper identical (arg optionality, string and Parser channels)', () => {
+				expect(argsFromAttrsOf(tsxx.component?.serverCode)).toBe(
+					argsFromAttrsOf(tsrx.component?.serverCode),
+				)
+			})
+
+			// The render signature is the authored args pattern verbatim, so it
+			// can only match where the two sources author the same args.
+			// AUTHORED_ARGS_DRIFT pins the pairs that do not yet; the inverted
+			// assertion fails once a pair converges, so the set cannot go stale.
+			test('render signature (the typed args pattern) identical', () => {
+				const a = renderSignatureOf(tsrx.component?.serverCode)
+				const b = renderSignatureOf(tsxx.component?.serverCode)
+				if (AUTHORED_ARGS_DRIFT.has(fx.tag)) expect(b).not.toBe(a)
+				else expect(b).toBe(a)
+			})
+
+			test('client module snapshot (structural review, not bytes)', () => {
+				expect(tsxx.component?.clientCode).toMatchSnapshot()
+			})
+
+			test('registry entry identical (exposed props, props type)', () => {
+				// The compose registry validates a parent's `pass()` against the
+				// member its import names, so the unserved member's entry must
+				// agree with the served one's.
+				expect(tsxx.component?.entry.exposedProps).toEqual(
+					tsrx.component?.entry.exposedProps ?? {},
+				)
+				expect(tsxx.component?.entry.propsType).toBe(
+					tsrx.component?.entry.propsType ?? null,
+				)
+			})
+
+			if (tsrx.component?.entry.tier === 'simulated') {
+				test('server render byte-identical through the UNMODIFIED sim realm (Simulated tier)', async () => {
+					if (!tsrx.component || !tsxx.component)
+						throw new Error('compile failed')
+					const composes = new Map(
+						discoveryEntries.map(e => [e.tag, e.composesTags]),
+					)
+					const realm = createSimulationRealm({
+						composesTags: tag =>
+							tag === fx.tag
+								? (tsrx.component?.entry.composesTags ?? [])
+								: (composes.get(tag) ?? []),
+					})
+					try {
+						generated.emit(`${fx.tag}.client.ts`, tsrx.component.clientCode)
+						await realm.load(() =>
+							generated
+								.importModule(`${fx.tag}.client.ts`)
+								.then(() => undefined),
+						)
+						const render = renderOf(fx.tag, fx.name)
+						const phase1A = await render(tsrx.component.serverCode, fx.args)
+						const phase1B = await render(tsxx.component.serverCode, fx.args)
+						const { html: phase2A } = await realm.render({
+							markup: phase1A,
+							component: fx.tag,
+						})
+						const { html: phase2B } = await realm.render({
+							markup: phase1B,
+							component: fx.tag,
+						})
+						expect(phase2B).toBe(phase2A)
+					} finally {
+						// Awaited: the restores follow the final settle (LT-411), and
+						// the next fixture's realm must not be created under this
+						// one's still-applied patches.
+						await realm.dispose()
+					}
+				})
+			}
+		})
+	}
+})
+
+describe('§4.4 synthetic shapes through the unmodified analysis', () => {
+	test('async boundary (<truc:try pending catch>) renders the pending arm and folds the isPending idiom', async () => {
+		const source = read(`${FIXTURES_TSX}/async/async-el.tsx`)
+		const { component, diagnostics } = compileComponentTsx(
+			source,
+			`${FIXTURES_TSX}/async/async-el.tsx`,
+			new Set(['async-el']),
+		)
+		expect(diagnostics).toEqual([])
+		if (!component) throw new Error('async fixture must compile')
+		const render = renderOf('async-el', 'AsyncEl')
+		const html = await render(component.serverCode, {})
+		// Fresh task in the value harness: pending WITHOUT a retained value —
+		// the pending arm is the live winner; every arm is an inert template
+		// (ADR 0037 s4, LT-276).
+		expect(html).toContain('<p data-key="nil" class="loading">Loading</p>')
+		expect(html).toContain(
+			'<template data-arms="0" data-key="ok"><div class="content"></div></template>',
+		)
+		expect(html).toContain(
+			'<template data-arms="0" data-key="err"><p class="error"></p></template>',
+		)
+		expect(html).not.toContain('hidden')
+		// The stale arm is gone (LT-211): no fourth root anywhere.
+		expect(html).not.toContain('stale')
+		// The `isPending(data)` class binding folds server-side — the fresh
+		// task is pending at build time, so the class renders on (LT-211).
+		expect(html).toContain('<p role="status" class="pending">')
+		// reconcile() switches the arms by the task state; the client-side
+		// class binding reads isPending(data) so it re-fires when the task
+		// settles.
+		expect(component.clientCode).toContain('reconcile(host,')
+		expect(component.clientCode).toContain('isPending(data)')
+		expect(component.clientCode).not.toContain('stale')
+		expect(component.clientCode).not.toContain('document.createElement')
+	})
+
+	test('switch IIFE / <truc:try catch> / indexed map / && and ternary arms', async () => {
+		const source = read(`${FIXTURES_TSX}/sync/sync-el.tsx`)
+		const { component, diagnostics } = compileComponentTsx(
+			source,
+			`${FIXTURES_TSX}/sync/sync-el.tsx`,
+			new Set(['sync-el']),
+		)
+		expect(diagnostics).toEqual([])
+		if (!component) throw new Error('sync fixture must compile')
+		const render = renderOf('sync-el', 'SyncEl')
+		const args = {
+			mode: 'list',
+			items: [
+				{ id: 'a', label: 'Alpha' },
+				{ id: 'b', label: 'Beta' },
+			],
+		}
+		const html = await render(component.serverCode, args)
+		expect(html).toContain('<ul data-container>')
+		expect(html).toContain('<li data-value="a">0: ALPHA</li>')
+		expect(html).toContain('<li data-value="b">1: BETA</li>')
+		expect(html).toContain('<p class="first">Alpha</p>')
+		expect(html).toContain('<span class="badge">listing</span>')
+		expect(html).toContain('<span class="count">2</span>')
+		// The not-taken arms stay absent (server renders the taken branch).
+		expect(html).not.toContain('class="empty"')
+		expect(html).not.toContain('class="none"')
+		expect(html).not.toContain('class="zero"')
+		// ...and the opposite state flips them (server-known conditions).
+		const flipped = await render(component.serverCode, { mode: 'x', items: [] })
+		expect(flipped).toContain('class="empty"')
+		expect(flipped).toContain('class="none"')
+		expect(flipped).toContain('class="zero"')
+	})
+
+	test.each([
+		['async', 'async-el'],
+		['sync', 'sync-el'],
+	])(
+		'%s: the server module is byte-identical to its .tsrx twin (LT-303)',
+		(dir, tag) => {
+			// `<truc:try>` lowers onto the unchanged `try` IR, so nothing past
+			// the front end can tell the spellings apart. Only the provenance
+			// header (it names the source file) differs.
+			const body = (code: string | undefined): string =>
+				(code ?? '').replace(/^\/\*\*[\s\S]*?\*\/\n/, '')
+			const base = `${FIXTURES_TSX}/${dir}/${tag}`
+			const tsrx = compileComponent(
+				read(`${base}.tsrx`),
+				`${base}.tsrx`,
+				new Set([tag]),
+			)
+			const tsxx = compileComponentTsx(
+				read(`${base}.tsx`),
+				`${base}.tsx`,
+				new Set([tag]),
+			)
+			expect(tsrx.diagnostics).toEqual([])
+			expect(tsxx.diagnostics).toEqual([])
+			expect(body(tsxx.component?.serverCode)).toBe(
+				body(tsrx.component?.serverCode),
+			)
+			expect(body(tsxx.component?.serverCode)).not.toBe('')
+		},
+	)
+
+	test('reactive createList .map lowers to the reconcile plan (unmodified analysis)', () => {
+		const source = `import { css } from '@zeix/le-truc-compiler/macros'
+import { createList } from '@zeix/le-truc'
+export function Seeded({ initial, removeLabel }: { initial?: string[]; removeLabel: string })
+{
+	const items = createList<string>(initial, { keyConfig: 'item' })
+	expose({})
+
+	return (
+			<c-el2>
+				<ul data-container>
+					{items.map(item => (
+						<li aria-label={removeLabel}><span>{item}</span></li>
+					))}
+				</ul>
+				<style>{css\`@scope {
+	:scope {
+		  color: red;
+		}
+}\`}</style>
+			</c-el2>
+	)
+}`
+		const { component, diagnostics } = compileComponentTsx(
+			source,
+			'seeded.tsx',
+			new Set(['c-el2']),
+		)
+		expect(diagnostics).toEqual([])
+		if (!component) throw new Error('seeded fixture must compile')
+		// The reconcile path: an extracted <template> (stamped `data-list`,
+		// ADR 0046 s2) and a reconcile() call, keyed by the list's own
+		// keyConfig (no authored key clause needed).
+		expect(component.serverCode).toContain('<template data-list="0">')
+		expect(component.clientCode).toContain('reconcile(')
+		// LT-215: a server-static attribute inside the reactive-list body is
+		// admitted — folded into the initial items AND baked into the served
+		// template, so cloned items carry the value with no client binding.
+		expect(component.serverCode).toContain(`attr('aria-label', removeLabel)`)
+		expect(component.serverCode).toContain(
+			'aria-label="${esc(String(removeLabel))}"',
+		)
+	})
+
+	test('a server-static attribute in a reactive-list body emits identically on both surfaces (LT-215)', () => {
+		// The .tsrx twin of the synthetic above: same args, same body shape.
+		// The template-baked emission — the load-bearing lines — must be
+		// byte-identical, the anti-drift contract applied to the admitted
+		// class.
+		const tsrxSource = `import { createList } from '@zeix/le-truc'
+export function Seeded({ initial, removeLabel }: { initial?: string[]; removeLabel: string })
+	@{
+		const items = createList<string>(initial, { keyConfig: 'item' })
+		expose({})
+			<c-el2>
+				<ul data-container>
+					@for (const item of items) {
+						<li aria-label={removeLabel}><span>{item}</span></li>
+					}
+				</ul>
+				<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+			</c-el2>
+	}`
+		const tsrx = compileComponent(tsrxSource, 'seeded.tsrx', new Set(['c-el2']))
+		if (!tsrx.component) throw new Error('tsrx twin must compile')
+		expect(tsrx.diagnostics).toEqual([])
+		// The baked template line is front-end-neutral (emit-server's
+		// listTemplateLines): identical bytes from either parser.
+		const bakedLine = 'aria-label="${esc(String(removeLabel))}"'
+		expect(tsrx.component.serverCode).toContain(bakedLine)
+		expect(tsrx.component.serverCode).toContain(
+			`attr('aria-label', removeLabel)`,
+		)
+	})
+
+	test('statement-context arms are diagnosed — bare client-stmt inside a branch is not expressible', () => {
+		// A `&&` arm must be JSX: an IIFE returning null (the .tsrx client-stmt
+		// shape — a bare side effect beside conditional markup) has no JSX
+		// spelling and is REJECTED, retiring the construct with the grammar
+		// (ADR 0024 s11 already restricted it to @if roots).
+		const source = `export function NoStmt({ flag }: { flag: boolean })
+{
+	expose({})
+	return (
+		<c-el3>
+			{flag && (() => { internals?.states.add('x'); return null })()}
+		</c-el3>
+	)
+}`
+		const { component, diagnostics } = compileComponentTsx(
+			source,
+			'no-stmt.tsx',
+			new Set(['c-el3']),
+		)
+		expect(component).toBeNull()
+		expect(
+			diagnostics.some(d =>
+				d.message.includes('A conditional branch that is not a JSX element'),
+			),
+		).toBe(true)
+	})
+})
+
+describe('the typed factory-context parameter (LT-209)', () => {
+	const withContext = (contextParam: string): string =>
+		`import { asString } from '@zeix/le-truc'
+import type { FactoryContext } from '@zeix/le-truc'
+
+export type BadHostProps = { value: string }
+
+export const config = { formAssociated: true }
+
+export function BadHost(
+	{ label = 'x' }: { label?: string },
+	${contextParam},
+) {
+	const span = first('span', 'the span')
+	expose({ value: asString('') })
+	return (
+		<bad-host>
+			<span>{label}</span>
+		</bad-host>
+	)
+}`
+
+	test('an unknown context destructure is LTC049', () => {
+		const { component, diagnostics } = compileComponentTsx(
+			withContext(
+				'{ host, first, expose, grimoire }: FactoryContext<BadHostProps>',
+			),
+			'bad-host.tsx',
+			new Set(['bad-host']),
+		)
+		expect(component).toBeNull()
+		const hit = diagnostics.find(d => d.code === 'LTC049')
+		expect(hit).toBeDefined()
+		expect(hit?.message).toContain('`grimoire`')
+	})
+
+	test('a form-associated component annotating plain FactoryContext is LTC050', () => {
+		const source = withContext(
+			'{ host, first, expose }: FactoryContext<BadHostProps>',
+		)
+		const { diagnostics } = compileComponentTsx(
+			source,
+			'bad-host.tsx',
+			new Set(['bad-host']),
+		)
+		const hit = diagnostics.find(d => d.code === 'LTC050')
+		expect(hit).toBeDefined()
+		expect(hit?.message).toContain('FormFactoryContext')
+		// LT-358b: the report covers the written type (line 10 — it sits on
+		// the context parameter's second line), not the whole parameter.
+		expect(lineAt(source, hit)).toBe(10)
+		expect(textAt(source, hit)).toBe('FactoryContext<BadHostProps>')
+		expect(hit?.location.file).toBe('bad-host.tsx')
+		// LT-371: no fix. Renaming the written type alone would leave
+		// `FormFactoryContext` unimported (this fixture, like the corpus,
+		// imports only `FactoryContext`), and ADR 0044 s1 attaches a fix only
+		// where applying it needs no author judgement.
+		expect(hit?.fix).toBeUndefined()
+	})
+
+	test('a plain component annotating FormFactoryContext is LTC050 too', () => {
+		const source = withContext(
+			'{ host, first, expose }: FormFactoryContext<BadHostProps>',
+		).replace(`export const config = { formAssociated: true }\n\n`, '')
+		const { diagnostics } = compileComponentTsx(
+			source,
+			'bad-host.tsx',
+			new Set(['bad-host']),
+		)
+		const hit = diagnostics.find(d => d.code === 'LTC050')
+		expect(hit).toBeDefined()
+		expect(hit?.message).toContain('does not set `config.formAssociated`')
+		expect(textAt(source, hit)).toBe('FormFactoryContext<BadHostProps>')
+		// Two repairs (annotate FactoryContext, or set formAssociated): the
+		// message names both and there is no fix (ADR 0044 s1).
+		expect(hit?.fix).toBeUndefined()
+	})
+
+	test('a matching FormFactoryContext annotation compiles clean', () => {
+		const { component, diagnostics } = compileComponentTsx(
+			withContext('{ host, first, expose }: FormFactoryContext<BadHostProps>'),
+			'bad-host.tsx',
+			new Set(['bad-host']),
+		)
+		expect(diagnostics).toEqual([])
+		expect(component).not.toBeNull()
+	})
+})
+
+describe('a boundary as a .map() body root is LTC053 (LT-358a)', () => {
+	const mapBody = (body: string): string =>
+		`export function Bad({ rows }: { rows: string[] }) {
+	expose({})
+	return (
+		<bad-el>
+			<ul>{rows.map(row => ${body})}</ul>
+		</bad-el>
+	)
+}`
+
+	test('an expression-bodied callback', () => {
+		const root =
+			'<truc:try catch={e => <li class="b">{e.message}</li>}><li class="a">{row}</li></truc:try>'
+		const source = mapBody(root)
+		const { diagnostics } = compileComponentTsx(
+			source,
+			'bad.tsx',
+			new Set(['bad-el']),
+		)
+		const hit = diagnostics.find(d => d.code === 'LTC053')
+		expect(hit).toBeDefined()
+		// The loop rule, not the generic unrecognized-tag rule `lowerElement`
+		// would raise for a truc:* name.
+		expect(hit?.message).toContain('cannot sit directly in')
+		expect(textAt(source, hit)).toBe(root)
+	})
+
+	test('a block-bodied callback whose return is the boundary', () => {
+		const { diagnostics } = compileComponentTsx(
+			mapBody(
+				'{ return <truc:try catch={e => <li class="b">{e.message}</li>}><li class="a">{row}</li></truc:try> }',
+			),
+			'bad.tsx',
+			new Set(['bad-el']),
+		)
+		const hit = diagnostics.find(d => d.code === 'LTC053')
+		expect(hit).toBeDefined()
+		expect(hit?.message).toContain('cannot sit directly in')
+		expect(hit?.location.end).toBeGreaterThan(hit?.location.start ?? 0)
+	})
+
+	test('an element root still compiles (negative pin)', () => {
+		const { diagnostics } = compileComponentTsx(
+			mapBody('<li class="a">{row}</li>'),
+			'bad.tsx',
+			new Set(['bad-el']),
+		)
+		expect(
+			diagnostics.filter(
+				d =>
+					d.code === 'LTC053' && d.message.includes('cannot sit directly in'),
+			),
+		).toEqual([])
+	})
+})
+
+describe('the args type annotation reaches the shared stages (LT-298)', () => {
+	const component = (
+		params: string,
+	): string => `import { css } from '@zeix/le-truc-compiler/macros'
+export function C(${params}) {
+	expose({})
+	return (
+			<c-el>{label}
+				<style>{css\`@scope {
+	:scope {
+		  color: red;
+		}
+}\`}</style>
+			</c-el>
+	)
+}`
+
+	test('a default paired with a required type is LTC032 on .tsx too', () => {
+		const { diagnostics } = compileComponentTsx(
+			component(`{ label = 'x' }: { label: string }`),
+			'c.tsx',
+			new Set(),
+		)
+		const hit = diagnostics.find(d => d.code === 'LTC032')
+		expect(hit).toBeDefined()
+		expect(hit?.message).toContain('`label`')
+	})
+
+	test('a default paired with an optional type is not flagged', () => {
+		const { diagnostics } = compileComponentTsx(
+			component(`{ label = 'x' }: { label?: string }`),
+			'c.tsx',
+			new Set(),
+		)
+		expect(diagnostics.some(d => d.code === 'LTC032')).toBe(false)
+	})
+
+	test('a renamed destructure keeps its property key', () => {
+		const { component: compiled, diagnostics } = compileComponentTsx(
+			component(`{ title: label }: { title: string }`),
+			'c.tsx',
+			new Set(),
+		)
+		expect(diagnostics).toEqual([])
+		expect(compiled?.serverCode).toContain(
+			'renderC({ title: label }: { title: string })',
+		)
+	})
+})
+
+describe('the isPending fold (LT-211, review pin)', () => {
+	test('a ROOT class-map over isPending binds the harness import too', () => {
+		// The root element's folded attributes are assembled into rootParts
+		// and pushed into the module body AFTER the isPending reference scan
+		// — without the rootParts clause the scan misses them and the
+		// generated server module references isPending without importing it.
+		const source = `import { deriveCell, isPending } from '@zeix/le-truc'
+
+export function PendingRoot({}: {}) {
+	const data = deriveCell(async () => 'loaded')
+	expose({})
+	return (
+		<pending-root class={() => ({ dimmed: isPending(data) })}>
+			<p>ok</p>
+		</pending-root>
+	)
+}`
+		const { component, diagnostics } = compileComponentTsx(
+			source,
+			'pending-root.tsx',
+			new Set(['pending-root']),
+		)
+		expect(diagnostics).toEqual([])
+		if (!component) throw new Error('pending-root fixture must compile')
+		// The harness import line carries the binding...
+		expect(component.serverCode).toMatch(
+			/import \{[^}]*\bisPending\b[^}]*\} from/,
+		)
+		// ...and the fold renders the class (fresh task: pending at build).
+		const html = component.serverCode
+		expect(html).toContain('isPending(data)')
+	})
+})
+
+describe('the loop empty arm on both surfaces (LT-212)', () => {
+	/** Generated modules minus their provenance header (names the source). */
+	const body = (code: string | undefined): string =>
+		(code ?? '').replace(/^\/\*\*[\s\S]*?\*\/\n/, '')
+
+	const pairs = [
+		{
+			path: 'each',
+			tag: 'empty-each',
+			name: 'EmptyEach',
+			tsrx: `export function EmptyEach({ rows }: { rows: string[] })
+	@{
+			<empty-each>
+				<ul>
+					@for (const row of rows) {
+						<li class="row">{row}</li>
+					} @empty {
+						<li class="none">Nothing yet</li>
+					}
+				</ul>
+				<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+			</empty-each>
+	}`,
+			tsxx: `import { css } from '@zeix/le-truc-compiler/macros'
+export function EmptyEach({ rows }: { rows: string[] }) {
+	return (
+			<empty-each>
+				<ul>
+					{rows.length === 0 ? (
+						<li class="none">Nothing yet</li>
+					) : (
+						rows.map(row => <li class="row">{row}</li>)
+					)}
+				</ul>
+				<style>{css\`@scope {
+	:scope {
+		  color: red;
+		}
+}\`}</style>
+			</empty-each>
+	)
+}`,
+			args: (rows: string[]) => ({ rows }),
+		},
+		{
+			path: 'reconcile',
+			tag: 'empty-list',
+			name: 'EmptyList',
+			tsrx: `import { createList } from '@zeix/le-truc'
+export function EmptyList({ initial }: { initial?: string[] })
+	@{
+		const items = createList<string>(initial, { keyConfig: 'item' })
+			<empty-list>
+				<ul data-container>
+					@for (const item of items) {
+						<li><span>{item}</span></li>
+					} @empty {
+						<p class="none">Nothing yet</p>
+					}
+				</ul>
+				<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+			</empty-list>
+	}`,
+			tsxx: `import { css } from '@zeix/le-truc-compiler/macros'
+import { createList } from '@zeix/le-truc'
+export function EmptyList({ initial }: { initial?: string[] }) {
+	const items = createList<string>(initial, { keyConfig: 'item' })
+	return (
+			<empty-list>
+				<ul data-container>
+					{items.length === 0 ? (
+						<p class="none">Nothing yet</p>
+					) : (
+						items.map(item => <li><span>{item}</span></li>)
+					)}
+				</ul>
+				<style>{css\`@scope {
+	:scope {
+		  color: red;
+		}
+}\`}</style>
+			</empty-list>
+	)
+}`,
+			args: (initial: string[]) => ({ initial }),
+		},
+	]
+
+	for (const pair of pairs) {
+		describe(`${pair.path} path`, () => {
+			const tsrx = compileComponent(pair.tsrx, `${pair.tag}.tsrx`, new Set())
+			const tsxx = compileComponentTsx(pair.tsxx, `${pair.tag}.tsx`, new Set())
+
+			test('compiles clean on both surfaces', () => {
+				expect(tsrx.diagnostics).toEqual([])
+				expect(tsxx.diagnostics).toEqual([])
+			})
+
+			test('generated modules identical apart from the provenance header', () => {
+				expect(body(tsxx.component?.serverCode)).toBe(
+					body(tsrx.component?.serverCode),
+				)
+				expect(body(tsxx.component?.clientCode)).toBe(
+					body(tsrx.component?.clientCode),
+				)
+			})
+
+			test('renders the arm exactly when the iterable is empty', async () => {
+				if (!tsrx.component) throw new Error('compile failed')
+				const render = renderOf(pair.tag, pair.name)
+				const empty = await render(tsrx.component.serverCode, pair.args([]))
+				const full = await render(
+					tsrx.component.serverCode,
+					pair.args(['a', 'b']),
+				)
+				expect(empty).toContain('Nothing yet')
+				expect(full).toContain('>a<')
+				if (pair.path === 'each') {
+					expect(full).not.toContain('Nothing yet')
+				} else {
+					// The toggle path: always rendered, exempt from
+					// reconciliation, hidden while the list has items.
+					expect(empty).toContain('<p data-unreconciled class="none">')
+					expect(full).toContain('<p data-unreconciled hidden class="none">')
+				}
+			})
+		})
+	}
+
+	test('the reconcile path toggles each arm root from the list length', () => {
+		const { component } = compileComponent(
+			pairs[1]?.tsrx ?? '',
+			'empty-list.tsrx',
+			new Set(),
+		)
+		expect(component?.clientCode).toContain(
+			'watch(() => items.length === 0, bindVisible(empty))',
+		)
+	})
+})

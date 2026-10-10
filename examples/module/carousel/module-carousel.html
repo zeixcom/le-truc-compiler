@@ -1,0 +1,57 @@
+<module-carousel>
+	<h2 class="visually-hidden">Slides</h2>
+	<div class="slides" tabindex="0">
+		<div id="slide1" role="tabpanel" aria-current="true">
+			<h3>Slide 1</h3>
+			<basic-hello>
+				<label>
+					Your name<br>
+					<input type="text" name="name" autocomplete="given-name">
+				</label>
+				<p>Hello, <output>World</output>!</p>
+			</basic-hello>
+		</div>
+		<div id="slide2" role="tabpanel" aria-current="false">
+			<h3>Slide 2</h3>
+		</div>
+		<div id="slide3" role="tabpanel" aria-current="false">
+			<h3>Slide 3</h3>
+		</div>
+	</div>
+	<nav aria-label="Carousel Navigation">
+		<button type="button" class="prev" aria-label="Previous">❮</button>
+		<button type="button" class="next" aria-label="Next">❯</button>
+		<div role="tablist" aria-label="Carousel Slides">
+			<button
+				role="tab"
+				aria-selected="true"
+				aria-controls="slide1"
+				aria-label="Slide 1"
+				data-index="0"
+				tabindex="0"
+			>
+				●
+			</button>
+			<button
+				role="tab"
+				aria-selected="false"
+				aria-controls="slide2"
+				aria-label="Slide 2"
+				data-index="1"
+				tabindex="-1"
+			>
+				●
+			</button>
+			<button
+				role="tab"
+				aria-selected="false"
+				aria-controls="slide3"
+				aria-label="Slide 3"
+				data-index="2"
+				tabindex="-1"
+			>
+				●
+			</button>
+		</div>
+	</nav>
+</module-carousel>

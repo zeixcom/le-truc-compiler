@@ -1,0 +1,1420 @@
+/**
+ * The reserved `i18n` parameter and the catalog pipeline (ADR 0030,
+ * LT-173): compiler-side units — the inline declaration, the reserved-name
+ * guard, the record supply at compose sites, the lang precedence, the
+ * root-lang render — plus the build-side census and
+ * the generated record runtime.
+ */
+import { afterAll, describe, expect, test } from 'bun:test'
+import {
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { formatCensus, translationCensus } from '../src/census'
+import { compileComponent } from '../src/frontend/tsrx'
+import { compileSource } from '../src/frontend/tsrx/compiler'
+import { messagesRecordType } from '../src/i18n'
+import {
+	collectI18n,
+	readCatalogs,
+	sourceHash,
+	syncLocale,
+	writeI18nModule,
+} from '../src/i18n-catalog'
+import { parseMessage } from '../src/icu/parse'
+import type {
+	InternalComponentRegistry,
+	InternalRegistryEntry,
+} from '../src/registry'
+import { compileCorpus } from './corpus-compile'
+import { loadCorpus } from './corpus-fixture'
+import { createGeneratedDir, REPO_EMIT_PATHS } from './helpers/generated-corpus'
+import { lineAt, textAt } from './located'
+
+const compile = (source: string, path = 'examples/x/c-i18n.tsrx') =>
+	compileComponent(source, path, new Set())
+
+const composeRegistryOf = (...entries: InternalRegistryEntry[]) =>
+	new Map(entries.map(entry => [entry.source, entry]))
+
+/**
+ * Catalog facts injected into `collectI18n` — the census's census-half
+ * tests run against synthetic corpora, so the committed `i18n/` files
+ * must not leak real keys into their gap sets. Locale facts (the platform
+ * plural sets) stay real: they are keyed by locale name, not by file.
+ */
+const injectedCatalogs = (
+	overrides: Record<string, Record<string, string>>,
+) => ({
+	locales: Object.keys(overrides),
+	overrides: new Map(Object.entries(overrides)),
+	manifest: new Map<string, Record<string, string>>(),
+})
+
+/* === The inline declaration + the untranslated-literal warning (LTC047) === */
+
+describe('LTC008 from the i18n walk carries a line (LT-223)', () => {
+	test('a malformed inline i18n declaration reports its line number', () => {
+		const source = catalogSource(
+			`{t['task.other']}`,
+			`export const i18n = 'task'`,
+		)
+		const { diagnostics } = compile(source)
+		const hit = diagnostics.find(d => d.code === 'LTC008')
+		expect(hit).toBeDefined()
+		expect(lineAt(source, hit)).toBe(2)
+		// LT-371: the range covers the declarator, not just its line.
+		expect(textAt(source, hit)).toBe(`i18n = 'task'`)
+	})
+})
+
+const catalogSource = (
+	template: string,
+	decl = `export const i18n = { task: 'task' }`,
+) => `
+${decl}
+export function C({ i18n: { t } }: { i18n: I18n })
+@{
+	expose({})
+		<c-el>${template}
+			<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+		</c-el>
+}`
+
+describe('LTC047 — untranslated literal prose (LT-173 step 5)', () => {
+	test('literal prose in a catalog-using component warns', () => {
+		const source = catalogSource(`Hello world`)
+		const { diagnostics } = compile(source)
+		const hit = diagnostics.find(d => d.code === 'LTC047')
+		expect(hit).toBeDefined()
+		expect(hit?.severity).toBe('warning')
+		expect(lineAt(source, hit)).toBe(6)
+		// The prose's JSXText now runs to the whitespace before the <style>
+		// child (LT-375 moved the style inside the root).
+		expect(textAt(source, hit)).toBe('Hello world\n\t\t\t')
+		expect(hit?.location.file).toBe('examples/x/c-i18n.tsrx')
+	})
+
+	test('a single-letter fragment is page data, not prose — exempt', () => {
+		const { diagnostics } = compile(catalogSource(`s`))
+		expect(diagnostics.some(d => d.code === 'LTC047')).toBe(false)
+	})
+
+	test('literal prose without `export const i18n` is not a catalog concern', () => {
+		const { diagnostics } = compile(
+			catalogSource(`Hello world`, `export const config = {}`),
+		)
+		expect(diagnostics.some(d => d.code === 'LTC047')).toBe(false)
+	})
+})
+
+/* === Quoted and dotted keys are ordinary keys (LT-251) === */
+
+describe('quoted message keys', () => {
+	test('a dotted key is an ordinary key — no category-suffix rule (LT-251)', () => {
+		// The `<key>.<category>` convention retired with the one-ICU-pattern
+		// model: any suffix, or none, compiles clean.
+		const { component, diagnostics } = compile(
+			catalogSource(
+				`{t['task.onee']}`,
+				`export const i18n = { 'task.onee': 'tasks' }`,
+			),
+		)
+		expect(diagnostics).toEqual([])
+		if (!component) throw new Error('must compile')
+		expect(component.serverCode).toContain(`t['task.onee']`)
+	})
+})
+
+/* === The reserved parameter: callers never pass it (ADR 0030 s2) === */
+
+const i18nChildSource = `
+export const i18n = { task: 'task' }
+export function BasicI18nChild({ lang = 'en', i18n: { t } }: { lang?: string; i18n: I18n })
+@{
+	expose({})
+		<basic-i18n-child {lang}>{t.task}
+			<style>@scope {
+	:scope {
+		  display: block;
+		}
+}</style>
+		</basic-i18n-child>
+}`
+
+const parentOf = (attrs: string): string => `
+import { BasicI18nChild } from '../child/basic-i18n-child.tsrx'
+
+export function BasicI18nParent({}: {})
+@{
+	expose({})
+		<basic-i18n-parent>
+			<BasicI18nChild ${attrs} />
+			<style>@scope {
+	:scope {
+		  display: block;
+		}
+}</style>
+		</basic-i18n-parent>
+}`
+
+// An i18n-DECLARING parent: its own `lang` binding is the ambient locale at
+// its compose sites (LT-191's compose-graph inheritance).
+const i18nParentOf = (attrs: string): string => `
+import { BasicI18nChild } from '../child/basic-i18n-child.tsrx'
+
+export const i18n = { title: 'Parent' }
+export function BasicI18nParent({ lang = 'en', i18n: { t } }: { lang?: string; i18n: I18n })
+@{
+	expose({})
+		<basic-i18n-parent>
+			<BasicI18nChild ${attrs} />
+			<style>@scope {
+	:scope {
+		  display: block;
+		}
+}</style>
+		</basic-i18n-parent>
+}`
+
+describe('the reserved `i18n` parameter (ADR 0030 sub-design 2)', () => {
+	test('a caller-authored `i18n` attribute is rejected', () => {
+		const child = compileComponent(
+			i18nChildSource,
+			'examples/child/basic-i18n-child.tsrx',
+			new Set(),
+		)
+		if (!child.component) throw new Error('child must compile')
+		const { diagnostics } = compileComponent(
+			parentOf('i18n="de"'),
+			'examples/x/basic-i18n-parent.tsrx',
+			new Set(),
+			undefined,
+			composeRegistryOf(child.component.entry),
+		)
+		const hit = diagnostics.find(d => d.code === 'LTC006')
+		expect(hit).toBeDefined()
+		expect(hit?.message).toContain('reserved parameter')
+		expect(hit?.message).toContain('never pass it')
+	})
+
+	test('the compiler supplies the record at the compose site', () => {
+		const child = compileComponent(
+			i18nChildSource,
+			'examples/child/basic-i18n-child.tsrx',
+			new Set(),
+		)
+		if (!child.component) throw new Error('child must compile')
+		const { component } = compileComponent(
+			parentOf(''),
+			'examples/x/basic-i18n-parent.tsrx',
+			new Set(),
+			undefined,
+			composeRegistryOf(child.component.entry),
+		)
+		if (!component) throw new Error('parent must compile')
+		expect(component.serverCode).toContain(
+			"import { i18nRecord } from './i18n'",
+		)
+		// No `lang` authored at the site, so the child's authored default
+		// (ADR 0030 sub-design 3's precedence) is the record's locale.
+		expect(component.serverCode).toContain(
+			'i18n: i18nRecord("basic-i18n-child", "en")',
+		)
+	})
+
+	test('an authored `lang` at the compose site overrides the record (ADR 0030 sub-design 3)', () => {
+		const child = compileComponent(
+			i18nChildSource,
+			'examples/child/basic-i18n-child.tsrx',
+			new Set(),
+		)
+		if (!child.component) throw new Error('child must compile')
+		const { component } = compileComponent(
+			parentOf('lang="de"'),
+			'examples/x/basic-i18n-parent.tsrx',
+			new Set(),
+			undefined,
+			composeRegistryOf(child.component.entry),
+		)
+		if (!component) throw new Error('parent must compile')
+		expect(component.serverCode).toContain(
+			'i18n: i18nRecord("basic-i18n-child", "de")',
+		)
+	})
+
+	test("a site without a lang arg inherits the i18n parent's own locale (LT-191)", () => {
+		// Compose-graph inheritance: the parent's `lang` binding is the
+		// ambient locale at its sites — the SSR analog of the DOM ancestor
+		// walk. The child's authored default follows the parent; only a
+		// NON-i18n parent leaves the child's default in charge (the test
+		// above).
+		const child = compileComponent(
+			i18nChildSource,
+			'examples/child/basic-i18n-child.tsrx',
+			new Set(),
+		)
+		if (!child.component) throw new Error('child must compile')
+		const { component } = compileComponent(
+			i18nParentOf(''),
+			'examples/x/basic-i18n-parent.tsrx',
+			new Set(),
+			undefined,
+			composeRegistryOf(child.component.entry),
+		)
+		if (!component) throw new Error('parent must compile')
+		expect(component.serverCode).toContain(
+			'i18n: i18nRecord("basic-i18n-child", lang)',
+		)
+	})
+})
+
+/* === The effective locale renders onto the root `lang` attribute === */
+
+describe('the root `lang` attribute (ADR 0030 sub-design 3)', () => {
+	const langBindingSource = `
+export function C({ i18n: { lang } }: { i18n: I18n })
+@{
+	expose({})
+		<c-el>ok
+			<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+		</c-el>
+}`
+
+	test('an i18n component that binds `lang` but does not render it gets the compiler render', () => {
+		const { component } = compile(langBindingSource)
+		if (!component) throw new Error('must compile')
+		expect(component.serverCode).toContain(`attr('lang', lang)`)
+	})
+
+	test('a component that renders `lang` itself is not duplicated', () => {
+		const { component } = compile(`
+export function C({ lang = 'en', i18n: { t } }: { lang?: string; i18n: I18n })
+@{
+	expose({})
+		<c-el {lang}>ok
+			<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+		</c-el>
+}`)
+		if (!component) throw new Error('must compile')
+		// Exactly ONE lang render — the authored root attribute.
+		expect(component.serverCode.match(/attr\('lang', lang\)/g)).toHaveLength(1)
+	})
+})
+
+/* === The translation census (ADR 0030 sub-design 5, LT-173 step 4) === */
+
+describe('the translation census', () => {
+	test('rides the census channel with missing, stale, and orphaned records', () => {
+		const census = translationCensus(
+			[
+				{ key: 'module-todo.remaining', locale: 'de', status: 'missing' },
+				{ key: 'module-todo.addTodo', locale: 'de', status: 'stale' },
+				{
+					key: 'basic-deleted-component.gone',
+					locale: 'cy',
+					status: 'orphaned',
+				},
+			],
+			['de', 'cy'],
+		)
+		expect(census.kind).toBe('translation')
+		expect(census.values).toEqual(['cy', 'de'])
+		const formatted = formatCensus(census)
+		expect(formatted).toContain('Translation census — 3 entries: 2 de, 1 cy')
+		expect(formatted).toContain('missing — no entry')
+		expect(formatted).toContain('stale — the source string changed')
+		expect(formatted).toContain('orphaned — nothing in the corpus declares')
+		// Census records never ride the warning channel (census.test.ts's pin,
+		// restated for the second kind).
+		expect(formatted).not.toContain('⚠️')
+	})
+})
+
+/* === Every locale carries the same key set (LT-251) === */
+
+describe('the census has no reachability carve-out (LT-251)', () => {
+	// A synthetic corpus entry — collectI18n reads only tag/i18nMessages
+	// off an entry. The catalogs are INJECTED (empty: the probe declares
+	// keys no catalog carries yet), so the synthetic corpus is the walk's
+	// whole world.
+	const probe = {
+		tag: 'census-probe',
+		i18nMessages: { 'label.one': 'one', 'label.two': 'two' },
+	} as unknown as InternalRegistryEntry
+
+	test('every declared key is missing in every locale that lacks it', async () => {
+		// de's cardinal rules never select `two`; under the retired
+		// per-category model `label.two` was pruned there. One ICU pattern
+		// per key means every locale owes every key.
+		const { gaps } = await collectI18n(
+			[probe],
+			injectedCatalogs({ de: {}, cy: {} }),
+		)
+		expect(gaps.filter(gap => gap.locale === 'de')).toEqual([
+			{ key: 'census-probe.label.one', locale: 'de', status: 'missing' },
+			{ key: 'census-probe.label.two', locale: 'de', status: 'missing' },
+		])
+	})
+
+	test('the committed corpus is gap-free', async () => {
+		// The committed catalogs carry every declared key, and i18n:sync
+		// keeps the manifest hashes fresh. Any entry here is a real
+		// regression.
+		const registry = JSON.parse(
+			readFileSync(`${generated.path}/registry.internal.json`, 'utf8'),
+		) as InternalComponentRegistry
+		const collection = await collectI18n(
+			Object.values(registry),
+			undefined,
+			join(import.meta.dir, '../i18n'),
+		)
+		expect(collection.gaps).toEqual([])
+	})
+})
+
+/* === Orphaned catalog keys — the census's inverse walk (LT-196) === */
+
+describe('orphaned catalog keys (LT-196)', () => {
+	// A synthetic probe with INJECTED catalogs — collectI18n takes the
+	// catalog facts as a second argument so the inverse walk is testable
+	// without touching the committed files.
+	const probe = {
+		tag: 'census-probe',
+		i18nMessages: { 'label.one': 'one', 'label.two': 'two' },
+	} as unknown as InternalRegistryEntry
+
+	test('a catalog key whose component is gone is orphaned', async () => {
+		const { gaps } = await collectI18n(
+			[probe],
+			injectedCatalogs({ de: { 'basic-deleted-component.gone': 'weg' } }),
+		)
+		expect(gaps.filter(gap => gap.status === 'orphaned')).toEqual([
+			{ key: 'basic-deleted-component.gone', locale: 'de', status: 'orphaned' },
+		])
+	})
+
+	test('a key the component does not declare is orphaned (the translator-typo case)', async () => {
+		const { gaps } = await collectI18n(
+			[probe],
+			injectedCatalogs({ de: { 'census-probe.typo': 'Tippfehler' } }),
+		)
+		expect(gaps.filter(gap => gap.status === 'orphaned')).toEqual([
+			{ key: 'census-probe.typo', locale: 'de', status: 'orphaned' },
+		])
+	})
+
+	test('a declared key is never orphaned', async () => {
+		const { gaps } = await collectI18n(
+			[probe],
+			injectedCatalogs({
+				zh: { 'census-probe.label.one': '一', 'census-probe.label.two': '二' },
+			}),
+		)
+		expect(gaps.filter(gap => gap.status === 'orphaned')).toEqual([])
+	})
+
+	test('an undeclared key is orphaned in every locale, unconditionally (LT-251)', async () => {
+		// No plural-category set shelters a key any more: `stray.few` reports
+		// in de (whose rules never select `few`) and in cy (whose do) alike.
+		for (const locale of ['de', 'cy']) {
+			const { gaps } = await collectI18n(
+				[probe],
+				injectedCatalogs({ [locale]: { 'census-probe.stray.few': 'x' } }),
+			)
+			expect(gaps.filter(gap => gap.status === 'orphaned')).toEqual([
+				{ key: 'census-probe.stray.few', locale, status: 'orphaned' },
+			])
+		}
+	})
+})
+
+/* === The generated record runtime (ADR 0030 sub-designs 2+5) === */
+
+const generated = createGeneratedDir('i18n')
+afterAll(() => generated.cleanup())
+
+const i18nModule = await (async () => {
+	await compileCorpus(await loadCorpus(), generated.path)
+	return await import(pathToFileURL(`${generated.path}/i18n.ts`).href)
+})()
+
+describe('the generated i18n module', () => {
+	test('a key resolves in exactly one place: source fallback first', () => {
+		// The page locale is 'en' — the source locale, which has no override
+		// file by construction — so every key resolves to its inline
+		// source-locale string (ADR 0030 sub-design 5's fallback).
+		const record = i18nModule.i18nRecord('module-todo')
+		expect(record.lang).toBe('en')
+		expect(record.t.remaining({ count: 0 })).toBe('Well done, all done!')
+		expect(record.t.remaining({ count: 1 })).toBe('1 task remaining')
+		expect(record.t.remaining({ count: 2 })).toBe('2 tasks remaining')
+		expect(record.t.addTodo).toBe('Add Todo')
+		expect(record.timeZone).toBe('UTC')
+		expect(record.dir).toBe('ltr')
+	})
+
+	test("the record carries the component's own catalog only", () => {
+		const record = i18nModule.i18nRecord('basic-counter')
+		expect(record.t).toEqual({})
+	})
+
+	test('`dir` derives from the lang override', () => {
+		expect(i18nModule.i18nRecord('module-todo', 'ar').dir).toBe('rtl')
+		expect(i18nModule.i18nRecord('module-todo', 'de').dir).toBe('ltr')
+		expect(i18nModule.i18nRecord('module-todo', 'ar').lang).toBe('ar')
+	})
+
+	test('the committed catalogs resolve through the generated module (LT-192 pin)', () => {
+		// The end-to-end path the render fixtures bypass: catalog json →
+		// OVERRIDES embedded in the generated module → i18nRecord. Dropping
+		// the override pipeline (or the de.json catalog) fails here.
+		const de = i18nModule.i18nRecord('module-todo', 'de')
+		expect(de.t.remaining({ count: 0 })).toBe('Alles erledigt!')
+		expect(de.t.remaining({ count: 1 })).toBe('1 Aufgabe verbleibend')
+		expect(de.t.remaining({ count: 3 })).toBe('3 Aufgaben verbleibend')
+		// LT-252: the plural arms live inside each locale's ONE pattern, and
+		// the record formats under that locale's own rules — Welsh's dual
+		// mutation, Arabic's dual and Polish's few/many come from the catalog
+		// value itself (module-todo's `remaining` since LT-467).
+		const cy = i18nModule.i18nRecord('module-todo', 'cy')
+		expect(cy.t.remaining({ count: 2 })).toBe('2 dasg ar ôl')
+		expect(cy.t.remaining({ count: 4 })).toBe('4 tasgiau ar ôl')
+		const ar = i18nModule.i18nRecord('module-todo', 'ar')
+		expect(ar.t.remaining({ count: 2 })).toBe('2 مهمتان متبقيتان')
+		const pl = i18nModule.i18nRecord('module-todo', 'pl')
+		expect(pl.t.remaining({ count: 2 })).toBe('Pozostały 2 zadania')
+		expect(pl.t.remaining({ count: 5 })).toBe('Pozostało 5 zadań')
+		const zh = i18nModule.i18nRecord('module-todo', 'zh')
+		expect(zh.t.remaining({ count: 1 })).toBe('剩余 1 个任务')
+	})
+
+	test("the corpus's accessibility strings resolve at de (LT-195 fixture)", () => {
+		// LT-195 routed the corpus's component-owned aria-labels/placeholder/
+		// visually-hidden text through the catalog; the de translations are
+		// real (not source echoes) and pinned here per component. A changed
+		// expectation here means either a source string moved (re-run
+		// `i18n:sync`, check the census) or a translation was reworked.
+		expect(i18nModule.i18nRecord('form-combobox', 'de').t.clearInput).toBe(
+			'Eingabe leeren',
+		)
+		expect(i18nModule.i18nRecord('form-listbox', 'de').t.filter).toBe('Filtern')
+		expect(i18nModule.i18nRecord('form-listbox', 'de').t.clearFilter).toBe(
+			'Filter leeren',
+		)
+		expect(i18nModule.i18nRecord('form-textbox', 'de').t.clearInput).toBe(
+			'Eingabe leeren',
+		)
+		expect(i18nModule.i18nRecord('form-spinbutton', 'de').t.decrement).toBe(
+			'Verringern',
+		)
+		expect(i18nModule.i18nRecord('form-spinbutton', 'de').t.increment).toBe(
+			'Erhöhen',
+		)
+		expect(i18nModule.i18nRecord('form-colorgraph', 'de').t.drag).toBe('Ziehen')
+		expect(i18nModule.i18nRecord('form-tokenbox', 'de').t.remove).toBe(
+			'Entfernen',
+		)
+		// LT-219's event-time messages: argument messages format through the
+		// shared evaluator, placeholders preserved in the translation.
+		const tokenbox = i18nModule.i18nRecord('form-tokenbox', 'de').t
+		expect(tokenbox.added({ token: 'rot' })).toBe('Token hinzugefügt: rot')
+		expect(tokenbox.removed({ token: 'rot' })).toBe('Token entfernt: rot')
+		expect(tokenbox.duplicate({ token: 'rot' })).toBe(
+			'rot ist bereits in der Liste',
+		)
+		expect(i18nModule.i18nRecord('form-colorgraph', 'de').t.outOfGamut).toBe(
+			'Farbe außerhalb des Farbraums',
+		)
+	})
+
+	test("an i18n:sync placeholder ('' override) resolves the source string (LT-195)", () => {
+		// Locales still awaiting a translation carry "" entries for the new
+		// keys — the placeholder must fall back to the source string, or an
+		// untranslated locale would render EMPTY aria-labels (strictly worse
+		// than the English fallback). Pinned at pl, which carries "" for the
+		// LT-195 keys; a translator filling it updates this pin with the
+		// landed string, exactly like the zh pin above.
+		expect(i18nModule.i18nRecord('form-textbox', 'pl').t.clearInput).toBe(
+			'Clear input',
+		)
+	})
+
+	test('the de catalog renders into the served markup (LT-195 fixture)', async () => {
+		// The render half of the fixture: the record a page render supplies
+		// reaches the emitted attribute — the end-to-end claim "the de build
+		// serves Eingabe leeren" rides on this plus the resolution pins.
+		const mod = (await import(
+			pathToFileURL(`${generated.path}/form-textbox.server.ts`).href
+		)) as Record<string, (args: unknown) => string>
+		const render = mod.renderFormTextbox
+		if (!render) throw new Error('renderFormTextbox missing')
+		const html = render({
+			name: 'title',
+			children: 'Title',
+			clearable: true,
+			i18n: i18nModule.i18nRecord('form-textbox', 'de'),
+		})
+		expect(html).toContain('aria-label="Eingabe leeren"')
+	})
+
+	test('the de catalog bakes into the extracted list template (LT-215 fixture)', async () => {
+		// The tokenbox remove button is the corpus's first server-static
+		// interpolation inside a reactive-list body: the translated label must
+		// reach BOTH the initial (server-rendered) pills AND the served
+		// `<template>` the client clones for pills added after connect.
+		const mod = (await import(
+			pathToFileURL(`${generated.path}/form-tokenbox.server.ts`).href
+		)) as Record<string, (args: unknown) => string>
+		const render = mod.renderFormTokenbox
+		if (!render) throw new Error('renderFormTokenbox missing')
+		const html = render({
+			name: 'tags',
+			children: 'Tags',
+			value: 'one, two',
+			i18n: i18nModule.i18nRecord('form-tokenbox', 'de'),
+		})
+		// Initial items carry the folded value through the ordinary
+		// server-attr path.
+		expect(html).toContain('aria-label="Entfernen"')
+		const templateStart = html.indexOf('<template data-list="0">')
+		const templateEnd = html.indexOf('</template>')
+		expect(templateStart).toBeGreaterThan(-1)
+		const template = html.slice(templateStart, templateEnd)
+		// The template itself carries the folded value, not a slot for it —
+		// cloned pills announce the translation without any client catalog.
+		expect(template).toContain('aria-label="Entfernen"')
+		// The item text bakes empty: the item mount writes it (LT-425).
+		expect(template).not.toContain('<slot></slot>')
+	})
+
+	test('the de catalog rides the client-message attribute as parsed patterns (LT-219 fixture)', async () => {
+		// Event-time strings cannot fold: the browser formats them. The de
+		// render serializes exactly the client-referenced keys, translated
+		// and PARSED — the placeholder survives as an `arg` node, never as
+		// pattern text the client would need a parser for.
+		const attributeOf = async (tag: string, args: Record<string, unknown>) => {
+			const mod = (await import(
+				pathToFileURL(`${generated.path}/${tag}.server.ts`).href
+			)) as Record<string, (args: unknown) => string>
+			const name = `render${tag
+				.split('-')
+				.map(part => part.charAt(0).toUpperCase() + part.slice(1))
+				.join('')}`
+			const html = mod[name]?.({
+				...args,
+				i18n: i18nModule.i18nRecord(tag, 'de'),
+			})
+			const raw = html?.match(new RegExp(`<${tag}[^>]* i18n="([^"]*)"`))?.[1]
+			if (!raw) throw new Error(`${tag} rendered no i18n attribute`)
+			return JSON.parse(raw.replace(/&quot;/g, '"').replace(/&amp;/g, '&'))
+		}
+		expect(
+			await attributeOf('form-tokenbox', { name: 'tags', children: 'Tags' }),
+		).toEqual({
+			added: ['Token hinzugefügt: ', { t: 'arg', a: 'token' }],
+			duplicate: [{ t: 'arg', a: 'token' }, ' ist bereits in der Liste'],
+			removed: ['Token entfernt: ', { t: 'arg', a: 'token' }],
+		})
+		expect(await attributeOf('form-colorgraph', {})).toEqual({
+			outOfGamut: 'Farbe außerhalb des Farbraums',
+		})
+		// The retired carrier span (LT-195's interim idiom): the increment
+		// label now rides the attribute, and no hidden span carries it.
+		expect(await attributeOf('form-spinbutton', { name: 'q' })).toEqual({
+			increment: 'Erhöhen',
+		})
+	})
+})
+
+/* === The committed catalogs against the inverse walk (LT-196) === */
+
+describe('orphaned keys over the real corpus (LT-196)', () => {
+	// The falsification that demonstrated the gap (LT-196's context): the
+	// two foreign keys planted in de.json reported "0 gap(s)" before the
+	// inverse walk existed. Injected here over the REAL catalogs — so this
+	// also pins that the committed catalogs carry no orphans of their own:
+	// any entry beyond the two plants is a real residue finding.
+	const asStringRecord = (value: unknown): Record<string, string> =>
+		typeof value === 'object' && value !== null
+			? Object.fromEntries(
+					Object.entries(value as Record<string, unknown>).map(([k, v]) => [
+						k,
+						String(v),
+					]),
+				)
+			: {}
+
+	test('the planted falsification keys report orphaned; the committed catalogs report nothing else', async () => {
+		const registry = JSON.parse(
+			readFileSync(`${generated.path}/registry.internal.json`, 'utf8'),
+		) as InternalComponentRegistry
+		const i18nDir = join(import.meta.dir, '../i18n')
+		const locales: string[] = []
+		const overrides = new Map<string, Record<string, string>>()
+		for (const file of readdirSync(i18nDir)) {
+			if (!file.endsWith('.json') || file === 'manifest.json') continue
+			const locale = file.replace(/\.json$/, '')
+			locales.push(locale)
+			overrides.set(
+				locale,
+				asStringRecord(JSON.parse(readFileSync(join(i18nDir, file), 'utf8'))),
+			)
+		}
+		const de = overrides.get('de')
+		if (!de) throw new Error('the committed de catalog is missing')
+		de['basic-deleted-component.gone'] = 'weg'
+		de['module-todo.typo-key'] = 'Tippfehler'
+		const { gaps } = await collectI18n(Object.values(registry), {
+			locales,
+			overrides,
+			manifest: new Map(),
+		})
+		expect(gaps.filter(gap => gap.status === 'orphaned')).toEqual([
+			{
+				key: 'basic-deleted-component.gone',
+				locale: 'de',
+				status: 'orphaned',
+			},
+			{ key: 'module-todo.typo-key', locale: 'de', status: 'orphaned' },
+		])
+	})
+})
+
+/* === Pattern-integrity walks (ADR 0030 s5, LT-219) === */
+
+describe('the census pattern-integrity walks (LT-219)', () => {
+	// A synthetic entry with injected catalogs (LT-196's pattern). `flat` is
+	// client-referenced, so its translations answer to the narrowed client
+	// evaluator, which carries only `arg` for this component.
+	const probe = {
+		tag: 'census-probe',
+		i18nMessages: {
+			greet: 'Hello, {name}!',
+			count: '{n, plural, one {# item} other {# items}}',
+			flat: '{n} items',
+		},
+		clientMessageKeys: ['flat'],
+	} as unknown as InternalRegistryEntry
+	const gapsFor = async (overrides: Record<string, Record<string, string>>) =>
+		(await collectI18n([probe], injectedCatalogs(overrides))).gaps.filter(
+			gap => gap.status !== 'missing' && gap.status !== 'stale',
+		)
+
+	test('an unparseable translation is malformed — reported, and the build goes on', async () => {
+		const gaps = await gapsFor({ de: { 'census-probe.greet': 'Hallo, {name' } })
+		expect(gaps.map(gap => [gap.key, gap.status])).toEqual([
+			['census-probe.greet', 'malformed'],
+		])
+		expect(gaps[0]?.detail).toBeTruthy()
+	})
+
+	test('a translation whose arguments differ from the source is an argument mismatch', async () => {
+		const gaps = await gapsFor({
+			de: { 'census-probe.greet': 'Hallo, {nom}!' },
+		})
+		expect(gaps).toEqual([
+			{
+				key: 'census-probe.greet',
+				locale: 'de',
+				status: 'argument-mismatch',
+				detail: 'expected {name}, found {nom}',
+			},
+		])
+	})
+
+	test("a plural that does not cover the locale's categories is missing arms", async () => {
+		// pl's cardinal set is {one, few, many, other}; de's is {one, other}.
+		const pattern = '{n, plural, one {# x} other {# y}}'
+		expect(
+			await gapsFor({
+				pl: { 'census-probe.count': pattern },
+				de: { 'census-probe.count': pattern },
+			}),
+		).toEqual([
+			{
+				key: 'census-probe.count',
+				locale: 'pl',
+				status: 'missing-arms',
+				detail: 'no few, many',
+			},
+		])
+	})
+
+	test('a client-referenced translation using an uncarried construct falls back (LT-350)', async () => {
+		const plural = '{n, plural, one {# Ding} other {# Dinge}}'
+		expect(
+			await gapsFor({
+				de: { 'census-probe.flat': plural, 'census-probe.count': plural },
+			}),
+		).toEqual([
+			{ key: 'census-probe.flat', locale: 'de', status: 'client-fallback' },
+		])
+	})
+
+	test('clean translations and i18n:sync placeholders report nothing', async () => {
+		expect(
+			await gapsFor({
+				de: {
+					'census-probe.greet': 'Hallo, {name}!',
+					'census-probe.count': '{n, plural, one {# Ding} other {# Dinge}}',
+					'census-probe.flat': '{n} Dinge',
+				},
+				pl: { 'census-probe.greet': '', 'census-probe.flat': '' },
+			}),
+		).toEqual([])
+	})
+
+	test('the census names each finding', () => {
+		const formatted = formatCensus(
+			translationCensus(
+				[
+					{ key: 'a.b', locale: 'de', status: 'malformed', detail: 'x' },
+					{ key: 'a.c', locale: 'de', status: 'argument-mismatch' },
+					{ key: 'a.d', locale: 'de', status: 'missing-arms' },
+					{ key: 'a.e', locale: 'de', status: 'client-fallback' },
+				],
+				['de'],
+			),
+		)
+		expect(formatted).toContain('malformed — ')
+		expect(formatted).toContain('(x)')
+		expect(formatted).toContain('argument mismatch — ')
+		expect(formatted).toContain('missing plural arms — ')
+		expect(formatted).toContain('client fallback — ')
+		expect(formatted).not.toContain('⚠️')
+	})
+
+	test('falsification over the real catalogs: planted findings report, the committed catalogs report none', async () => {
+		const registry = JSON.parse(
+			readFileSync(`${generated.path}/registry.internal.json`, 'utf8'),
+		) as InternalComponentRegistry
+		const i18nDir = join(import.meta.dir, '../i18n')
+		const locales: string[] = []
+		const overrides = new Map<string, Record<string, string>>()
+		for (const file of readdirSync(i18nDir)) {
+			if (!file.endsWith('.json') || file === 'manifest.json') continue
+			const locale = file.replace(/\.json$/, '')
+			locales.push(locale)
+			overrides.set(
+				locale,
+				JSON.parse(readFileSync(join(i18nDir, file), 'utf8')),
+			)
+		}
+		const integrity = <G extends { status: string }>(gaps: G[]) =>
+			gaps.filter(gap => !['missing', 'stale', 'orphaned'].includes(gap.status))
+		const clean = await collectI18n(Object.values(registry), {
+			locales,
+			overrides,
+			manifest: new Map(),
+		})
+		expect(integrity(clean.gaps)).toEqual([])
+		const de = { ...overrides.get('de') }
+		de['form-tokenbox.added'] = 'Token hinzugefügt: {tok}'
+		de['form-tokenbox.removed'] = 'Token entfernt: {token'
+		de['form-tokenbox.duplicate'] =
+			'{token, select, rot {Rot ist schon da} other {{token} ist schon da}}'
+		de['form-colorgraph.outOfGamut'] =
+			'{n, plural, other {Farbe außerhalb des Farbraums}}'
+		overrides.set('de', de)
+		const planted = await collectI18n(Object.values(registry), {
+			locales,
+			overrides,
+			manifest: new Map(),
+		})
+		expect(
+			integrity(planted.gaps)
+				.map(gap => `${gap.key} ${gap.status}`)
+				.sort(),
+		).toEqual([
+			'form-colorgraph.outOfGamut argument-mismatch',
+			'form-colorgraph.outOfGamut client-fallback',
+			'form-colorgraph.outOfGamut missing-arms',
+			'form-tokenbox.added argument-mismatch',
+			'form-tokenbox.duplicate client-fallback',
+			'form-tokenbox.removed malformed',
+		])
+	})
+})
+
+/* === Non-string catalog values (LT-249) === */
+
+describe('non-string catalog values are malformed (LT-249)', () => {
+	// The LT-217 review falsification: a group nested "under the component"
+	// instead of the flat `<tag>.<key>` compound was silently dropped — 0
+	// census gaps, nothing listed by sync, residue in the catalog forever.
+	const probe = {
+		tag: 'census-probe',
+		i18nMessages: { greet: 'Hello, {name}!' },
+	} as unknown as InternalRegistryEntry
+	const nested = { 'census-probe': { 'stray.few': 'wenige' } }
+
+	test('a nested group reports malformed — never orphaned — and its flat twin behaves as today', async () => {
+		const { gaps, overrides } = await collectI18n([probe], {
+			locales: ['de'],
+			overrides: new Map([
+				['de', { ...nested, 'census-probe.stray.few': 'wenige' }],
+			]),
+			manifest: new Map(),
+		})
+		expect(gaps.filter(gap => gap.status !== 'missing')).toEqual([
+			{ key: 'census-probe.stray.few', locale: 'de', status: 'orphaned' },
+			{
+				key: 'census-probe',
+				locale: 'de',
+				status: 'malformed',
+				detail:
+					'not a string — found a nested group; catalog keys are flat `<tag>.<key>` compounds',
+			},
+		])
+		// Only string entries reach the generated module.
+		expect(overrides.get('de')).toEqual({ 'census-probe.stray.few': 'wenige' })
+	})
+
+	test('a declared key with a non-string value is malformed, not missing', async () => {
+		const { gaps } = await collectI18n([probe], {
+			locales: ['de'],
+			overrides: new Map([['de', { 'census-probe.greet': 42 }]]),
+			manifest: new Map(),
+		})
+		expect(gaps.map(gap => [gap.key, gap.status, gap.detail])).toEqual([
+			[
+				'census-probe.greet',
+				'malformed',
+				'not a string — found a number; catalog keys are flat `<tag>.<key>` compounds',
+			],
+		])
+	})
+
+	test('i18n:sync lists a malformed entry and changes nothing about it', async () => {
+		const catalog = {
+			...nested,
+			'census-probe.greet': 42,
+			'census-probe.stray.few': 'wenige',
+		}
+		const { gaps, sources } = await collectI18n([probe], {
+			locales: ['de'],
+			overrides: new Map([['de', catalog]]),
+			manifest: new Map(),
+		})
+		const result = syncLocale(catalog, gaps, sources, {})
+		expect(result.flagged.map(gap => [gap.key, gap.status])).toEqual([
+			['census-probe', 'malformed'],
+			['census-probe.greet', 'malformed'],
+		])
+		// Neither malformed entry is pruned, filled, or confirmed; the flat
+		// orphan twin is pruned as before.
+		expect(result.pruned).toEqual(['census-probe.stray.few'])
+		expect(result.written).toBe(0)
+		expect(result.catalog).toEqual({
+			'census-probe': { 'stray.few': 'wenige' },
+			'census-probe.greet': 42,
+		})
+		expect(result.manifest).toEqual({})
+	})
+
+	test('i18n:sync over string values: fill, prune, confirm as before', async () => {
+		const catalog = { 'census-probe.gone': 'weg' }
+		const { gaps, sources } = await collectI18n([probe], {
+			locales: ['de'],
+			overrides: new Map([['de', catalog]]),
+			manifest: new Map(),
+		})
+		const result = syncLocale(catalog, gaps, sources, {
+			'census-probe.gone': 'x',
+		})
+		expect(result).toEqual({
+			catalog: { 'census-probe.greet': '' },
+			manifest: { 'census-probe.greet': sourceHash('Hello, {name}!') },
+			written: 1,
+			confirmed: 1,
+			stale: [],
+			pruned: ['census-probe.gone'],
+			flagged: [],
+		})
+	})
+
+	test('falsification over the real catalogs: the planted nested group reports, the committed catalogs report none', async () => {
+		const registry = JSON.parse(
+			readFileSync(`${generated.path}/registry.internal.json`, 'utf8'),
+		) as InternalComponentRegistry
+		const i18nDir = join(import.meta.dir, '../i18n')
+		const locales: string[] = []
+		const overrides = new Map<string, Record<string, unknown>>()
+		for (const file of readdirSync(i18nDir).sort()) {
+			if (!file.endsWith('.json') || file === 'manifest.json') continue
+			const locale = file.replace(/\.json$/, '')
+			locales.push(locale)
+			overrides.set(
+				locale,
+				JSON.parse(readFileSync(join(i18nDir, file), 'utf8')),
+			)
+		}
+		const collect = () =>
+			collectI18n(Object.values(registry), {
+				locales,
+				overrides,
+				manifest: new Map(),
+			})
+		const clean = await collect()
+		const nonString = <G extends { status: string; detail?: string }>(
+			gaps: G[],
+		) =>
+			gaps.filter(
+				gap =>
+					gap.status === 'malformed' && gap.detail?.startsWith('not a string'),
+			)
+		expect(nonString(clean.gaps)).toEqual([])
+		for (const locale of locales)
+			overrides.set(locale, {
+				...overrides.get(locale),
+				'module-todo': { 'stray.few': 'wenige' },
+			})
+		const planted = await collect()
+		expect(
+			nonString(planted.gaps).map(gap => `${gap.key} ${gap.locale}`),
+		).toEqual(locales.map(locale => `module-todo ${locale}`))
+		// Everything else the census reports is unchanged by the plant.
+		const rest = (gaps: { status: string; detail?: string }[]) =>
+			gaps.filter(gap => !nonString([gap]).length)
+		expect(rest(planted.gaps)).toEqual(rest(clean.gaps))
+	})
+})
+
+/* === Unreadable catalog files (LT-356) === */
+
+describe('an unreadable catalog file is one census record (LT-356)', () => {
+	const probe = {
+		tag: 'census-probe',
+		i18nMessages: { greet: 'Hello, {name}!', bye: 'Bye' },
+	} as unknown as InternalRegistryEntry
+	const scratch = mkdtempSync(join(tmpdir(), 'lt-356-'))
+	afterAll(() => rmSync(scratch, { recursive: true, force: true }))
+	writeFileSync(join(scratch, 'de.json'), '{ "census-probe.bye": "Tschüss", }')
+	writeFileSync(join(scratch, 'fr.json'), '["census-probe.bye"]')
+	writeFileSync(join(scratch, 'it.json'), '{ "census-probe.bye": "Ciao" }')
+
+	test('readCatalogs tells an unreadable file from an empty catalog', async () => {
+		const catalogs = await readCatalogs(scratch)
+		expect(catalogs.locales).toEqual(['de', 'fr', 'it'])
+		expect([...(catalogs.unreadable?.keys() ?? [])]).toEqual(['de', 'fr'])
+		expect(catalogs.unreadable?.get('fr')).toBe(
+			'its top level is an array, not an object',
+		)
+		expect(catalogs.overrides.get('de')).toEqual({})
+		expect(catalogs.overrides.get('it')).toEqual({ 'census-probe.bye': 'Ciao' })
+	})
+
+	test('a trailing comma yields one malformed record on the file, not N missing', async () => {
+		const { gaps, overrides } = await collectI18n([probe], undefined, scratch)
+		const of = (locale: string) =>
+			gaps
+				.filter(gap => gap.locale === locale)
+				.map(gap => [gap.key, gap.status])
+		expect(of('de')).toEqual([['de.json', 'malformed']])
+		expect(of('fr')).toEqual([['fr.json', 'malformed']])
+		expect(gaps.find(gap => gap.key === 'de.json')?.detail).toStartWith(
+			'the whole catalog file is unreadable, so no entry in this locale renders — ',
+		)
+		expect(gaps.find(gap => gap.key === 'fr.json')?.detail).toBe(
+			'the whole catalog file is unreadable, so no entry in this locale renders — its top level is an array, not an object',
+		)
+		// The readable sibling is censused as before.
+		expect(of('it')).toContainEqual(['census-probe.greet', 'missing'])
+		// The unreadable locale renders the source strings.
+		expect(overrides.get('de')).toEqual({})
+	})
+
+	test('the committed catalogs are all readable', async () => {
+		const catalogs = await readCatalogs(join(import.meta.dir, '../i18n'))
+		expect(catalogs.locales.length).toBeGreaterThan(0)
+		expect(catalogs.unreadable?.size).toBe(0)
+	})
+})
+
+/* === An unreadable staleness manifest (LT-430) === */
+
+describe('an unreadable manifest is one census record and no stale (LT-430)', () => {
+	const probe = {
+		tag: 'census-probe',
+		i18nMessages: { greet: 'Hello, {name}!', bye: 'Bye' },
+	} as unknown as InternalRegistryEntry
+	const scratch = mkdtempSync(join(tmpdir(), 'lt-430-'))
+	const absent = mkdtempSync(join(tmpdir(), 'lt-430-absent-'))
+	afterAll(() => {
+		rmSync(scratch, { recursive: true, force: true })
+		rmSync(absent, { recursive: true, force: true })
+	})
+	writeFileSync(join(scratch, 'de.json'), '{ "census-probe.bye": "Tschüss" }')
+	writeFileSync(join(scratch, 'it.json'), '{ "census-probe.bye": "Ciao" }')
+	writeFileSync(
+		join(scratch, 'manifest.json'),
+		'{ "de": { "census-probe.bye": "0123456789ab" }, }',
+	)
+	writeFileSync(join(absent, 'de.json'), '{ "census-probe.bye": "Tschüss" }')
+
+	test('readCatalogs tells an unreadable manifest from an absent one', async () => {
+		const catalogs = await readCatalogs(scratch)
+		expect(catalogs.unreadableManifest).toBeString()
+		expect(catalogs.manifest.size).toBe(0)
+		// The catalog files are still read.
+		expect(catalogs.overrides.get('de')).toEqual({
+			'census-probe.bye': 'Tschüss',
+		})
+		const first = await readCatalogs(absent)
+		expect(first.unreadableManifest).toBeUndefined()
+		expect(first.manifest.size).toBe(0)
+	})
+
+	test('a manifest whose top level is not an object is unreadable', async () => {
+		const dir = mkdtempSync(join(tmpdir(), 'lt-430-array-'))
+		try {
+			writeFileSync(join(dir, 'manifest.json'), '[]')
+			expect((await readCatalogs(dir)).unreadableManifest).toBe(
+				'its top level is an array, not an object',
+			)
+		} finally {
+			rmSync(dir, { recursive: true, force: true })
+		}
+	})
+
+	test('a trailing comma yields one malformed record on the file, and no stale', async () => {
+		const { gaps } = await collectI18n([probe], undefined, scratch)
+		const manifestGaps = gaps.filter(gap => gap.key === 'manifest.json')
+		expect(manifestGaps.map(gap => [gap.locale, gap.status])).toEqual([
+			['*', 'malformed'],
+		])
+		expect(manifestGaps[0]?.detail).toStartWith(
+			'the staleness manifest is unreadable, so no translation is checked for staleness — ',
+		)
+		expect(gaps.filter(gap => gap.status === 'stale')).toEqual([])
+		// Missing keys are still censused per locale.
+		expect(gaps).toContainEqual({
+			key: 'census-probe.greet',
+			locale: 'de',
+			status: 'missing',
+		})
+		// An absent manifest stays the first-run state: carried keys are stale.
+		const first = await collectI18n([probe], undefined, absent)
+		expect(first.gaps.some(gap => gap.key === 'manifest.json')).toBe(false)
+		expect(first.gaps).toContainEqual({
+			key: 'census-probe.bye',
+			locale: 'de',
+			status: 'stale',
+		})
+	})
+
+	test('the committed manifest is readable', async () => {
+		const catalogs = await readCatalogs(join(import.meta.dir, '../i18n'))
+		expect(catalogs.unreadableManifest).toBeUndefined()
+		expect(catalogs.manifest.size).toBeGreaterThan(0)
+	})
+})
+
+/* === ICU MessageFormat patterns (LT-250, ADR 0030 s4) === */
+
+const ICU_DECL = `export const i18n = {
+	tasks: '{count, plural, one {# task} other {# tasks}}',
+	greeting: 'Hello, {name}!',
+	done: 'All done',
+}`
+
+describe('LTC055 — ICU patterns and their call sites (LT-250)', () => {
+	const sourceOf = (template: string, decl = ICU_DECL) =>
+		catalogSource(template, decl)
+	const codes = (template: string, decl = ICU_DECL) =>
+		compile(sourceOf(template, decl)).diagnostics.filter(
+			d => d.code === 'LTC055',
+		)
+
+	test('the extraction result carries every key’s argument signature', () => {
+		// The front end's own result — the ComponentIR LT-308 reads.
+		const { component, diagnostics } = compileSource(
+			catalogSource(`{t.done}`, ICU_DECL),
+			'examples/x/c-i18n.tsrx',
+		)
+		expect(diagnostics).toEqual([])
+		expect(component?.i18nArgs).toEqual({
+			tasks: [{ name: 'count', kind: 'number' }],
+			greeting: [{ name: 'name', kind: 'plain' }],
+			done: [],
+		})
+	})
+
+	test('a correct call and a bare argument-less read compile clean', () => {
+		expect(
+			codes(
+				`{t.tasks({ count: 2 })} {t.greeting({ name: 'Ada' })} {t['done']}`,
+			),
+		).toEqual([])
+	})
+
+	test('an unparseable source pattern is an error at its line', () => {
+		const decl = `export const i18n = {\n\tdone: 'All done',\n\tbroken: '{count, plural, one {x}}',\n}`
+		const [hit, ...rest] = codes(`{t.done}`, decl)
+		expect(rest).toEqual([])
+		expect(hit?.severity).toBe('error')
+		const source = sourceOf(`{t.done}`, decl)
+		expect(lineAt(source, hit)).toBe(4)
+		expect(textAt(source, hit)).toBe(`'{count, plural, one {x}}'`)
+		expect(hit?.message).toContain('`broken`')
+		expect(hit?.message).toContain('other')
+	})
+
+	test('an unsupported formatter is an error, not a different rendering', () => {
+		const [hit] = codes(
+			`{t.done}`,
+			`export const i18n = { done: '{n, spellout}' }`,
+		)
+		expect(hit?.message).toContain('spellout')
+	})
+
+	test('a missing argument and an extra one are named', () => {
+		const [hit, ...rest] = codes(`{t.tasks({ total: 2 })}`)
+		expect(rest).toEqual([])
+		expect(hit?.severity).toBe('error')
+		const source = sourceOf(`{t.tasks({ total: 2 })}`)
+		expect(lineAt(source, hit)).toBe(10)
+		expect(textAt(source, hit)).toBe('t.tasks({ total: 2 })')
+		expect(hit?.message).toContain('`t.tasks` is missing `count`')
+		expect(hit?.message).toContain('passes `total`')
+	})
+
+	test('an argument message read without a call is an error', () => {
+		const [hit] = codes(`{t.greeting}`)
+		expect(hit?.message).toContain('read without a call')
+		expect(hit?.message).toContain('t.greeting({ name })')
+	})
+
+	test('calling an argument-less message is an error', () => {
+		const [hit] = codes(`{t.done()}`)
+		expect(hit?.message).toContain('takes no arguments')
+	})
+
+	test('an argument record the build cannot read is an error', () => {
+		expect(codes(`{t.tasks(3)}`)[0]?.message).toContain('one object literal')
+		expect(codes(`{t.tasks({ ...rest })}`)[0]?.message).toContain('spread')
+	})
+
+	test('the whole-record spelling is checked too', () => {
+		const { diagnostics } = compile(`
+${ICU_DECL}
+export function C({ i18n }: { i18n: I18n })
+@{
+	expose({})
+		<c-el>{i18n.t.tasks({})}
+			<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+		</c-el>
+}`)
+		const hit = diagnostics.find(d => d.code === 'LTC055')
+		expect(hit?.message).toContain('is missing `count`')
+	})
+
+	test('an undeclared key is left to the TypeScript channel (LT-308)', () => {
+		expect(codes(`{t.fliter}`)).toEqual([])
+	})
+})
+
+describe('the server fold of an ICU message (LT-250)', async () => {
+	const tag = 'c-icu-fold'
+	const source = `
+${ICU_DECL}
+export function CIcuFold({ count, i18n: { t } }: { count: number; i18n: I18n })
+@{
+	expose({})
+		<c-icu-fold>
+			<span class="literal">{t.tasks({ count: 1 })}</span>
+			<span class="arg" title={t.tasks({ count })}>{t.tasks({ count })}</span>
+			<span class="done">{t.done}</span>
+			<style>@scope {
+	:scope {
+		  display: block;
+		}
+}</style>
+		</c-icu-fold>
+}`
+	const { component, diagnostics } = compileComponent(
+		source,
+		`examples/x/${tag}.tsrx`,
+		new Set(),
+	)
+	if (!component) throw new Error(JSON.stringify(diagnostics))
+	const dir = createGeneratedDir('icu-fold')
+	afterAll(() => dir.cleanup())
+	dir.emit(`${tag}.server.ts`, component.serverCode)
+	await writeI18nModule(
+		dir.path,
+		await collectI18n(
+			[component.entry],
+			injectedCatalogs({
+				de: {
+					[`${tag}.tasks`]:
+						'{count, plural, one {# Aufgabe} other {# Aufgaben}}',
+					[`${tag}.done`]: 'Erledigt',
+				},
+				// A translator's typo: falls back to the source pattern, never
+				// fails the build (ADR 0030 s5).
+				cy: { [`${tag}.tasks`]: '{count, plural, one {# tasg}' },
+			}),
+		),
+	)
+	const mod = await dir.importModule<Record<string, (args: unknown) => string>>(
+		`${tag}.server.ts`,
+	)
+	const { i18nRecord } = (await import(
+		pathToFileURL(`${dir.path}/i18n.ts`).href
+	)) as { i18nRecord: (tag: string, lang?: string) => unknown }
+	const render = (count: number, lang: string) => {
+		const fn = mod.renderCIcuFold
+		if (!fn) throw new Error('renderCIcuFold missing')
+		return fn({ count, i18n: i18nRecord(tag, lang) })
+	}
+
+	test('compiles without diagnostics', () => {
+		expect(diagnostics).toEqual([])
+	})
+
+	test('server-known arguments fold into text and attributes', () => {
+		const html = render(3, 'en')
+		expect(html).toContain('<span class="literal">1 task</span>')
+		expect(html).toContain('<span title="3 tasks" class="arg">3 tasks</span>')
+		expect(html).toContain('<span class="done">All done</span>')
+	})
+
+	test('a translation folds through the same evaluator', () => {
+		const html = render(1, 'de')
+		expect(html).toContain(
+			'<span title="1 Aufgabe" class="arg">1 Aufgabe</span>',
+		)
+		expect(html).toContain('<span class="done">Erledigt</span>')
+	})
+
+	test('an unparseable translation falls back to the source pattern', () => {
+		expect(render(2, 'cy')).toContain(
+			'<span title="2 tasks" class="arg">2 tasks</span>',
+		)
+	})
+})
+
+describe('the generated modules type `t` per key (LT-308)', async () => {
+	const typedSource = (name: string, template: string) => `
+${ICU_DECL} as const
+export function ${name}({ count, i18n: { t } }: { count: number; i18n: I18n<typeof i18n> })
+@{
+	expose({})
+		<c-el>${template}
+			<style>@scope {
+	:scope {
+		  display: block;
+		}
+}</style>
+		</c-el>
+}`
+	const build = (name: string, tag: string, template: string) => {
+		const { component, diagnostics } = compileComponent(
+			typedSource(name, template),
+			`examples/x/${tag}.tsrx`,
+			new Set(),
+			undefined,
+			undefined,
+			REPO_EMIT_PATHS,
+		)
+		if (!component) throw new Error(JSON.stringify(diagnostics))
+		return component
+	}
+	const good = build(
+		'CTyped',
+		'c-typed',
+		`<span title={t.done}>{t.tasks({ count })}</span>`,
+	)
+	const typo = build('CTypo', 'c-typo', `<span title={t.fliter}>x</span>`)
+	// LT-344: a plain `{x}` takes a string or a number; a select selector
+	// stays a string.
+	const plain = build(
+		'CPlain',
+		'c-plain',
+		`<span title={t.greeting({ name: 3 })}>{t.greeting({ name: '3' })}</span>`,
+	)
+	const dir = createGeneratedDir('i18n-typed')
+	afterAll(() => dir.cleanup())
+	dir.emit('c-typed.server.ts', good.serverCode)
+	dir.emit('c-typo.server.ts', typo.serverCode)
+	dir.emit('c-plain.server.ts', plain.serverCode)
+	await writeI18nModule(
+		dir.path,
+		await collectI18n(
+			[good.entry, typo.entry, plain.entry],
+			injectedCatalogs({}),
+		),
+	)
+	const typecheck = (file: string) => {
+		// A per-file project extending the ROOT tsconfig, not bare CLI
+		// flags: the emitted module chains into `runtime.ts`, whose
+		// runtime-library import ('@zeix/le-truc', LT-254) resolves through
+		// the root config's `paths` entry — `--ignoreConfig` cannot see it.
+		const project = dir.emit(
+			`tsconfig.${file}.json`,
+			JSON.stringify({
+				extends: '../../../tsconfig.json',
+				include: [],
+				files: [file],
+			}),
+		)
+		const proc = Bun.spawnSync(
+			['bunx', 'tsc', '-p', project, '--pretty', 'false'],
+			{ cwd: join(import.meta.dir, '..') },
+		)
+		return `${proc.stdout.toString()}${proc.stderr.toString()}`
+	}
+
+	test('the authored annotation becomes the exact inline record', () => {
+		expect(good.serverCode).toContain(
+			'i18n: I18n<{ tasks: (args: { count: number }) => string; greeting: (args: { name: string | number }) => string; done: string }>',
+		)
+		expect(good.serverCode).not.toContain('typeof i18n')
+	})
+
+	test('a declared key with its exact arguments typechecks', () => {
+		expect(typecheck('c-typed.server.ts')).toBe('')
+	}, 60_000)
+
+	test('a select selector stays a string, a plain argument widens (LT-344)', () => {
+		const parsed = parseMessage('{g, select, a {A} other {O}} {n}')
+		if (!parsed.ok) throw new Error(parsed.error)
+		expect(messagesRecordType({ k: parsed.args })).toBe(
+			'{ k: (args: { g: string; n: string | number }) => string }',
+		)
+	})
+
+	test('a plain argument takes a number or a string (LT-344)', () => {
+		expect(typecheck('c-plain.server.ts')).toBe('')
+	}, 60_000)
+
+	test('an undeclared key fails tsc in the generated program', () => {
+		expect(typecheck('c-typo.server.ts')).toContain(
+			"error TS2339: Property 'fliter' does not exist",
+		)
+	}, 60_000)
+})

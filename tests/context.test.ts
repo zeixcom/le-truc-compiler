@@ -1,0 +1,207 @@
+/**
+ * Tests for the Web Components Community Protocol in `.tsrx` (LT-035, ADR
+ * 0024 sub-design 15): `requestContext()` on the consumer side,
+ * `provideContexts()` on the provider side.
+ */
+import { describe, expect, test } from 'bun:test'
+import { compileComponent } from '../src/frontend/tsrx'
+
+describe('requestContext() — consumer side', () => {
+	const source = `import { MEDIA_MOTION } from '../../context/media/context-media.ts'
+
+	export function C({}: {})
+	@{
+		const motion = requestContext(MEDIA_MOTION, 'unknown')
+		expose({})
+			<c-el>
+				<span class="motion">{motion}</span>
+				<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+			</c-el>
+	}`
+
+	test('renders the fallback server-side, watches the real signal client-side', () => {
+		const { component, diagnostics } = compileComponent(
+			source,
+			'examples/card/c.tsrx',
+			new Set(),
+		)
+		expect(diagnostics.filter(d => d.severity === 'error')).toEqual([])
+		// Server: no ancestor DOM to walk — renders the fallback directly, via
+		// a substituted createCell(fallback), never the real requestContext call.
+		expect(component?.serverCode).toContain(
+			"const motion = createCell('unknown')",
+		)
+		expect(component?.serverCode).not.toContain('requestContext')
+		// Client: the real call, watched exactly like any other signal.
+		expect(component?.clientCode).toContain(
+			"const motion = requestContext(MEDIA_MOTION, 'unknown')",
+		)
+		expect(component?.clientCode).toContain('watch(motion, bindText(')
+		// requestContext is a FactoryContext member, destructured in the
+		// factory signature — never imported from '@zeix/le-truc'.
+		expect(component?.clientCode).toMatch(/\(\{[^}]*requestContext[^}]*\}\)/)
+		expect(component?.clientCode).not.toMatch(
+			/import \{[^}]*requestContext[^}]*\} from '@zeix\/le-truc'/,
+		)
+	})
+
+	test('places the plain-imported Context object in both modules', () => {
+		const { component } = compileComponent(
+			source,
+			'examples/card/c.tsrx',
+			new Set(),
+		)
+		expect(component?.clientCode).toContain('MEDIA_MOTION')
+	})
+})
+
+describe('requestContext() — reactive attribute referencing the context signal', () => {
+	const source = `import { MEDIA_THEME } from '../../context/media/context-media.ts'
+
+	export function C({}: {})
+	@{
+		const theme = requestContext(MEDIA_THEME, 'light')
+		expose({})
+			<c-el>
+				<span class={() => theme.get()}>{theme}</span>
+				<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+			</c-el>
+	}`
+
+	test('the context signal is server-known, so the reactive attribute server-renders too', () => {
+		const { component, diagnostics } = compileComponent(
+			source,
+			'examples/card/c.tsrx',
+			new Set(),
+		)
+		expect(diagnostics.filter(d => d.severity === 'error')).toEqual([])
+		expect(component?.serverCode).toContain(
+			"attr('class', (() => theme.get())())",
+		)
+	})
+})
+
+describe('requestContext() — misuse diagnostics', () => {
+	test('wrong argument count is LTC015', () => {
+		const source = `export function C({}: {})
+		@{
+			const motion = requestContext('motion')
+			expose({})
+				<c-el>ok
+					<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+				</c-el>
+		}`
+		const { diagnostics } = compileComponent(source, 'c.tsrx', new Set())
+		expect(diagnostics.some(d => d.code === 'LTC015')).toBe(true)
+	})
+
+	test('a fallback referencing a non-server-known name is LTC016', () => {
+		const source = `export function C({}: {})
+		@{
+			const motion = requestContext('motion', host.value)
+			expose({})
+				<c-el>ok
+					<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+				</c-el>
+		}`
+		const { diagnostics } = compileComponent(source, 'c.tsrx', new Set())
+		expect(diagnostics.some(d => d.code === 'LTC016')).toBe(true)
+	})
+
+	test('requestContext nested inside a plain setup const is a routing signal (LT-165 step 5)', () => {
+		// ADR 0029 s5: a setup const the harness cannot evaluate routes the
+		// component Simulated instead of erroring — the realm runs the client
+		// module, where `requestContext` resolves for real.
+		const source = `export function C({}: {})
+		@{
+			const wrapped = [requestContext('motion', 'unknown')]
+			expose({})
+				<c-el>ok
+					<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+				</c-el>
+		}`
+		const { component } = compileComponent(source, 'c.tsrx', new Set())
+		expect(
+			component?.entry.routingSignals.some(s => s.origin === 'LTC013'),
+		).toBe(true)
+		expect(component?.entry.tier).toBe('simulated')
+	})
+})
+
+describe('provideContexts() — provider side', () => {
+	const source = `export function C({}: {})
+	@{
+		const count = createCell(0)
+		expose({ count: count.get })
+		provideContexts(['count'])
+			<c-el>{count}
+				<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+			</c-el>
+	}
+import { createCell } from '@zeix/le-truc'`
+
+	test('lowers to a bare client-only setup statement, never runs server-side', () => {
+		const { component, diagnostics } = compileComponent(
+			source,
+			'c.tsrx',
+			new Set(),
+		)
+		expect(diagnostics.filter(d => d.severity === 'error')).toEqual([])
+		expect(component?.clientCode).toContain("provideContexts(['count'])")
+		expect(component?.serverCode).not.toContain('provideContexts')
+	})
+
+	test('provideContexts is destructured from the factory context, not imported', () => {
+		const { component } = compileComponent(source, 'c.tsrx', new Set())
+		expect(component?.clientCode).toMatch(/\(\{[^}]*provideContexts[^}]*\}\)/)
+		expect(component?.clientCode).not.toMatch(
+			/import \{[^}]*provideContexts[^}]*\} from '@zeix\/le-truc'/,
+		)
+	})
+
+	test('assigning its result to a const routes, not errors (LT-165 step 5)', () => {
+		const badSource = `export function C({}: {})
+		@{
+			const count = createCell(0)
+			expose({ count: count.get })
+			const p = provideContexts(['count'])
+				<c-el>{count}
+					<style>@scope {
+	:scope {
+		  color: red;
+		}
+}</style>
+				</c-el>
+		}
+import { createCell } from '@zeix/le-truc'`
+		const { component } = compileComponent(badSource, 'c.tsrx', new Set())
+		expect(
+			component?.entry.routingSignals.some(s => s.origin === 'LTC013'),
+		).toBe(true)
+		expect(component?.entry.tier).toBe('simulated')
+	})
+})

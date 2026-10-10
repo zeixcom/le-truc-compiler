@@ -1,0 +1,56 @@
+<!-- Declarative inline HTML example -->
+<form>
+	<form-listbox id="colors" name="color">
+		<div role="listbox" aria-label="Colors">
+			<button type="button" role="option" tabindex="-1" data-value="red" data-label="Red">Red</button>
+			<button type="button" role="option" tabindex="-1" data-value="green" data-label="Green">Green</button>
+			<button type="button" role="option" tabindex="-1" data-value="blue" data-label="Blue">Blue</button>
+			<button type="button" role="option" tabindex="-1" data-value="yellow" data-label="Yellow">Yellow</button>
+			<button type="button" role="option" tabindex="-1" data-value="purple" data-label="Purple">Purple</button>
+		</div>
+	</form-listbox>
+</form>
+
+<hr>
+
+<!-- Declarative inline HTML example with groups and filter -->
+<form>
+	<form-listbox id="fruits" name="fruit">
+		<label for="fruits-filter" class="visually-hidden">Filter fruits</label>
+		<div class="input">
+			<input
+				type="text"
+				id="fruits-filter"
+				class="filter"
+				placeholder="Filter fruits"
+			>
+			<button type="button" class="clear" aria-label="Clear filter">✕</button>
+		</div>
+		<div role="listbox" aria-label="Fruits">
+			<div role="group" aria-labelledby="fruits-citrus">
+				<div role="presentation" id="fruits-citrus">Citrus</div>
+				<button type="button" role="option" tabindex="-1" data-value="orange" data-label="Orange">Orange</button>
+				<button type="button" role="option" tabindex="-1" data-value="lemon" data-label="Lemon">Lemon</button>
+				<button type="button" role="option" tabindex="-1" data-value="lime" data-label="Lime">Lime</button>
+			</div>
+			<div role="group" aria-labelledby="fruits-berries">
+				<div role="presentation" id="fruits-berries">Berries</div>
+				<button type="button" role="option" tabindex="-1" data-value="strawberry" data-label="Strawberry">Strawberry</button>
+				<button type="button" role="option" tabindex="-1" data-value="blueberry" data-label="Blueberry">Blueberry</button>
+				<button type="button" role="option" tabindex="-1" data-value="raspberry" data-label="Raspberry">Raspberry</button>
+			</div>
+		</div>
+	</form-listbox>
+</form>
+
+<!-- safeSetAttribute security test fixtures (hidden, used by form-listbox.spec.ts) -->
+
+<!-- security-onevil: sets onclick attribute — always blocked (on* name) -->
+<security-onevil id="sec-evil" hidden src="test">
+	<a href="#">trigger</a>
+</security-onevil>
+
+<!-- security-urlhref: sets href attribute — safe protocols pass, unsafe are blocked -->
+<security-urlhref id="sec-href" hidden href="https://example.com">
+	<a href="#">link</a>
+</security-urlhref>
