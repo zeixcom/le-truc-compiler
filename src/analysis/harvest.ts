@@ -587,6 +587,519 @@ const collectRenderSites = (component: ComponentIR): RenderSites => {
 
 /* === Harvest Plans (Pass 3) === */
 
+/**
+ * A signal the client cannot seed from server-rendered DOM. Under ADR
+ * 0029 sub-design 5 (LT-165 step 5) this is a ROUTING SIGNAL, not an
+ * author error — the realm connects the component for real and serializes
+ * whatever the signal actually settles to, which is exactly the initial
+ * value the harvest could not find a site for. The generated client
+ * declares the signal from its own initializer (`emit-client.ts`), so the
+ * shape compiles and works in every tier; what changed is only who
+ * produces the served HTML.
+ */
+const reportUnharvestable = (
+	shared: PassShared,
+	signal: InitSignalIR,
+	/**
+	 * The initializer's free names the client cannot bind, for a signal
+	 * that IS rendered (LT-093): the reason is then the initializer, not
+	 * a missing site, and the detail names the free names.
+	 */
+	unportable: readonly string[] = [],
+): void => {
+	const { component, routingSignals, source } = shared
+	routingSignals.push({
+		origin: 'LTC004',
+		detail:
+			unportable.length > 0
+				? `signal \`${signal.name}\` is rendered, but its initializer reads ${unportable.map(n => `\`${n}\``).join(', ')}, so the client cannot reuse it to seed the signal`
+				: `signal \`${signal.name}\` has no harvestable initial-DOM site`,
+		...rangeFields(source, signal.init),
+		resolution:
+			signal.init == null
+				? { by: 'realm' }
+				: resolutionOf(signal.init, component.serverKnown),
+	})
+}
+
+/**
+ * An attribute read is a string; a `number`-typed arg converts back
+ * with `Number()`, so a raw value source round-trips (D-20, LT-374:
+ * `<data value={count}>` seeds `createState(count)` with a number,
+ * not its text). The server rendered the attribute as `String(arg)`, which
+ * `Number()` inverts for every finite number — no truncation.
+ */
+const asParamType = (
+	shared: PassShared,
+	param: string,
+	read: string,
+): string =>
+	shared.component.paramProps.find(p => p.name === param)?.isNumber
+		? `Number${read}`
+		: read
+
+/**
+ * Children an arg's DOM site may sit in: server-known `@if` branches only —
+ * a reactive conditional's arms may not exist at connect, so nothing inside
+ * one is an arg's DOM site.
+ */
+const argSiteChildrenOf = (node: TemplateNode): TemplateNode[] =>
+	isIf(node) && node.mode === 'server'
+		? [...thenOf(node), ...elseOf(node)]
+		: isElement(node)
+			? node.children
+			: []
+
+/**
+ * The host-prop mirror of `param` (`paramDomRead`'s precedence 2): the
+ * first element whose reactive attribute reads `host.<prop>` for a
+ * parser-exposed prop the root renders from this arg.
+ */
+const findMirror = (
+	component: ComponentIR,
+	param: string,
+	node: TemplateNode,
+): {
+	el: ElementNode
+	attr: Extract<AttributeIR, { kind: 'reactive' }>
+} | null => {
+	if (isElement(node)) {
+		for (const attr of node.attrs) {
+			if (attr.kind !== 'reactive') continue
+			const prop = hostPropOf(attr.thunk)
+			if (!prop || !component.exposeProps.get(prop)?.parser) continue
+			const rootAttr = component.root.attrs.find(
+				a => a.kind === 'server' && a.name === prop,
+			) as Extract<AttributeIR, { kind: 'server' }> | undefined
+			if (rootAttr && rootAttr.exprText === param) return { el: node, attr }
+		}
+	}
+	for (const child of argSiteChildrenOf(node)) {
+		const found = findMirror(component, param, child)
+		if (found) return found
+	}
+	return null
+}
+
+/** The first element attribute rendering `param` bare (`paramDomRead`'s precedence 3). */
+const findAttrSite = (
+	param: string,
+	node: TemplateNode,
+): {
+	el: ElementNode
+	attr: Extract<AttributeIR, { kind: 'server' }>
+} | null => {
+	if (isElement(node)) {
+		for (const attr of node.attrs) {
+			if (attr.kind === 'server' && attr.exprText === param)
+				return { el: node, attr }
+		}
+	}
+	for (const child of argSiteChildrenOf(node)) {
+		const found = findAttrSite(param, child)
+		if (found) return found
+	}
+	return null
+}
+
+/**
+ * DOM read expression for a server arg, traced to its rendered site.
+ * Precedence (LT-115):
+ * 1. the exposed prop's Slot — when `allowTrackedRead` (a LAZY
+ *    constructor: `deriveCell`/`deriveStore`/`createMemo`, whose callback
+ *    first runs only after `expose()` has installed the Slot-backed
+ *    property) and the root renders a Parser-exposed prop from this arg,
+ *    read `host.<prop>`: a TRACKED reactive source, so the derived signal
+ *    re-runs on later property writes and `observedAttributes` re-parses
+ *    instead of freezing on the untracked `getAttribute` read (NOTES
+ *    LT-092, the frozen basic-gauge/basic-pluralize `deriveCell`s; pinned
+ *    by root-harvest.test.ts and basic-gauge since basic-pluralize's
+ *    retirement, LT-467).
+ * 2. a host-prop mirror (`value={() => host.value}` where the root renders
+ *    the parser-exposed prop from this arg) — read the target element's
+ *    property;
+ * 3. a plain (non-root) element attribute rendering the arg bare;
+ * 4. the root attribute via `host.getAttribute`.
+ * Root sites NEVER become queries: `first()` searches descendants only
+ * (`src/helpers/dom.ts`), so a query for the root's own tag throws
+ * `MissingElementError` for the component's own root at activation (the
+ * LT-024 `site.el !== component.root` guard, restored by LT-115 after a
+ * regrouping-era edit dropped it). Null when the arg renders nowhere (the
+ * signal stays unharvestable).
+ */
+const paramDomRead = (
+	shared: PassShared,
+	param: string,
+	allowTrackedRead: boolean,
+): string | null => {
+	const { addQuery, ambient, component, diagnostics, source } = shared
+	const { enclosingIfOf, selectorFor } = selectorAdaptersOf(component)
+	if (allowTrackedRead) {
+		const exposedRootAttr = component.root.attrs.find(
+			a =>
+				a.kind === 'server' &&
+				a.name !== null &&
+				a.exprText === param &&
+				component.exposeProps.get(a.name)?.parser !== undefined,
+		) as Extract<AttributeIR, { kind: 'server' }> | undefined
+		if (exposedRootAttr) {
+			ambient.add('host')
+			return `host.${exposedRootAttr.name}`
+		}
+	}
+	const mirror = findMirror(component, param, component.root)
+	if (mirror) {
+		const resolved = selectorFor(mirror.el)
+		if (!resolved.unique) {
+			diagnostics.push(
+				diagnostic.unaddressableElement(
+					source,
+					mirror.el.node,
+					`No unique selector for the DOM site of server arg \`${param}\` (<${mirror.el.tag}>) — add a distinguishing static attribute (\`role\`, \`class\` or \`data-*\`).`,
+				),
+			)
+			return null
+		}
+		const refAttr = refOf(mirror.el)
+		const query = addQuery(
+			refAttr?.name ?? sanitizeVarName(mirror.el.tag),
+			resolved.selector,
+			'one',
+		)
+		return `${query}.${mirror.attr.name}`
+	}
+	const site = findAttrSite(param, component.root)
+	// LT-024's root guard, restored by LT-115: the root's own attributes
+	// are NOT a query site — `first('<own-tag>')` would throw for the
+	// component's own root (descendants-only search). A root match falls
+	// through to the `host.getAttribute` branch below instead.
+	if (site && site.el !== component.root) {
+		const resolved = selectorFor(site.el)
+		if (!resolved.unique) {
+			diagnostics.push(
+				diagnostic.unaddressableElement(
+					source,
+					site.el.node,
+					`No unique selector for the DOM site of server arg \`${param}\` (<${site.el.tag}>) — add a distinguishing static attribute (\`role\`, \`class\` or \`data-*\`).`,
+				),
+			)
+			return null
+		}
+		const refAttr = refOf(site.el)
+		// A DOM-read site inside a single-branch @if (no @else) may not
+		// exist at all — address it the same way its own branch-root query
+		// would (non-throwing 'maybe'), and null-guard the read, instead of
+		// a throwing `first()` the substituted expression could crash on
+		// (ADR 0024 sub-design 12).
+		const enclosing = enclosingIfOf(site.el)
+		const optional = !!enclosing && elseOf(enclosing).length === 0
+		const query = addQuery(
+			refAttr?.name ?? sanitizeVarName(site.el.tag),
+			resolved.selector,
+			optional ? 'maybe' : 'one',
+		)
+		return asParamType(
+			shared,
+			param,
+			optional
+				? `(${query}?.getAttribute('${site.attr.name}') ?? '')`
+				: `(${query}.getAttribute('${site.attr.name}') ?? '')`,
+		)
+	}
+	const rootAttr = component.root.attrs.find(
+		a => a.kind === 'server' && a.name !== null && a.exprText === param,
+	) as Extract<AttributeIR, { kind: 'server' }> | undefined
+	if (rootAttr) {
+		ambient.add('host')
+		return asParamType(
+			shared,
+			param,
+			`(host.getAttribute('${rootAttr.name}') ?? '')`,
+		)
+	}
+	return null
+}
+
+/**
+ * The name scope `unportableNames` checks an initializer's free names
+ * against: the plain setup consts a name may descend through, the
+ * component's signal names, and whether FactoryContext members are
+ * admitted (LT-323).
+ */
+type UnportableNamesScope = {
+	plainConsts: ReadonlyMap<string, AstNode>
+	signalNames: ReadonlySet<string>
+	allowContextMembers: boolean
+}
+
+/**
+ * One level of `unportableNames`' transitive check: a plain setup const's
+ * own free names are checked in turn; anything else outside the portable
+ * sets lands in `bad`.
+ */
+const visitUnportableName = (
+	shared: PassShared,
+	node: AstNode,
+	topLevel: boolean,
+	scope: UnportableNamesScope,
+	bad: Set<string>,
+	seen: Set<string>,
+): void => {
+	for (const name of dependenciesOf(node)) {
+		const constNode = scope.plainConsts.get(name)
+		if (constNode) {
+			if (!seen.has(name)) {
+				seen.add(name)
+				visitUnportableName(shared, constNode, false, scope, bad, seen)
+			}
+		} else if (
+			!JS_GLOBALS.has(name) &&
+			!(topLevel && shared.component.paramNames.includes(name)) &&
+			!scope.signalNames.has(name) &&
+			!CONTEXT_NAMES.has(name) &&
+			!(scope.allowContextMembers && FACTORY_CONTEXT_MEMBERS.has(name)) &&
+			!shared.refNames.has(name) &&
+			!shared.component.imports.plainLocalNames.has(name) &&
+			!shared.component.imports.clientLeTrucNames.has(name)
+		)
+			bad.add(name)
+	}
+}
+
+/**
+ * The free names of a signal initializer the client module cannot bind
+ * (LT-093). A plain setup const or an authored import is portable: the
+ * signal's declaration is a client-emitted position, so the placement
+ * fixpoint (`computeClientNeededNames`) already emits the const — and,
+ * through it, the imports and consts it reads — into the client module.
+ * The const's own free names are checked the same way, transitively;
+ * a server arg is substituted only at the initializer's top level, so
+ * one reached through a const is unportable.
+ */
+const unportableNames = (
+	shared: PassShared,
+	init: AstNode,
+	allowContextMembers: boolean,
+): string[] => {
+	const { component } = shared
+	const bad = new Set<string>()
+	const seen = new Set<string>()
+	const scope: UnportableNamesScope = {
+		plainConsts: new Map(
+			component.plainSetup.flatMap(stmt =>
+				stmt.name === null ? [] : [[stmt.name, stmt.node] as const],
+			),
+		),
+		signalNames: new Set(component.signals.map(s => s.name)),
+		allowContextMembers,
+	}
+	visitUnportableName(shared, init, true, scope, bad, seen)
+	return [...bad]
+}
+
+/**
+ * One walker level of `substituteArgExpr`'s rewrite: a param identifier
+ * becomes a `[start, end, read]` range in `ranges`. Type positions are
+ * skipped: rewriting a name inside one (`typeof label`) into a DOM read
+ * would emit invalid TypeScript, and `dependenciesOf` never counted it as
+ * a read anyway. Non-computed member properties and object keys are
+ * positions, not reads — same scoping as freeIdentifiers.
+ */
+const collectArgReadRanges = (
+	current: AstNode,
+	reads: ReadonlyMap<string, string>,
+	ranges: Array<[number, number, string]>,
+): void => {
+	if (current.type === 'Identifier') {
+		const name = String(current.name)
+		if (
+			reads.has(name) &&
+			typeof current.start === 'number' &&
+			typeof current.end === 'number'
+		)
+			ranges.push([current.start, current.end, reads.get(name) as string])
+		return
+	}
+	if (current.type === 'MemberExpression' && !current.computed) {
+		if (isNode(current.object))
+			collectArgReadRanges(current.object, reads, ranges)
+		return
+	}
+	if (current.type === 'Property' && !current.computed) {
+		if (isNode(current.value))
+			collectArgReadRanges(current.value, reads, ranges)
+		return
+	}
+	forEachChild(current, child => collectArgReadRanges(child, reads, ranges))
+}
+
+/**
+ * Rewrite a pure-arg initializer by replacing each param identifier with
+ * its DOM read (`value.length` → `input.value.length`), right-to-left by
+ * source range so surrounding text is untouched. Free names that are
+ * already client-known by another route (another signal declared earlier
+ * in the factory, a ref, a context member) pass through unrewritten — only
+ * server args need a DOM substitution (ADR 0024 sub-design 12: a `deriveCell`
+ * callback may read both a param, needing substitution, and a sibling
+ * signal, needing none).
+ */
+const substituteArgExpr = (
+	shared: PassShared,
+	init: AstNode,
+	/**
+	 * Allow a no-params-to-substitute initializer to pass through
+	 * verbatim (ADR 0024 sub-design 13): sound for `deriveCell`/
+	 * `deriveStore` signals, which are FORCED through this path
+	 * unconditionally (no direct-site harvest is even attempted for
+	 * them), and since LT-036 also for any signal credited in
+	 * `thunkRendered` — its value flows into the DOM through a
+	 * style-map/class-map object or a computed reactive thunk, so it is
+	 * provably not dead, and the server rendered that output from this
+	 * same initializer (DOM agrees by construction) — and since LT-451
+	 * for a seed reading `host` the server folds (`hostSeeded`). A `createCell`/
+	 * `createState` signal with a literal initializer and NO rendered
+	 * site at all must still fail (LTC004): those DO have a direct-site
+	 * harvest route, and a silently-never-rendered signal is exactly
+	 * the drift ADR 0003 exists to catch.
+	 */
+	allowVerbatim: boolean,
+	/**
+	 * The initializer is LAZY — its body first runs only after `expose()`
+	 * has installed the Slot-backed properties, so arg reads may route
+	 * through `host.<prop>` (the exposed prop's Slot, a tracked reactive
+	 * source; see `paramDomRead`'s precedence 1). Always true for
+	 * `deriveCell`/`deriveStore`/`createMemo`; NEVER for the eager
+	 * constructors, whose initializer executes at declaration — before
+	 * `expose()` — where a `host.<prop>` read would be `undefined`.
+	 */
+	allowTrackedRead: boolean,
+	/**
+	 * Admit FactoryContext members (`all`, `first`, …) as client-known
+	 * (LT-323). Only for a signal read exclusively in client-only
+	 * positions: the client destructures them, and no served HTML
+	 * depends on the value the server could not compute.
+	 */
+	allowContextMembers = false,
+): string | null => {
+	const { component, source } = shared
+	const free = dependenciesOf(init)
+	if (unportableNames(shared, init, allowContextMembers).length > 0) return null
+	const params = [...free].filter(n => component.paramNames.includes(n))
+	if (typeof init.start !== 'number' || typeof init.end !== 'number')
+		return null
+	// Nothing to substitute: the initializer has no server-arg dependency
+	// at all (e.g. a niladic async compute), so it is already portable,
+	// identical JS on both sides — reuse it verbatim, exactly like a pure
+	// literal list seed (ADR 0024 sub-design 13). Only sound for signals
+	// with no direct-site harvest route at all (see `allowVerbatim`'s doc).
+	if (params.length === 0)
+		return allowVerbatim ? source.slice(init.start, init.end) : null
+	const reads = new Map<string, string>()
+	for (const param of params) {
+		const read = paramDomRead(shared, param, allowTrackedRead)
+		if (!read) return null
+		reads.set(param, read)
+	}
+	const ranges: Array<[number, number, string]> = []
+	collectArgReadRanges(init, reads, ranges)
+	let expr = source.slice(init.start, init.end)
+	for (const [start, end, read] of ranges.sort((a, b) => b[0] - a[0]))
+		expr =
+			expr.slice(0, start - (init.start as number)) +
+			read +
+			expr.slice(end - (init.start as number))
+	return expr
+}
+
+/** The authored parser plan for a consumed marker. */
+const authoredParserOf = (
+	shared: PassShared,
+	signal: InitSignalIR,
+	marker: Extract<HarvestSeedIR, { kind: 'scalar' }>,
+): AuthoredParser => {
+	reportServerOnlyNames(
+		shared,
+		marker.parser,
+		`The \`harvest()\` parser of signal \`${signal.name}\``,
+	)
+	return {
+		kind: 'authored',
+		text: marker.parserText,
+		start: marker.parser.start as number,
+		wrap: !CALLABLE_AS_WRITTEN.has(String(marker.parser.type)),
+	}
+}
+
+/**
+ * The parser a scalar harvest reads through (LT-443): the marker's parser
+ * when declared (spliced as authored, its free names client-checked), else
+ * the one the inferred type maps to — and LTC077 at the seed when the type
+ * is one the compiler cannot read and no marker declares a parser, because
+ * the inferred-string fallback would silently connect e.g. `2.5` as
+ * `'2.5'`. Null after reporting: the signal plans nothing.
+ */
+const parserForSeed = (
+	shared: PassShared,
+	signal: InitSignalIR,
+	scalarSeeded: boolean,
+	scalarMarker: Extract<HarvestSeedIR, { kind: 'scalar' }> | null,
+): ParserKind | AuthoredParser | null => {
+	const { component, diagnostics, rawSourceRefused, source } = shared
+	// A non-scalar signal with a direct site (a bare `{items}` list
+	// signal) keeps today's inferred mapping — the scalar rule does
+	// not speak to it.
+	if (!scalarSeeded) return parserForType(signal.inferredType)
+	if (scalarMarker) return authoredParserOf(shared, signal, scalarMarker)
+	if (signal.inferredType === 'unknown') {
+		const seedName =
+			signal.init && nodeType(signal.init) === 'Identifier'
+				? String((signal.init as AstNode).name)
+				: null
+		const param = seedName
+			? component.paramProps.find(p => p.name === seedName)
+			: undefined
+		diagnostics.push(
+			diagnostic.scalarSeedWithoutParser(
+				source,
+				signal.init,
+				signal.name,
+				signal.constructor,
+				signal.init
+					? source.slice(signal.init.start, signal.init.end)
+					: signal.name,
+				param && param.typeText !== 'unknown' ? param.typeText : null,
+			),
+		)
+		rawSourceRefused.add(signal.name)
+		return null
+	}
+	return parserForType(signal.inferredType)
+}
+
+/**
+ * A marker whose parser no read takes: a literal seed, an
+ * initializer reused verbatim, a seed that derives from the arg
+ * (the substitution reproduces the derivation, nothing parses).
+ * The same dead declaration a literal-seeded list's map is (ADR
+ * 0046 s7) — refused, not silently ignored.
+ */
+const refuseDeadMarker = (
+	shared: PassShared,
+	signal: InitSignalIR,
+	at: AstNode,
+): void => {
+	const { diagnostics, rawSourceRefused, source } = shared
+	diagnostics.push(
+		diagnostic.unsupported(
+			source,
+			at,
+			`The \`harvest()\` parser of signal \`${signal.name}\`, whose seed reads no server-rendered value,`,
+			'The client re-evaluates the seed as written, and no parser runs — drop the marker.',
+		),
+	)
+	rawSourceRefused.add(signal.name)
+}
+
 /** Pass 3: one harvest plan per signal, from Pass 2's render sites. */
 const planHarvests = (
 	shared: PassShared,
@@ -603,366 +1116,12 @@ const planHarvests = (
 		component,
 		source,
 		diagnostics,
-		routingSignals,
 		addQuery,
 		ambient,
-		refNames,
 		rawSourceRefused,
 	} = shared
 	const harvests: HarvestPlan[] = []
-	/**
-	 * A signal the client cannot seed from server-rendered DOM. Under ADR
-	 * 0029 sub-design 5 (LT-165 step 5) this is a ROUTING SIGNAL, not an
-	 * author error — the realm connects the component for real and serializes
-	 * whatever the signal actually settles to, which is exactly the initial
-	 * value the harvest could not find a site for. The generated client
-	 * declares the signal from its own initializer (`emit-client.ts`), so the
-	 * shape compiles and works in every tier; what changed is only who
-	 * produces the served HTML.
-	 */
-	const reportUnharvestable = (
-		signal: InitSignalIR,
-		/**
-		 * The initializer's free names the client cannot bind, for a signal
-		 * that IS rendered (LT-093): the reason is then the initializer, not
-		 * a missing site, and the detail names the free names.
-		 */
-		unportable: readonly string[] = [],
-	): void => {
-		routingSignals.push({
-			origin: 'LTC004',
-			detail:
-				unportable.length > 0
-					? `signal \`${signal.name}\` is rendered, but its initializer reads ${unportable.map(n => `\`${n}\``).join(', ')}, so the client cannot reuse it to seed the signal`
-					: `signal \`${signal.name}\` has no harvestable initial-DOM site`,
-			...rangeFields(source, signal.init),
-			resolution:
-				signal.init == null
-					? { by: 'realm' }
-					: resolutionOf(signal.init, component.serverKnown),
-		})
-	}
-	const { enclosingIfOf, loopFor, resolveSelector, selectorFor } =
-		selectorAdaptersOf(component)
-
-	/**
-	 * An attribute read is a string; a `number`-typed arg converts back
-	 * with `Number()`, so a raw value source round-trips (D-20, LT-374:
-	 * `<data value={count}>` seeds `createState(count)` with a number,
-	 * not its text). The server rendered the attribute as `String(arg)`, which
-	 * `Number()` inverts for every finite number — no truncation.
-	 */
-	const asParamType = (param: string, read: string): string =>
-		component.paramProps.find(p => p.name === param)?.isNumber
-			? `Number${read}`
-			: read
-	/**
-	 * DOM read expression for a server arg, traced to its rendered site.
-	 * Precedence (LT-115):
-	 * 1. the exposed prop's Slot — when `allowTrackedRead` (a LAZY
-	 *    constructor: `deriveCell`/`deriveStore`/`createMemo`, whose callback
-	 *    first runs only after `expose()` has installed the Slot-backed
-	 *    property) and the root renders a Parser-exposed prop from this arg,
-	 *    read `host.<prop>`: a TRACKED reactive source, so the derived signal
-	 *    re-runs on later property writes and `observedAttributes` re-parses
-	 *    instead of freezing on the untracked `getAttribute` read (NOTES
-	 *    LT-092, the frozen basic-gauge/basic-pluralize `deriveCell`s; pinned
-	 *    by root-harvest.test.ts and basic-gauge since basic-pluralize's
-	 *    retirement, LT-467).
-	 * 2. a host-prop mirror (`value={() => host.value}` where the root renders
-	 *    the parser-exposed prop from this arg) — read the target element's
-	 *    property;
-	 * 3. a plain (non-root) element attribute rendering the arg bare;
-	 * 4. the root attribute via `host.getAttribute`.
-	 * Root sites NEVER become queries: `first()` searches descendants only
-	 * (`src/helpers/dom.ts`), so a query for the root's own tag throws
-	 * `MissingElementError` for the component's own root at activation (the
-	 * LT-024 `site.el !== component.root` guard, restored by LT-115 after a
-	 * regrouping-era edit dropped it). Null when the arg renders nowhere (the
-	 * signal stays unharvestable).
-	 */
-	const paramDomRead = (
-		param: string,
-		allowTrackedRead: boolean,
-	): string | null => {
-		if (allowTrackedRead) {
-			const exposedRootAttr = component.root.attrs.find(
-				a =>
-					a.kind === 'server' &&
-					a.name !== null &&
-					a.exprText === param &&
-					component.exposeProps.get(a.name)?.parser !== undefined,
-			) as Extract<AttributeIR, { kind: 'server' }> | undefined
-			if (exposedRootAttr) {
-				ambient.add('host')
-				return `host.${exposedRootAttr.name}`
-			}
-		}
-		// Server-known `@if` branches only: a reactive conditional's arms may
-		// not exist at connect, so nothing inside one is an arg's DOM site.
-		const childrenOf = (node: TemplateNode): TemplateNode[] =>
-			isIf(node) && node.mode === 'server'
-				? [...thenOf(node), ...elseOf(node)]
-				: isElement(node)
-					? node.children
-					: []
-		const findMirror = (
-			node: TemplateNode,
-		): {
-			el: ElementNode
-			attr: Extract<AttributeIR, { kind: 'reactive' }>
-		} | null => {
-			if (isElement(node)) {
-				for (const attr of node.attrs) {
-					if (attr.kind !== 'reactive') continue
-					const prop = hostPropOf(attr.thunk)
-					if (!prop || !component.exposeProps.get(prop)?.parser) continue
-					const rootAttr = component.root.attrs.find(
-						a => a.kind === 'server' && a.name === prop,
-					) as Extract<AttributeIR, { kind: 'server' }> | undefined
-					if (rootAttr && rootAttr.exprText === param) return { el: node, attr }
-				}
-			}
-			for (const child of childrenOf(node)) {
-				const found = findMirror(child)
-				if (found) return found
-			}
-			return null
-		}
-		const mirror = findMirror(component.root)
-		if (mirror) {
-			const resolved = selectorFor(mirror.el)
-			if (!resolved.unique) {
-				diagnostics.push(
-					diagnostic.unaddressableElement(
-						source,
-						mirror.el.node,
-						`No unique selector for the DOM site of server arg \`${param}\` (<${mirror.el.tag}>) — add a distinguishing static attribute (\`role\`, \`class\` or \`data-*\`).`,
-					),
-				)
-				return null
-			}
-			const refAttr = refOf(mirror.el)
-			const query = addQuery(
-				refAttr?.name ?? sanitizeVarName(mirror.el.tag),
-				resolved.selector,
-				'one',
-			)
-			return `${query}.${mirror.attr.name}`
-		}
-		const findAttrSite = (
-			node: TemplateNode,
-		): {
-			el: ElementNode
-			attr: Extract<AttributeIR, { kind: 'server' }>
-		} | null => {
-			if (isElement(node)) {
-				for (const attr of node.attrs) {
-					if (attr.kind === 'server' && attr.exprText === param)
-						return { el: node, attr }
-				}
-			}
-			for (const child of childrenOf(node)) {
-				const found = findAttrSite(child)
-				if (found) return found
-			}
-			return null
-		}
-		const site = findAttrSite(component.root)
-		// LT-024's root guard, restored by LT-115: the root's own attributes
-		// are NOT a query site — `first('<own-tag>')` would throw for the
-		// component's own root (descendants-only search). A root match falls
-		// through to the `host.getAttribute` branch below instead.
-		if (site && site.el !== component.root) {
-			const resolved = selectorFor(site.el)
-			if (!resolved.unique) {
-				diagnostics.push(
-					diagnostic.unaddressableElement(
-						source,
-						site.el.node,
-						`No unique selector for the DOM site of server arg \`${param}\` (<${site.el.tag}>) — add a distinguishing static attribute (\`role\`, \`class\` or \`data-*\`).`,
-					),
-				)
-				return null
-			}
-			const refAttr = refOf(site.el)
-			// A DOM-read site inside a single-branch @if (no @else) may not
-			// exist at all — address it the same way its own branch-root query
-			// would (non-throwing 'maybe'), and null-guard the read, instead of
-			// a throwing `first()` the substituted expression could crash on
-			// (ADR 0024 sub-design 12).
-			const enclosing = enclosingIfOf(site.el)
-			const optional = !!enclosing && elseOf(enclosing).length === 0
-			const query = addQuery(
-				refAttr?.name ?? sanitizeVarName(site.el.tag),
-				resolved.selector,
-				optional ? 'maybe' : 'one',
-			)
-			return asParamType(
-				param,
-				optional
-					? `(${query}?.getAttribute('${site.attr.name}') ?? '')`
-					: `(${query}.getAttribute('${site.attr.name}') ?? '')`,
-			)
-		}
-		const rootAttr = component.root.attrs.find(
-			a => a.kind === 'server' && a.name !== null && a.exprText === param,
-		) as Extract<AttributeIR, { kind: 'server' }> | undefined
-		if (rootAttr) {
-			ambient.add('host')
-			return asParamType(param, `(host.getAttribute('${rootAttr.name}') ?? '')`)
-		}
-		return null
-	}
-
-	const signalNames = new Set(component.signals.map(s => s.name))
-	const plainConsts = new Map(
-		component.plainSetup.flatMap(stmt =>
-			stmt.name === null ? [] : [[stmt.name, stmt.node] as const],
-		),
-	)
-	/**
-	 * The free names of a signal initializer the client module cannot bind
-	 * (LT-093). A plain setup const or an authored import is portable: the
-	 * signal's declaration is a client-emitted position, so the placement
-	 * fixpoint (`computeClientNeededNames`) already emits the const — and,
-	 * through it, the imports and consts it reads — into the client module.
-	 * The const's own free names are checked the same way, transitively;
-	 * a server arg is substituted only at the initializer's top level, so
-	 * one reached through a const is unportable.
-	 */
-	const unportableNames = (
-		init: AstNode,
-		allowContextMembers: boolean,
-	): string[] => {
-		const bad = new Set<string>()
-		const seen = new Set<string>()
-		const visit = (node: AstNode, topLevel: boolean): void => {
-			for (const name of dependenciesOf(node)) {
-				const constNode = plainConsts.get(name)
-				if (constNode) {
-					if (!seen.has(name)) {
-						seen.add(name)
-						visit(constNode, false)
-					}
-				} else if (
-					!JS_GLOBALS.has(name) &&
-					!(topLevel && component.paramNames.includes(name)) &&
-					!signalNames.has(name) &&
-					!CONTEXT_NAMES.has(name) &&
-					!(allowContextMembers && FACTORY_CONTEXT_MEMBERS.has(name)) &&
-					!refNames.has(name) &&
-					!component.imports.plainLocalNames.has(name) &&
-					!component.imports.clientLeTrucNames.has(name)
-				)
-					bad.add(name)
-			}
-		}
-		visit(init, true)
-		return [...bad]
-	}
-
-	/**
-	 * Rewrite a pure-arg initializer by replacing each param identifier with
-	 * its DOM read (`value.length` → `input.value.length`), right-to-left by
-	 * source range so surrounding text is untouched. Free names that are
-	 * already client-known by another route (another signal declared earlier
-	 * in the factory, a ref, a context member) pass through unrewritten — only
-	 * server args need a DOM substitution (ADR 0024 sub-design 12: a `deriveCell`
-	 * callback may read both a param, needing substitution, and a sibling
-	 * signal, needing none).
-	 */
-	const substituteArgExpr = (
-		init: AstNode,
-		/**
-		 * Allow a no-params-to-substitute initializer to pass through
-		 * verbatim (ADR 0024 sub-design 13): sound for `deriveCell`/
-		 * `deriveStore` signals, which are FORCED through this path
-		 * unconditionally (no direct-site harvest is even attempted for
-		 * them), and since LT-036 also for any signal credited in
-		 * `thunkRendered` — its value flows into the DOM through a
-		 * style-map/class-map object or a computed reactive thunk, so it is
-		 * provably not dead, and the server rendered that output from this
-		 * same initializer (DOM agrees by construction) — and since LT-451
-		 * for a seed reading `host` the server folds (`hostSeeded`). A `createCell`/
-		 * `createState` signal with a literal initializer and NO rendered
-		 * site at all must still fail (LTC004): those DO have a direct-site
-		 * harvest route, and a silently-never-rendered signal is exactly
-		 * the drift ADR 0003 exists to catch.
-		 */
-		allowVerbatim: boolean,
-		/**
-		 * The initializer is LAZY — its body first runs only after `expose()`
-		 * has installed the Slot-backed properties, so arg reads may route
-		 * through `host.<prop>` (the exposed prop's Slot, a tracked reactive
-		 * source; see `paramDomRead`'s precedence 1). Always true for
-		 * `deriveCell`/`deriveStore`/`createMemo`; NEVER for the eager
-		 * constructors, whose initializer executes at declaration — before
-		 * `expose()` — where a `host.<prop>` read would be `undefined`.
-		 */
-		allowTrackedRead: boolean,
-		/**
-		 * Admit FactoryContext members (`all`, `first`, …) as client-known
-		 * (LT-323). Only for a signal read exclusively in client-only
-		 * positions: the client destructures them, and no served HTML
-		 * depends on the value the server could not compute.
-		 */
-		allowContextMembers = false,
-	): string | null => {
-		const free = dependenciesOf(init)
-		if (unportableNames(init, allowContextMembers).length > 0) return null
-		const params = [...free].filter(n => component.paramNames.includes(n))
-		if (typeof init.start !== 'number' || typeof init.end !== 'number')
-			return null
-		// Nothing to substitute: the initializer has no server-arg dependency
-		// at all (e.g. a niladic async compute), so it is already portable,
-		// identical JS on both sides — reuse it verbatim, exactly like a pure
-		// literal list seed (ADR 0024 sub-design 13). Only sound for signals
-		// with no direct-site harvest route at all (see `allowVerbatim`'s doc).
-		if (params.length === 0)
-			return allowVerbatim ? source.slice(init.start, init.end) : null
-		const reads = new Map<string, string>()
-		for (const param of params) {
-			const read = paramDomRead(param, allowTrackedRead)
-			if (!read) return null
-			reads.set(param, read)
-		}
-		const ranges: Array<[number, number, string]> = []
-		// Type positions are skipped: rewriting a name inside one
-		// (`typeof label`) into a DOM read would emit invalid TypeScript, and
-		// `dependenciesOf` above never counted it as a read anyway.
-		const collect = (current: AstNode): void => {
-			if (current.type === 'Identifier') {
-				const name = String(current.name)
-				if (
-					reads.has(name) &&
-					typeof current.start === 'number' &&
-					typeof current.end === 'number'
-				)
-					ranges.push([current.start, current.end, reads.get(name) as string])
-				return
-			}
-			// Non-computed member properties and object keys are positions,
-			// not reads — same scoping as freeIdentifiers.
-			if (current.type === 'MemberExpression' && !current.computed) {
-				if (isNode(current.object)) collect(current.object)
-				return
-			}
-			if (current.type === 'Property' && !current.computed) {
-				if (isNode(current.value)) collect(current.value)
-				return
-			}
-			forEachChild(current, collect)
-		}
-		collect(init)
-		let expr = source.slice(init.start, init.end)
-		for (const [start, end, read] of ranges.sort((a, b) => b[0] - a[0]))
-			expr =
-				expr.slice(0, start - (init.start as number)) +
-				read +
-				expr.slice(end - (init.start as number))
-		return expr
-	}
+	const { loopFor, resolveSelector } = selectorAdaptersOf(component)
 
 	for (const signal of component.signals) {
 		// requestContext-backed signals (LT-035) never need a harvest site —
@@ -1014,79 +1173,6 @@ const planHarvests = (
 		const scalarSeeded =
 			signal.family === 'declared' &&
 			SCALAR_HARVEST_CONSTRUCTORS.has(signal.constructor)
-		/** The authored parser plan for a consumed marker. */
-		const authoredParserOf = (
-			marker: Extract<HarvestSeedIR, { kind: 'scalar' }>,
-		): AuthoredParser => {
-			reportServerOnlyNames(
-				shared,
-				marker.parser,
-				`The \`harvest()\` parser of signal \`${signal.name}\``,
-			)
-			return {
-				kind: 'authored',
-				text: marker.parserText,
-				start: marker.parser.start as number,
-				wrap: !CALLABLE_AS_WRITTEN.has(String(marker.parser.type)),
-			}
-		}
-		/**
-		 * The parser a scalar harvest reads through (LT-443): the marker's
-		 * parser when declared, else the one the inferred type maps to —
-		 * and LTC077 at the seed when the type is one the compiler cannot
-		 * read and no marker declares a parser, because the inferred-
-		 * string fallback would silently connect e.g. `2.5` as `'2.5'`.
-		 * Null after reporting: the signal plans nothing.
-		 */
-		const parserForSeed = (): ParserKind | AuthoredParser | null => {
-			// A non-scalar signal with a direct site (a bare `{items}` list
-			// signal) keeps today's inferred mapping — the scalar rule does
-			// not speak to it.
-			if (!scalarSeeded) return parserForType(signal.inferredType)
-			if (scalarMarker) return authoredParserOf(scalarMarker)
-			if (signal.inferredType === 'unknown') {
-				const seedName =
-					signal.init && nodeType(signal.init) === 'Identifier'
-						? String((signal.init as AstNode).name)
-						: null
-				const param = seedName
-					? component.paramProps.find(p => p.name === seedName)
-					: undefined
-				diagnostics.push(
-					diagnostic.scalarSeedWithoutParser(
-						source,
-						signal.init,
-						signal.name,
-						signal.constructor,
-						signal.init
-							? source.slice(signal.init.start, signal.init.end)
-							: signal.name,
-						param && param.typeText !== 'unknown' ? param.typeText : null,
-					),
-				)
-				rawSourceRefused.add(signal.name)
-				return null
-			}
-			return parserForType(signal.inferredType)
-		}
-		/**
-		 * A marker whose parser no read takes: a literal seed, an
-		 * initializer reused verbatim, a seed that derives from the arg
-		 * (the substitution reproduces the derivation, nothing parses).
-		 * The same dead declaration a literal-seeded list's map is (ADR
-		 * 0046 s7) — refused, not silently ignored.
-		 */
-		const refuseDeadMarker = (at: AstNode): void => {
-			diagnostics.push(
-				diagnostic.unsupported(
-					source,
-					at,
-					`The \`harvest()\` parser of signal \`${signal.name}\`, whose seed reads no server-rendered value,`,
-					'The client re-evaluates the seed as written, and no parser runs — drop the marker.',
-				),
-			)
-			rawSourceRefused.add(signal.name)
-		}
 		// A reconciled List seeds from the adopted DOM, not a text/attr site.
 		// A derived List (ADR 0046 s4) has no seed to harvest: like every
 		// derive callback it re-derives on the client from its sources.
@@ -1224,7 +1310,7 @@ const planHarvests = (
 					component.paramNames.includes(name),
 				)
 			if (scalarMarker && (!readsArgs || (scalarSeeded && !identitySeed))) {
-				refuseDeadMarker(scalarMarker.call)
+				refuseDeadMarker(shared, signal, scalarMarker.call)
 				continue
 			}
 			// No rendered site: an initializer over server args can still seed
@@ -1237,6 +1323,7 @@ const planHarvests = (
 				clientCredited.has(signal.name) && !renderCredited.has(signal.name)
 			const substituted = signal.init
 				? substituteArgExpr(
+						shared,
 						signal.init,
 						isDerivedCallback || thunkRendered.has(signal.name) || hostSeeded,
 						isDerivedCallback,
@@ -1254,7 +1341,7 @@ const planHarvests = (
 						kind: 'substitute',
 						signal: signal.name,
 						expr: substituted,
-						parser: authoredParserOf(scalarMarker),
+						parser: authoredParserOf(shared, signal, scalarMarker),
 					})
 				} else if (
 					scalarSeeded &&
@@ -1319,9 +1406,10 @@ const planHarvests = (
 				continue
 			}
 			reportUnharvestable(
+				shared,
 				signal,
 				signal.init && thunkRendered.has(signal.name)
-					? unportableNames(signal.init, allowContextMembers)
+					? unportableNames(shared, signal.init, allowContextMembers)
 					: [],
 			)
 			continue
@@ -1343,18 +1431,8 @@ const planHarvests = (
 		// it. (An `attr` site on the root is unreachable in a compiling
 		// component — reactive attributes on the root are LTC005 — but routed
 		// uniformly rather than left emitting a broken query.)
-		/**
-		 * The parser the signal's direct-site harvest reads through
-		 * (LT-443): the `harvest()` marker's parser when there is one
-		 * (spliced as authored, its free names client-checked), else the
-		 * parser the inferred type maps to — and LTC077 when the seed's
-		 * type is one the compiler cannot read and no marker declares a
-		 * parser, because `asString` would silently connect the seed as a
-		 * string. Null after reporting LTC077: the signal plans nothing.
-		 */
-		const directSiteParser = parserForSeed
 		if (direct && direct.element === component.root) {
-			const parser = directSiteParser()
+			const parser = parserForSeed(shared, signal, scalarSeeded, scalarMarker)
 			if (!parser) continue
 			ambient.add('host')
 			if (direct.kind === 'text') {
@@ -1376,7 +1454,7 @@ const planHarvests = (
 			continue
 		}
 		if (direct) {
-			const parser = directSiteParser()
+			const parser = parserForSeed(shared, signal, scalarSeeded, scalarMarker)
 			if (!parser) continue
 			const { selector, unique } = resolveSelector(direct.element)
 			if (!unique) {
@@ -1428,7 +1506,7 @@ const planHarvests = (
 				)
 			: undefined
 		if (!loop || !plan || !valueAttr) {
-			reportUnharvestable(signal)
+			reportUnharvestable(shared, signal)
 			continue
 		}
 		// A scalar seed's membership read takes the marker's parser when
@@ -1446,9 +1524,16 @@ const planHarvests = (
 			default: defaultForType(signal.inferredType),
 		}
 		if (scalarSeeded && scalarMarker)
-			harvests.push({ ...membership, parser: authoredParserOf(scalarMarker) })
+			harvests.push({
+				...membership,
+				parser: authoredParserOf(shared, signal, scalarMarker),
+			})
 		else {
-			if (scalarSeeded && !parserForSeed()) continue
+			if (
+				scalarSeeded &&
+				!parserForSeed(shared, signal, scalarSeeded, scalarMarker)
+			)
+				continue
 			harvests.push(membership)
 		}
 	}
