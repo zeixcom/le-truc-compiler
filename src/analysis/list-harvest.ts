@@ -39,7 +39,6 @@ import {
 import { wordingOf } from '../surface'
 import { DIRTY_FLAG_ATTRS } from '../vocabulary'
 import { childNodes, hasArmSet } from '../walk'
-import { reportServerOnlyNames } from './effects'
 import { formattingOf } from './harvest'
 import type {
 	HarvestPlan,
@@ -48,6 +47,7 @@ import type {
 	ReconcilePlan,
 } from './plan'
 import { type ElementNode, isElement, resolveScopedSelector } from './selectors'
+import { reportServerOnlyNames } from './server-only-names'
 
 /* === Internal Functions === */
 
@@ -364,8 +364,6 @@ const identityKeyOf = (call: AstNode | null): string | null => {
 }
 
 /* === Exported Functions === */
-
-export { harvestsPerField }
 
 /**
  * Plan an arg-seeded list's per-field harvest, or report why it cannot be

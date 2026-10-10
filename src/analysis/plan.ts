@@ -36,11 +36,12 @@ import {
 } from '../vocabulary'
 import { walkTemplate } from '../walk'
 import { type ComposeRefs, resolveComposeRefs } from './compose-refs'
-import { reportServerOnlyNames, runEffects } from './effects'
+import { runEffects } from './effects'
 import { runHarvest } from './harvest'
 import { runLoops } from './loops'
 import { addQuery, renderOnlyBindings } from './naming'
 import { composedShapesFor } from './selectors'
+import { reportServerOnlyNames } from './server-only-names'
 
 /* === Types === */
 
