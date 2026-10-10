@@ -19,7 +19,8 @@ import { isDirtyFlagControlAttr } from '../vocabulary'
  * its value. A bare host-prop mirror always dispatches as a PROPERTY —
  * attribute dispatch would be wrong for property-backed targets like
  * `input.value`. LT-116: a dirty-flag IDL attribute (`value`/`checked`/
- * `selected`) on a native form control dispatches as a property too,
+ * `selected`) on a native dirty-flag control (`input`/`select`/`textarea`/
+ * `option`) dispatches as a property too,
  * mirror or not — once the control is dirty, rewriting the content
  * attribute no longer moves the live property, so `bindAttribute` would
  * silently stop tracking (the form-radiogroup mutual-exclusion break,
