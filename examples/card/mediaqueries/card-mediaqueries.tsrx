@@ -1,6 +1,6 @@
 /**
  * Isomorphic-format migration: card-mediaqueries — a context consumer
- * demonstrating `requestContext()` (LT-035, ADR 0024 sub-design 15).
+ * demonstrating `requestContext()`.
  *
  * Deviation from the hand-written `card-mediaqueries.ts`: the original is a
  * light-DOM ENHANCER, not a template owner — it queries pre-existing

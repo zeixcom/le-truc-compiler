@@ -31,7 +31,7 @@ export default defineComponent<ModuleCodeblockProps>(
 
 		const copy = first('basic-button.copy')
 		// A raw EffectDescriptor only runs (and cleans up) when registered
-		// through an effect helper — called bare it is discarded (LT-096).
+		// through an effect helper — called bare it is discarded.
 		if (copy)
 			watch(
 				() => true,

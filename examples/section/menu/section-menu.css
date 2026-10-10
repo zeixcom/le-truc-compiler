@@ -1,6 +1,6 @@
 /* Exception to scoping rule (see module-dialog.css's body.scroll-lock for
    prior art): `.docs-body`/`.docs-main` are the two-column shell wrapper
-   LT-001 added around `<section-menu>` in docs-src/layouts/*.html — they're
+  around `<section-menu>` in docs-src/layouts/*.html — they're
    siblings/ancestors of the component, not inside it, but the sidebar-role
    layout only reads as a sidebar once these are a flex row. Below 48em
    `section-menu` is off-canvas (see the max-width query below), so the

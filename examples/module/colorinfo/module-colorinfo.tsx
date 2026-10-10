@@ -1,5 +1,5 @@
 /**
- * Wave-4 migration (LT-098) of the hand-written module-colorinfo.ts, which
+ * Wave-4 migration of the hand-written module-colorinfo.ts, which
  * stays beside this source as the variant set's `.ts` twin (ADR 0039). Every
  * member declares its own `HTMLElementTagNameMap` entry (s4).
  *
@@ -13,7 +13,7 @@
  * `truc:pass` on each `BasicNumber` site: the two same-class sites of a
  * channel carry identical objects, so they share one `all()` query (LT-319).
  * culori modes register through the `asOklch` import, the corpus's one
- * culori setup point (LT-091 finding 3).
+ * culori setup point.
  */
 
 import { bindStyle, bindText, type FactoryContext } from '@zeix/le-truc'

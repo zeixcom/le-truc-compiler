@@ -3,16 +3,15 @@ import { converter, formatCss, type Oklch } from 'culori'
 
 /*
  * FORM-COLORGRAPH COMPONENT TESTS — against the compiled `.tsrx` component
- * served from the plain /test page (LT-092 site cutover).
+ * served from the plain /test page.
  *
- * LT-091 originally route-intercepted this URL to serve the generated server
+ * Originally route-intercepted this URL to serve the generated server
  * HTML with a dedicated second bundle (examples/tsrx-test.ts →
  * /assets/tsrx-test.js) — the isolation existed only to keep the compiled and
  * hand-written definitions of the tag out of one document. Since the cutover,
  * examples/main.ts imports the generated clients directly, so main.js IS the
  * compiled client and the plain page exercises the same surface without
- * interception. That page-level surface is where LT-090's dropped compose-site
- * class shipped invisible: the unit suite asserted client codegen strings,
+ * interception. The unit suite asserted client codegen strings,
  * never real DOM, so the required `first('form-spinbutton.lightness')` queries
  * matched nothing and the component threw at activation. The activation test
  * below is the direct regression guard for exactly that failure mode.
@@ -60,7 +59,7 @@ test.describe('form-colorgraph component (compiled .tsrx)', () => {
 		)
 	})
 
-	test('activates without MissingElementError — composed refs resolve (LT-090 regression guard)', async ({
+	test('activates without MissingElementError — composed refs resolve', async ({
 		page,
 	}) => {
 		const errors: string[] = []
@@ -74,7 +73,7 @@ test.describe('form-colorgraph component (compiled .tsrx)', () => {
 
 		// The composed per-axis refs are the only constructs addressed through
 		// a required `first()` over a discriminator — when the compose-site
-		// class never reached the DOM (LT-090), the required queries threw
+		// class never reached the DOM, the required queries threw
 		// MissingElementError at exactly this point.
 		const wired = await page.evaluate(() => {
 			const el = document.querySelector('form-colorgraph') as Colorgraph
@@ -96,7 +95,7 @@ test.describe('form-colorgraph component (compiled .tsrx)', () => {
 		await expect(component).toHaveAttribute('value', 'oklch(.48 .23 263)')
 
 		// The three axis spinbuttons are addressed by their compose-site class
-		// (the LT-089/LT-090 discriminator) — their inner inputs must exist
+		// — their inner inputs must exist
 		// and must carry NO name at all (only the host submits).
 		for (const axis of ['lightness', 'chroma', 'hue']) {
 			const input = page.locator(`form-spinbutton.${axis} input[type="number"]`)
@@ -144,8 +143,8 @@ test.describe('form-colorgraph component (compiled .tsrx)', () => {
 	test('each axis form-spinbutton is bounded by its own min/max attributes', async ({
 		page,
 	}) => {
-		// min/max/step/bigStep are compose-site args on each <FormSpinbutton>
-		// (LT-088); exercise the spinbuttons directly (not via
+		// min/max/step/bigStep are compose-site args on each <FormSpinbutton>;
+		// exercise the spinbuttons directly (not via
 		// form-colorgraph's stepUp/stepDown, which additionally gates commits
 		// on gamut) to isolate that bounds resolution specifically.
 		const hue = await page.evaluate(() => {
@@ -181,7 +180,7 @@ test.describe('form-colorgraph component (compiled .tsrx)', () => {
 		// Type 270 into the hue spinbutton's input and commit — the child's
 		// onChange harvest writes its own value Slot and dispatches change,
 		// which the parent's per-axis `on(<ref>, 'change', …)` handler commits
-		// into host.value (the composed-ref read path LT-089/LT-090 enable).
+		// into host.value.
 		// 270 stays within the P3 gamut at the other axes' current values
 		// (the in-gamut band around the seed chroma is roughly hue 255–290);
 		// out-of-gamut hues are correctly rejected by the next test.

@@ -1,9 +1,6 @@
 /**
- * TSRX migration: form-colorgraph — the LT-070 acceptance case for LT-069's
- * widened client-only setup-statement gate, blocked twice more along the way
- * (LT-087: a composed element's own `ref={}` wasn't visible to a bare setup
- * statement — the implicitness LT-127 later removed outright by retiring
- * composed `ref={}`; LT-089: addressing/`pass={{ }}` on more than one same-source
+ * TSRX migration: form-colorgraph the implicitness LT-127 later removed outright by retiring
+ * composed `ref={}`: addressing/`pass={{ }}` on more than one same-source
  * composed element — the three `<FormSpinbutton>` axes — was unconditionally
  * rejected). All three landed; this is the component that needed all of
  * them at once.
@@ -22,15 +19,15 @@
  * ALSO emitted verbatim into both modules — but nested locals inside the one
  * bare client-only statement that uses each of them, never shared.
  *
- * `style={() => ({ … })}` (LT-028/LT-029) requires the arrow's body to be a
+ * `style={() => ({ … })}` requires the arrow's body to be a
  * literal object expression — `style={() => stepStyle(...)}` (a function
  * call) does not qualify and would silently misclassify as a plain reactive
  * attribute expecting a string. The 8 step swatches and the knob/thumb
  * therefore inline their `background-color`/`border-color`/`left`/`top`
  * object literals directly rather than sharing a `stepStyle()` helper call.
  *
- * The three axis spinbuttons are addressed via `first('form-spinbutton.…')` (LT-127; LT-087/
- * LT-089): the parent pushes the display-scaled value down with
+ * The three axis spinbuttons are addressed via `first('form-spinbutton.…')`
+ * the parent pushes the display-scaled value down with
  * `watch(() => toDisplay(…), bindProperty(el, 'value'))` and reads
  * committed changes back via a per-axis `on(<ref>, 'change', …)` — the
  * exact shape the hand-written original uses, now that a composed ref
@@ -42,7 +39,7 @@
  * formResetCallback baseline restore — all route through the parent's
  * setter; the reset case then re-commits the child's 0 baseline over the
  * freshly restored host color (both found by form-colorgraph.spec.ts's
- * first real-DOM run, LT-091; the getter-only pass additionally made every
+ * first real-DOM run; the getter-only pass additionally made every
  * child write throw ReadonlySignalError).
  * `name=""` on each: they are presentational sub-controls (only
  * `form-colorgraph` itself submits, under its own `name`) — an empty `name`
@@ -367,8 +364,7 @@ export function FormColorgraph(
 	// the child's `value` Slot for the life of the connection, so the child's
 	// own writes route through the parent's setter — including the library's
 	// built-in formResetCallback baseline restore, which then re-commits the
-	// child's 0 baseline over the freshly reset host color (found by
-	// form-colorgraph.spec.ts's first real-DOM run, LT-091). With the child
+	// child's 0 baseline over the freshly reset host color. With the child
 	// owning its value and the parent pushing, form reset restores the host
 	// attribute and the push re-syncs the displays from it.
 	watch(() => toDisplay('l', host.lightness), bindProperty(lightnessEl, 'value'));

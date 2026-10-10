@@ -51,7 +51,7 @@ test.describe('module-codeblock component', () => {
 	test('only the overlay expands — not the composed copy button', async ({
 		page,
 	}) => {
-		// Pins LT-096's selector fix: the overlay's query must not match the
+		// Pins selector fix: the overlay's query must not match the
 		// composed basic-button's own <button>, which comes first in the DOM.
 		const codeblock = page.locator('module-codeblock').first()
 
@@ -62,7 +62,7 @@ test.describe('module-codeblock component', () => {
 	test('clicking copy toggles the label and copies the code', async ({
 		page,
 	}) => {
-		// Pins LT-096: the copy effect is a raw EffectDescriptor, which only
+		// Pins the copy effect is a raw EffectDescriptor, which only
 		// attaches when registered through an effect helper — called bare,
 		// the click listener never existed and the label stayed "Copy".
 		const codeblock = page.locator('module-codeblock').first()

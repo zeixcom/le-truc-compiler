@@ -1,6 +1,6 @@
 /**
  * Unified-format spike: form-textbox — extension activation and the widened
- * FormFactoryContext (LT-005, ADR 0024 sub-design 8).
+ * FormFactoryContext.
  *
  * Beyond basic-counter / module-tabgroup:
  * - `export const config` activates defineComponent's third argument with zero
@@ -9,14 +9,14 @@
  *   overload), and emits them as the generated client's extensions array
  * - Parser-backed attribute-driven props: `expose({ value: asString('') })`
  *   seeds `value` from the HOST's `value` attribute at connect (ADR 0003).
- *   `value` is deliberately NOT in `observedAttributes` (LT-057): the
+ *   `value` is deliberately NOT in `observedAttributes`: the
  *   attribute is the reset baseline (`host.defaultValue`), not a live-value
  *   channel — re-parsing it on every mutation would push the baseline into
  *   the live `value` prop, exactly the "reflecting overwrites the reset
- *   baseline" bug LT-057 closes from the other direction. `defaultValue` and
- *   `formResetCallback` are installed by `formAssociated()` itself (LT-056/
- *   LT-057) — a component must NOT `expose()` either, which is exactly the
- *   shadowing bug LT-058 catches at compile time.
+ *   baseline" bug from the other direction. `defaultValue` and
+ *   `formResetCallback` are installed by `formAssociated()` itself
+ *   — a component must NOT `expose()` either, which is exactly the
+ *   shadowing bug at compile time.
  * - `defineMethod()` brands the `clear` method producer
  * - `value={() => host.value}` mirrors the host prop onto the control — lowers
  *   to `watch(() => host.value, bindProperty(input, 'value'))` (property
@@ -26,7 +26,7 @@
  *   client construct (`analysis/effects.ts` `handleIfEffects`), so if the two
  *   branches' `value` attributes ever diverge, the mirror silently vanishes
  *   from the generated client — see NOTES.md for the compiler-level fix this
- *   points at (LT-066: `<textarea value={…}>` should lower to text-content
+ *   points at (`<textarea value={…}>` should lower to text-content
  *   SSR, not an attribute, making this symmetry unnecessary). Textarea also
  *   renders its initial value as text content (`{value}`) since `value` is
  *   not a real HTML attribute there — the attribute is harmlessly ignored by
@@ -186,7 +186,7 @@ export function FormTextbox(
 			.filter(Boolean)
 			.join(' ') || null;
 	// One @if branch renders <textarea>, the other <input> — a single name
-	// spanning both via a comma selector (LT-055), verified structurally as
+	// spanning both via a comma selector, verified structurally as
 	// mutually-exclusive @if branch roots.
 	const input = first('input, textarea', 'text control');
 

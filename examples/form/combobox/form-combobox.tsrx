@@ -131,8 +131,7 @@ export function FormCombobox(
 	// own `aria-expanded` go through the one predicate, as they did in the
 	// twin.
 	//
-	// Deliberately CLIENT-ONLY setup statements (the LT-069/LT-070
-	// form-inplace-edit precedent) rather than reactive JSX attributes: the
+	// Deliberately CLIENT-ONLY setup statements rather than reactive JSX attributes: the
 	// predicate reads a ref, so the server cannot fold it, and as attribute
 	// thunks both attributes would be silently OMITTED from the initial HTML
 	// (LTC034) — which for `hidden` means serving the popup OPEN until

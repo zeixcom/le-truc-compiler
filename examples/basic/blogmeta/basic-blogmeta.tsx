@@ -1,9 +1,9 @@
 /**
- * Wave-4 migration (LT-095) of the hand-written basic-blogmeta.ts, reshaped
- * from a light-DOM enhancer into a template owner with typed byline props
- * (LT-033 decision, 2026-08-29). The `.ts` twin stays beside this source as
- * the variant set's other member (ADR 0039), and every member declares its
- * own `HTMLElementTagNameMap` entry (s4).
+ * Wave-4 migration of the hand-written basic-blogmeta.ts, reshaped
+ * from a light-DOM enhancer into a template owner with typed byline props.
+ * The `.ts` twin stays beside this source as
+ * the variant set's other member, and every member declares its
+ * own `HTMLElementTagNameMap` entry.
  *
  * The template re-emits all the schema.org microdata the old light DOM
  * carried: the `author` Person, `datePublished`, `dateModified`, and a

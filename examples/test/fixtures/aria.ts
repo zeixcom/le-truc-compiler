@@ -28,7 +28,7 @@ export type AriaNodeSnapshot = {
 	 * `description` field) — how a role like `button` surfaces an
 	 * `aria*DescribedByElements`/`aria-describedby` relationship. Some roles
 	 * (e.g. `combobox`) instead surface it as a `describedby` entry in
-	 * `props` — check both (LT-003 finding).
+	 * `props` — check both.
 	 */
 	description: string
 	props: Record<string, string>

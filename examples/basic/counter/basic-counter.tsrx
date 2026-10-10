@@ -1,8 +1,7 @@
 /**
  * Unified-format spike: basic-counter — client component GENERATED from source.
  *
- * Final convention after the 2026-08-22 refinement, amended 2026-08-27
- * (ADR 0024 sub-design 4, LT-079):
+ * Final convention after the 2026-08-22 refinement, amended 2026-08-27:
  * - Signal constructors (createCell, …) are auto-imported into the generated
  *   client module from '@zeix/le-truc' (v2 bridge re-exported since 2.5.1);
  *   `expose`/`host` and the other FactoryContext helpers require an explicit

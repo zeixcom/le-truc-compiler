@@ -2,8 +2,8 @@ import { expect, type Page, test } from '@playwright/test'
 import { computedAriaTree, engineOf } from '../fixtures/aria'
 
 /**
- * Playwright-tier verification for `bindAria()` (LT-007) and the
- * ElementInternals declaration registry (LT-008), per ADR 0026.
+ * Playwright-tier verification for `bindAria()` and the
+ * ElementInternals declaration registry.
  *
  * The stale-attribute rule's contract halves are attribute-observable on
  * every engine; the internals side is read back through the declaration
@@ -153,7 +153,7 @@ test.describe('test-aria: axe-core visibility via the declaration registry', () 
 			return (result.violations as Array<{ id: string }>).map(v => v.id)
 		}, selector)
 
-	test('registered component with an invalid attribute is flagged (LT-005 trap)', async ({
+	test('registered component with an invalid attribute is flagged', async ({
 		page,
 	}) => {
 		const violations = await axeViolations(page, '#trap')
@@ -209,8 +209,7 @@ test.describe('test-aria-late-ref: element reference to a :not(:defined) target'
 
 		// role=button surfaces a description relationship as the top-level
 		// `description` field, not a `describedby` property — a role-dependent
-		// AX-tree shape difference (see adr/archive/0026-poc-findings.md, LT-003
-		// finding 3).
+		// AX-tree shape difference.
 		const tree = await computedAriaTree(page, '#late-ref')
 		expect(tree.role).toBe('button')
 		expect(tree.description).toBe('a not-yet-defined description')

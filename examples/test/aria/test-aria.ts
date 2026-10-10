@@ -25,8 +25,8 @@ declare global {
 }
 
 /**
- * Test component for `bindAria()` (ADR 0026) and the element-internals
- * declaration registry (LT-007/LT-008).
+ * Test component for `bindAria()` and the element-internals
+ * declaration registry.
  *
  * `<test-aria>` exercises the stale-attribute rule on host internals: the
  * server-rendered `aria-expanded` is adopted as initial state (ADR 0003 —
@@ -40,7 +40,7 @@ declare global {
  * attribute keeps authority while the source routes `nil`, and only the
  * first resolved assertion removes it.
  *
- * `<test-aria-trap>` / `<test-aria-trap-ok>` are the LT-005 axe-core trap,
+ * `<test-aria-trap>` / `<test-aria-trap-ok>` are axe-core trap,
  * ported to a real `defineComponent` so the Truc constructor's registry
  * registration is what makes internals visible to axe: the trap carries an
  * `aria-checked` attribute that is invalid for its internals-set `button`

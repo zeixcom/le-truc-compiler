@@ -74,7 +74,7 @@ test.describe('form-combobox component', () => {
 			await expect(textbox).toHaveAttribute('aria-expanded', 'false')
 			// aria-describedby is wired via ariaDescribedByElements (ADR 0026 §1
 			// element-reference channel), not a plain ID string — the mirrored
-			// content attribute is present but empty (LT-003 finding 5), so the
+			// content attribute is present but empty, so the
 			// relationship must be asserted through the IDL property, not
 			// toHaveAttribute's string match.
 			const describesDescription = await page.evaluate(() => {

@@ -1,7 +1,7 @@
 /**
  * Isomorphic-format migration: card-collapsible — a native `<details>`/
  * `<summary>` wrapper whose reactive boolean `open` prop mirrors the
- * descendant `<details>` element's own `open` state (LT-033).
+ * descendant `<details>` element's own `open` state.
  *
  * Deviation from the hand-written `card-collapsible.ts`: the original
  * harvests `open` once from the pre-existing `<details open>` light-DOM

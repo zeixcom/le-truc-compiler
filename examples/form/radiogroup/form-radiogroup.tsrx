@@ -1,14 +1,14 @@
 /**
  * TSRX migration: form-radiogroup — a single template-owned component with
  * `options` and `legend` props replacing the hand-written enhancer's
- * variable, author-supplied `<fieldset>`/`<label>`/`<input>` light DOM
- * (LT-0xx). Styling variants (`.radio-group`, `.split-button`) stay
+ * variable, author-supplied `<fieldset>`/`<label>`/`<input>` light DOM.
+ * Styling variants (`.radio-group`, `.split-button`) stay
  * author-set `class` attributes on `<form-radiogroup>` — CSS already scopes
  * on them, so no extra prop is needed for that axis.
  *
  * Roving-tabindex keyboard navigation ported from form-radiogroup.ts's
- * `on(host, 'keydown'/'keyup')` handlers as bare setup statements (LT-070,
- * now that LT-069 widened the client-only setup-statement gate to admit the
+ * `on(host, 'keydown'/'keyup')` handlers as bare setup statements
+ * (now with widened the client-only setup-statement gate to admit the
  * `on`/`watch` ambients directly, matching the hand-written original exactly
  * instead of the earlier per-element `onKeydown`/`onKeyup` JSX-attribute
  * workaround). Tracking which radio currently has roving focus is read from
@@ -18,9 +18,9 @@
  * already reflects directly, so no extra state (and no LTC004 "never
  * rendered" signal) is needed at all.
  *
- * Cutover notes (LT-116): the loop input's `checked` mirror lowers to a
+ * Cutover notes: the loop input's `checked` mirror lowers to a
  * PROPERTY write (the compiler's dirty-flag dispatch widening — the reason
- * this cutover was stopped under LT-092), and `disabled={() => host.disabled}`
+ * this cutover was stopped), and `disabled={() => host.disabled}`
  * restores the twin's per-radio disabled propagation. The label's class
  * thunk is the map form (`{ selected: … }` → `bindClass`, toggling one
  * token) — the twin's `classList.toggle('selected', …)` preserved any other

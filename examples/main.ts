@@ -33,7 +33,7 @@ configureHtmlSanitizer(html =>
 )
 
 import '../server/generated/components/basic-blogmeta.client.ts'
-// Site cutover (LT-092): every migrated component mounts its COMPILED client
+// Site cutover: every migrated component mounts its COMPILED client
 // from server/generated/components (gitignored build output — scripts/build-corpus.ts
 // regenerates it; build:examples:js runs that compiler step before bundling,
 // and server/build.ts sequences the tsrx effect in phase 1 ahead of the js
@@ -131,7 +131,7 @@ import './test/watch/test-watch.ts'
 // extracts proper PascalCase names + descriptions for editor LSP awareness.
 //
 // card-blogpost and card-callout used to be stubs here too; both migrated to
-// .tsrx (fb06e37a, LT-033/LT-034) — same structural-only shape, now compiled
+// .tsrx — same structural-only shape, now compiled
 // from examples/card/{blogpost,callout}/*.tsrx and read into the CEM
 // manifest from their generated client, so a stub here would double-declare
 // the tag (verify-cem.ts's duplicate-tag guard).

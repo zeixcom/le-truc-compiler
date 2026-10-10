@@ -105,7 +105,7 @@ export function ModuleColoreditor(
 
 	const textbox = first('form-textbox', 'Needed to enter a CSS color.')
 	// LT-113: compose through the public prop — form-textbox exposes a
-	// writable description. Per the LT-091 write-ownership rules a
+	// writable description. Write-ownership rules a
 	// parent-derived/child-owned value is PUSHED with watch() +
 	// bindProperty() (a property WRITE flows through the exposed Slot
 	// into the cell the remaining-count derivation reads); a getter-only

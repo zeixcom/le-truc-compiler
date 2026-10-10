@@ -1,8 +1,7 @@
 #!/usr/bin/env bun
 
 /**
- * `check:corpus` (LT-011, ADR 0024 sub-design 6 amendment, stage 1; server
- * coverage added by LT-019; both authored surfaces since ADR 0032 s6).
+ * `check:corpus`.
  *
  * Compiles the whole corpus — `.tsx` and `.tsrx` sources alike, each through
  * its own front end — runs `tsc --noEmit` against the generated client AND
@@ -15,9 +14,8 @@
  * are span-mapped there. The server module is checked too: a composed call
  * is a real typed function call between two generated server modules
  * (`render<Name>({ … })`, ADR 0024 sub-design 10), so a missing or mistyped
- * server arg or `children` argument (LT-018) only shows up there; and every
- * text position renders through a typed sink on both halves (`text`/`textOf`
- * on the server, `bindText` on the client, ADR 0046 s6, LT-428), so an object
+ * server arg or `children` argument only shows up there; and every
+ * text position renders through a typed sink on both halves, so an object
  * or a boolean in a text position reports at its authored child.
  *
  * This is the CLI half: zero editor tooling, just `bun run check:corpus`

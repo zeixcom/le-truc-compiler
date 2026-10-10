@@ -22,7 +22,7 @@
  * `@for` loop's own OUTPUT ROOT (the `<button role="option">` itself, no
  * wrapping element needed) — unlike form-radiogroup.tsrx's nested
  * `<label><input></label>`, this component's one interactive unit per item
- * IS the loop's root, so it doesn't exercise the LT-037 nested-descendant
+ * IS the loop's root, so it doesn't exercise nested-descendant
  * fix at all, just the already-supported root-level case.
  *
  * The filter input/clear-button pair is guarded by two SEPARATE
@@ -30,7 +30,7 @@
  * both inside a shared `<div class="input">` — a single-branch `@if`
  * requires every client construct to sit on ITS OWN root element; deeper
  * elements (the input/button nested a level inside the `@if`'s wrapping
- * div) aren't walked, same category of gap as LT-037 but for `@if` instead
+ * div) aren't walked, same category of gap but for `@if` instead
  * of `@for`, not fixed here. The wrapping `<div class="input">` itself
  * stays unconditional (renders empty when `filterable` is false) so its
  * two children can each be their own single-element `@if` root.

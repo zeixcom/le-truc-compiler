@@ -111,7 +111,14 @@ stays here until the Architect and the owner refine it back to `open`.
   link in 0002, 0010–0012 and 0014–0015 that this batch could resolve now
   points at our records. 0020 is ⏸️ On hold (owner ruling: recorded
   directions await real consumers; may land in a later minor).
-  Template and index are in place (`adr/0000`, `adr/adr-index.md`).
+  `adr/0022`–`adr/0027` — the final batch (Le Truc 0044–0049): the
+  corpus is **complete at 27 records**. 0027 records the owner's two
+  reversals of the split ADR with their reasons (ruling 6: the corpus
+  suite migrated for self-containment; ruling 7: the queue beat GitHub
+  issues for agent-driven work). Every in-corpus forward reference now
+  resolves; only the authority links and stay-in-Le-Truc references
+  remain external. Template and index are in place (`adr/0000`,
+  `adr/adr-index.md`).
 
   **Classification (ruled 2026-10-10).** Adapters are complete (0010,
   0012, 0017 → 0002–0004). **Dropped, citation repair only:** sibling 0011
@@ -120,9 +127,28 @@ stays here until the Architect and the owner refine it back to `open`.
   port; no compiler decision of our own to record). **0024 is promoted to
   the port set** — the format decision is compiler-native and the
   citation graph's hub. Pending: 0025 (likely citation repair only — its
-  one citation explains a retired script). Remaining port set:
-  0044–0049 — 6 records (the final batch; closes 0005's last link and
-  0021's Reads). Next free ADR number: 0022.
+  one citation explains a retired script). **Port set complete** — 27
+  records, 0001–0027 (0020 on hold). Next free ADR number: 0028.
+
+  **Citation sweep COMPLETE (step 2).** Every in-repo citation maps to
+  this repo's numbering (docs, `src/`, `tests/`); the dangling
+  `../../adr/` links are remapped, the standing sibling pointers in
+  `ARCHITECTURE.md` replaced, stale sibling-doc mentions repaired, and the
+  old decision-log/tracker ids (D-NN, M-NN, LT-NNN) removed from the
+  living docs and JSDoc comments. Deliberately left: LT references inside
+  diagnostic message strings and generated-file banners (product text the
+  goldens may pin) — owner may rule. **Consolidation COMPLETE (step 3):**
+  `REQUIREMENTS.md` is rewritten as the north-star document — problem,
+  users, constraints, success criteria, then the per-area requirements
+  (citation anchors preserved) and the §13 decisions map covering all 27
+  records.
+
+  **Acceptance DONE (owner, 2026-10-10):** all records flipped to
+  ✅ Accepted except 0020 (on hold); the REQUIREMENTS §13 status note and
+  the index reflect it.
+
+  **Remaining.** The owner deletes the ported records in `../le-truc`
+  (step 4, the migration's last act).
 
   **Renumbering:** one number sequence for both classes, relative original
   order preserved. The mapping table below is built as adapters and ports
@@ -151,6 +177,12 @@ stays here until the Architect and the owner refine it back to `open`.
   | 0041 | 0019 | truc: intrinsic elements for compiler-consumed constructs in .tsx | port | 2026-10-10 (Proposed) |
   | 0042 | 0020 | The component stylesheet as a compiler artifact | port (on hold) | 2026-10-10 (On hold) |
   | 0043 | 0021 | The target-emitter interface — shared decisions, per-target syntax | port | 2026-10-10 (Proposed) |
+  | 0044 | 0022 | Structured, source-mapped diagnostics | port | 2026-10-10 (Proposed) |
+  | 0045 | 0023 | The structural-uniqueness proof runs on a materialized probe | port | 2026-10-10 (Proposed) |
+  | 0046 | 0024 | Reactive-list items as Mount Scopes | port | 2026-10-10 (Proposed) |
+  | 0047 | 0025 | Harvest through a key alias, witnessed by the render | port | 2026-10-10 (Proposed) |
+  | 0048 | 0026 | The children contract | port | 2026-10-10 (Proposed) |
+  | 0049 | 0027 | The compiler lives in its own repository | port | 2026-10-10 (Proposed) |
 
   **Execution order.**
 
@@ -202,3 +234,68 @@ stays here until the Architect and the owner refine it back to `open`.
      runtimes on PATH; if fewer than two are found, report whether it
      skips or fails — that behavior is the script's own and is not this
      task's to change.
+
+- [ ] TC-015: Diagnostic report views — JSON and SARIF (ADR 0022 s4)
+  **Area:** compiler
+  **Gates:** typecheck
+  **Context:** REQUIREMENTS §11.2 and ADR 0022 s4: the diagnostic record is
+  public API and its views are projections of one stream, so the views
+  cannot disagree. The record shape is live in `src/diagnostics.ts`
+  (`code`/`severity`/`message`/`location`/`related`/`fix?`); only the
+  terminal reporter exists.
+
+  **Scope:** a JSON report (the records as data, for scripts and tests)
+  and a SARIF report (for CI code scanning), each a pure projection of the
+  same stream. Additive — the record shape does not change. A TypeScript
+  language-service plugin is explicitly out of scope.
+
+- [ ] TC-016: Shadow DOM mode (REQUIREMENTS §3.2) — parked ⏸
+  **Area:** compiler
+  **Context:** REQUIREMENTS §3.2 defines the opt-in mode — a declarative
+  shadow template as the root's first child; the `@scope` block unwraps
+  into the shadow root (`:scope` becomes `:host`, authored limits drop),
+  top-level rules move to the document stylesheet, `::slotted()` becomes
+  legal; harvest and ID references stop at the boundary. Unbuilt and
+  unscheduled. Filed so the requirement's one missing mode is tracked.
+
+  Opens with a design pass: the mode touches emission (ADR 0011 s9's
+  translation step), harvest scoping, generated locators and the children
+  contract's boundary rules.
+
+- [ ] TC-017: `truc:element` dynamic tag (REQUIREMENTS §3.4) — parked ⏸
+  **Area:** compiler
+  **Context:** ADR 0019 member 2 / REQUIREMENTS §3.4: the spelling of
+  `.tsrx`'s dynamic-tag expression — a server-known tag expression naming
+  an HTML element, folded in the Folded tier. Recorded, built when a
+  migration needs it. Until then both surfaces reject it with LTC053, and
+  in `.tsx` it is additionally a `tsc` error (no `IntrinsicElements`
+  entry). Filed so the recorded-but-unbuilt vocabulary member is tracked.
+
+- [ ] TC-018: The adapter seam — first-class reference adapter (REQUIREMENTS §4) — parked ⏸
+  **Area:** design
+  **Context:** REQUIREMENTS §4: source-to-source translation into
+  host-profile TSX for a declared profile version, with a source map back
+  to the input; diagnostics remap so authors see their own file;
+  translate-or-refuse; no plugin machinery. Experimental until a
+  first-class reference adapter exists — the seam's first design session
+  picks it (the old D-04 question: `.tsrx`-as-adapter versus an external
+  format) and the conformance shape. Includes the `.tsx.map` sidecar
+  pickup in the corpus entry point.
+
+- [ ] TC-019: Deferred dev loop — incremental API, watch plugins, output source maps — parked ⏸
+  **Area:** compiler
+  **Context:** REQUIREMENTS §2: the incremental API is additive and never
+  part of the initial contract — invalidation must run per module AND
+  along compose edges when it lands; whether Bun and Vite plugins are
+  first-party is undecided; output source maps for emitted files are a
+  separate deferred concern. Filed so the three deferrals are tracked in
+  one place.
+
+- [ ] TC-020: Complete the shared sanitize policy — server half configurable — parked ⏸
+  **Area:** compiler
+  **Context:** REQUIREMENTS §3.7 / ADR 0002: one application-provided
+  sanitize policy across both halves. The fail-closed defaults work today
+  on both halves; the configurable server-side policy is blocked on
+  TypeScript's DOM library shipping `TrustedHTML`-complete typings. Parked
+  on that external blocker; unblocks when the lib lands or a consumer asks
+  with a workaround proposal.

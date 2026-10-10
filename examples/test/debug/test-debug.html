@@ -4,10 +4,7 @@
 	<span id="unattributed"></span>
 	<basic-number id="child" value="0">0</basic-number>
 	<!--
-		A click target buried inside a structural-only custom element
-		(`module-demo` is a plain HTMLElement subclass with no `debug`
-		property — see examples/main.ts; `card-callout` served here until
-		LT-033 compiled it into a real component). The metaKey+click walk
+		A click target buried inside a structural-only custom element. The metaKey+click walk
 		must climb *past* it to reach the real host instead of stopping at
 		the first dashed tag it meets.
 	-->

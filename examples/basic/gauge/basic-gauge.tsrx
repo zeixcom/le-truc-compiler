@@ -4,11 +4,11 @@
  * `qualification` (label + color) reactively from `value` and a JSON
  * `thresholds` arg via `deriveCell`. The root's reactive
  * `style={() => ({ … })}` lowers to one `watch(thunk, bindStyle(host, keys))`
- * call (LT-028), so the ring's color and rotation stay live when `value`
+ * call, so the ring's color and rotation stay live when `value`
  * changes after connect — parity with the hand-written `basic-gauge.ts`.
  *
  * Contract notes (restored to the hand-written twin verbatim, per the
- * HOST_PROFILE data account — LT-115, closing the LT-092 stop):
+ * HOST_PROFILE data account):
  * - `value` is Parser-exposed with the inner `<meter>`'s own value as the
  *   fallback (`asNumber(meter.value)`), so markup that only sets the value on
  *   the meter — the demo page's shape — still seeds the prop (children are

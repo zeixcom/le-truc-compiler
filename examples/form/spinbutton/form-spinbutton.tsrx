@@ -68,7 +68,7 @@
  * an external `host.value` write resyncs the live input text even after
  * the user (or stepUp/stepDown) has set the native dirty-value flag. The
  * `value` ATTRIBUTE stays at the server-rendered default — the reset
- * baseline (LT-057), not a live-value channel.
+ * baseline, not a live-value channel.
  */
 import type { Children } from '@zeix/le-truc'
 import { asNumber, defineMethod, relayValidity } from '@zeix/le-truc'
@@ -252,7 +252,7 @@ export function FormSpinbutton(
 		}),
 	})
 
-	// Ported from the hand-written twin (LT-092 cutover): external writes to
+	// Ported from the hand-written twin: external writes to
 	// the exposed bounds/value (e.g. module-catalog lowering `max` after an
 	// availability check) must reach the native input AND re-relay validity —
 	// the ADR 0020 rangeOverflow+customError composition depends on the relay

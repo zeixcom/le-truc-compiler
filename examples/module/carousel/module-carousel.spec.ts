@@ -286,12 +286,12 @@ test.describe('module-carousel component', () => {
 	})
 
 	test.describe('Cleanup', () => {
-		// Regression test for the disconnect-cleanup bug found during LT-010:
+		// Regression test for the disconnect-cleanup bug:
 		// the scroll-navigation IntersectionObserver was set up via a raw
 		// returned-cleanup descriptor with no watch()/createEffect()/createScope()
 		// wrapping — activateResult() discards descriptor return values, so the
 		// observer was never actually disconnected. Wrapping it in
-		// watch(() => true, …) (LT-012) fixes it, since watch() calls
+		// watch(() => true, …) fixes it, since watch() calls
 		// createEffect() internally and that self-registers the returned cleanup
 		// on the active owner. This test instruments
 		// IntersectionObserver.prototype.disconnect before the component

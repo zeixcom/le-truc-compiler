@@ -1,5 +1,5 @@
 /**
- * Wave-4 migration (LT-096) of the hand-written module-codeblock.ts, which
+ * Wave-4 migration of the hand-written module-codeblock.ts, which
  * stays beside this source as the variant set's `.ts` twin (ADR 0039). Every
  * member declares its own `HTMLElementTagNameMap` entry (s4).
  *
@@ -13,8 +13,8 @@
  * (ADR 0033 s5, ADR 0048).
  *
  * The copy effect is a raw `EffectDescriptor`, so it registers through
- * `watch(() => true, …)` (AGENTS.md): called bare, as the twin did before
- * LT-096, the descriptor is created and discarded and the copy-click
+ * `watch(() => true, …)` (AGENTS.md): called bare, as the twin did,
+ * the descriptor is created and discarded and the copy-click
  * listener never attaches.
  */
 
@@ -79,7 +79,7 @@ export function ModuleCodeblock(
 	// Bound here rather than as the overlay's `onClick`: the selector the
 	// compiler synthesizes for a template handler is proven unique against
 	// THIS template only, so it would be a bare `button` — which matches the
-	// composed basic-button's own <button> first (NOTES.md, LT-096).
+	// composed basic-button's own <button> first.
 	on(overlay, 'click', () => ({ collapsed: false }))
 
 	// The copy button is optional (a page may author none), so the guard

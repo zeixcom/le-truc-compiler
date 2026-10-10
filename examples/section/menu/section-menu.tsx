@@ -81,7 +81,7 @@ export function SectionMenu(
 	 * Toggle-button contract: the page's mobile nav toggle is a `<button>`
 	 * living outside this component (in the slimmed-down page header), wired by
 	 * id — `document.getElementById(TOGGLE_ID)` — rather than `first()`, since
-	 * `first()` only searches descendants of the host. Matches LT-001's
+	 * `first()` only searches descendants of the host. Matches
 	 * `docs-src/layouts/*.html` (`id="sidebar-toggle"`, `aria-controls="sidebar"`,
 	 * `class="sidebar-toggle"`) and `server/templates/menu.ts` (`<section-menu
 	 * id="sidebar">`).

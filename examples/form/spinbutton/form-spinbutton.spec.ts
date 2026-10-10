@@ -361,7 +361,7 @@ test.describe('form-spinbutton component', () => {
 		// as a property write, so an external host.value write resyncs the
 		// input text even after stepUp/stepDown/onChange set the native
 		// dirty-value flag. The value ATTRIBUTE stays at the server-rendered
-		// default on purpose: it is the reset baseline (LT-057).
+		// default on purpose: it is the reset baseline.
 		await page.evaluate(() => {
 			const element = document.querySelector('form-spinbutton') as any
 			element.value = 5

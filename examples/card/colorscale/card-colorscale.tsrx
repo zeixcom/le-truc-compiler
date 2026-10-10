@@ -1,19 +1,19 @@
 /**
  * Isomorphic-format migration: card-colorscale — a named color swatch with a
  * full lightness-step scale, driven by a `value` prop parsed into Oklch via
- * the existing `asOklch()` custom Parser (LT-033, re-migrated for LT-034).
+ * the existing `asOklch()` custom Parser.
  *
  * Deviation from the hand-written `card-colorscale.ts`: the original builds
  * its 11 CSS custom properties (`base`, `text`, `text-soft`, four
  * `lighten*`, four `darken*`) in a `Map` via two `for` loops and applies
  * them with `host.style.setProperty()` calls inside one `watch()` callback.
- * TSRX's `style={() => ({ … })}` lowering (LT-028/LT-029) requires the
+ * TSRX's `style={() => ({ … })}` lowering requires the
  * object literal's keys to be statically enumerable at compile time — a
  * loop-computed key set can't be read by the compiler. The keys here are
  * fixed at 11 regardless (the loop bounds are constants), so the loop is
  * manually unrolled into one explicit 11-key object literal on the root's
  * `style` attribute; a `scale` `deriveCell` does the actual Oklch math in
- * one place (LT-034 landed import-placement inference, so `culori/fn` and
+ * one place (import-placement inference, so `culori/fn` and
  * the local color-math helpers below are usable directly in setup code —
  * they're inferred client-only, since both are only used inside the root's
  * `style={}` thunk, which the server never renders: its dependency is
@@ -22,7 +22,7 @@
  * The per-property math is factored into plain setup helper functions
  * (`step`, `isLight`) rather than a `deriveCell` — a `deriveCell` used only
  * inside a `style-map`/`class-map` thunk isn't registered as a harvest site
- * (LTC004 "signal never rendered"; tracked separately as LT-036), so it
+ * (LTC004 "signal never rendered"), so it
  * would need an unused dummy render site. Plain functions sidestep that gap
  * entirely — recompute per key, no caching, but no dummy DOM either.
  *

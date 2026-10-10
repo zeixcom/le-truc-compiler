@@ -75,7 +75,7 @@ export function FormInplaceEdit(
 		host.editing = false
 	}
 
-	// Host-level listeners (LT-070/LT-087): focus leaving the component
+	// Host-level listeners: focus leaving the component
 	// cancels, Enter commits, Escape cancels.
 	on(host, 'focusout', (e: FocusEvent) => {
 		if (!host.editing) return;

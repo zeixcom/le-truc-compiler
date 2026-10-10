@@ -86,8 +86,8 @@ function main() {
 	// and unresolvable declarations become `anonymous_N`.
 	const GARBAGE_NAMES = new Set(['Truc', 'J'])
 
-	// The migrated .tsrx corpus is read from gitignored generated clients
-	// (ADR 0024, LT-006). If `cem analyze` ran against a stale or empty
+	// The migrated .tsrx corpus is read from gitignored generated clients.
+	// If `cem analyze` ran against a stale or empty
 	// server/generated/components/, the corpus tags silently vanish from the
 	// manifest — this guard turns that into a build failure with the fix.
 	const REQUIRED_TAGS = [
@@ -131,7 +131,7 @@ function main() {
 
 	// A tag declared by two modules means a component migrated to .tsrx
 	// without excluding its hand-written .ts twin in
-	// custom-elements-manifest.config.mjs (LT-009). Every other check above
+	// custom-elements-manifest.config.mjs. Every other check above
 	// passes on such a manifest — without this guard the conflicting pair
 	// would be published.
 	const byTag = new Map<string, string[]>()

@@ -1,14 +1,13 @@
 #!/usr/bin/env bun
 
 /**
- * Migration codemod for LT-054's five React JSX near-misses. TSRX hard-
+ * Migration codemod for five React JSX near-misses. TSRX hard-
  * errors on `{cond && <jsx/>}` (TSRX021), `{cond ? <a/> : <b/>}` (TSRX022),
  * `.map()` producing JSX in child position (TSRX023), `return (<>…</>)`
  * (TSRX024), and `className`/`htmlFor` (LTC006) — not because they fail to
  * parse (they're ordinary JS/JSX), but because @tsrx/core's pinned grammar
  * has no implicit conditional-render or loop-render rule: every one of them
- * compiled silently into broken output before those diagnostics existed
- * (verified empirically when LT-054 was scoped).
+ * compiled silently into broken output before those diagnostics existed.
  *
  * A developer migrating a React component from `.tsx` to `.tsrx` writes
  * these idioms out of habit. This script rewrites the common, unambiguous

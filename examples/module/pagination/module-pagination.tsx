@@ -1,7 +1,7 @@
 /**
- * Wave-4 migration (LT-099) of the hand-written module-pagination.ts, which
- * stays beside this source as the variant set's `.ts` twin (ADR 0039). Every
- * member declares its own `HTMLElementTagNameMap` entry (s4).
+ * Wave-4 migration of the hand-written module-pagination.ts, which
+ * stays beside this source as the variant set's `.ts` twin. Every
+ * member declares its own `HTMLElementTagNameMap` entry.
  *
  * The template renders what module-pagination.html authors by hand, from the
  * `max`/`value` server args. Setup is the twin's, copied verbatim — including
