@@ -78,7 +78,7 @@ const reportNamedFormControls = (
  * addresses a branch by its roots: it binds the loop output with `first()`,
  * so only the first item gets its handlers. A loop wrapped in an element
  * inside the branch is not this shape: the wrapper is the branch root, and
- * a client construct inside it is already LTC005 (analysis/effects.ts,
+ * a client construct inside it is already LTC005 (analysis/branch-effects.ts,
  * "must sit on the branch root elements"). A loop's `@empty` arm is not a
  * branch, so the empty-state spellings stay legal.
  */

@@ -349,7 +349,7 @@ export const findRoleWriterConflicts = (
 /**
  * The parent's references into one compose site's content: ref name → the
  * referenced element. The same walk `planContentRefs` runs at effect
- * planning (analysis/effects.ts): the front end attached these ref attrs
+ * planning (analysis/compose-effects.ts): the front end attached these ref attrs
  * because the element collection enters compose content (ADR 0048 s1), and
  * a nested compose site is LTC011's refusal, not content to walk.
  */

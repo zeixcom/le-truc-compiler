@@ -490,7 +490,7 @@ export type HostPropRead = {
  * `() => !host.editing` (CHECKLIST §5, LT-085) — `emit-server.ts` splices
  * each returned range in place with the corresponding root attribute's
  * server expression to fold the whole thunk to an initial value; LTC034
- * (`analysis/effects.ts`) treats a non-null result the same as a bare
+ * (`analysis/construct-effects.ts`) treats a non-null result the same as a bare
  * mirror when deciding whether omission is safe.
  *
  * `foldableRefs` (LT-118) extends the same idea to a `first()`-bound ref
@@ -644,7 +644,7 @@ export const hostDerivedFold = (
  * so a `.get()` inside a spliced thunk renders the declared initial — the
  * same exposure the plain `isServerEvaluable` path already has.
  *
- * Consumers: `hostDerivedFold`'s `allow` in `analysis/effects.ts` (the
+ * Consumers: `hostDerivedFold`'s `allow` in `analysis/construct-effects.ts` (the
  * LTC034 routing check — it must agree with what the emitter folds) and
  * `emit-server.ts` (the fold itself). One implementation for both, or the
  * two drift.

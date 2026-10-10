@@ -17,14 +17,14 @@
  * - `@for` over server data renders once per item, hoisted consts included
  */
 
+import type { AstNode } from './ast-node'
+import { freeIdentifiers, hostPropOf } from './ast-utils'
 import {
 	type BoundaryArmRoot,
 	htmlThunkSignalName,
 	isBoundaryArmRoot,
 	lazyCatchMessageEl,
-} from './analysis/effects'
-import type { AstNode } from './ast-node'
-import { freeIdentifiers, hostPropOf } from './ast-utils'
+} from './boundary-arms'
 import {
 	CHILDREN_MARKER,
 	type ChildrenInsertions,
