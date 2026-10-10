@@ -23,9 +23,9 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { Glob } from 'bun'
-import { compileCorpus } from '../server/corpus-compile'
 import { collectCorpusSources, loadCorpusConfig } from '../src/corpus-scan'
 import { DEFAULT_CSS_TARGETS } from '../src/emit-paths'
+import { compileCorpus } from '../tests/corpus-compile'
 import {
 	BASELINE_ALLOWLIST,
 	checkPin,

@@ -51,9 +51,6 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { compileCorpus } from '../server/corpus-compile'
-import { REPO_ROOT } from '../server/corpus-sources'
-import { io } from '../server/runtimes'
 import { collectCorpusSources, loadCorpusConfig } from '../src/corpus-scan'
 import {
 	collectI18n,
@@ -62,6 +59,9 @@ import {
 	syncLocale,
 } from '../src/i18n-catalog'
 import type { InternalComponentRegistry } from '../src/registry'
+import { compileCorpus } from '../tests/corpus-compile'
+import { REPO_ROOT } from '../tests/corpus-sources'
+import { io } from '../tests/runtimes'
 
 const config = loadCorpusConfig(REPO_ROOT)
 

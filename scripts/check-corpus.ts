@@ -7,7 +7,7 @@
  * Compiles the whole corpus — `.tsx` and `.tsrx` sources alike, each through
  * its own front end — runs `tsc --noEmit` against the generated client AND
  * server modules (the emit-then-check already exercised in
- * `server/tests/compiler/client.golden.test.ts`), and remaps every
+ * `tests/client.golden.test.ts`), and remaps every
  * diagnostic's `generated-file:line:col` back onto its authored source
  * location through the span table each emitter records.
  *
@@ -28,8 +28,6 @@
 
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { compileCorpus } from '../server/corpus-compile'
-import { io } from '../server/runtimes'
 import { formatCensus, tierCensus, translationCensus } from '../src/census'
 import { collectCorpusSources, loadCorpusConfig } from '../src/corpus-scan'
 import { collectI18n } from '../src/i18n-catalog'
@@ -40,6 +38,8 @@ import {
 	findSpanForGeneratedOffset,
 	type SourceSpan,
 } from '../src/spans'
+import { compileCorpus } from '../tests/corpus-compile'
+import { io } from '../tests/runtimes'
 
 // The configuration this run compiles under (LT-255): a consumer's
 // `le-truc.config.json`, or — as in this repo — the defaults, which are this
