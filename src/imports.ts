@@ -31,6 +31,7 @@ import {
 	forEachFreeIdentifier,
 	freeIdentifiers,
 	identifierName,
+	identifiersIn,
 	isNode,
 	text,
 } from './ast-utils'
@@ -466,13 +467,13 @@ export const placeLeTrucImports = (
 	const serverUsage = serverUsageNames(component)
 	const clientUsage = computeClientNeededNames(component)
 	const typeNamesIn = (texts: readonly string[]): ReadonlySet<string> =>
+		// A name in an authored TYPE position counts only outside comments:
+		// strip them, then take the flat identifier tokens (`identifiersIn`).
 		new Set(
-			texts.flatMap(
-				t =>
-					t
-						.replace(/\/\*[\s\S]*?\*\//g, '')
-						.replace(/\/\/.*$/gm, '')
-						.match(/[A-Za-z_$][\w$]*/g) ?? [],
+			texts.flatMap(t =>
+				identifiersIn(
+					t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, ''),
+				),
 			),
 		)
 	const serverTypeNames = typeNamesIn(typeTexts.server)
@@ -879,13 +880,13 @@ export const placePlainImports = (
 	const serverNames = serverUsageNames(component)
 	const clientNames = computeClientNeededNames(component)
 	const typeNamesIn = (texts: readonly string[]): ReadonlySet<string> =>
+		// A name in an authored TYPE position counts only outside comments:
+		// strip them, then take the flat identifier tokens (`identifiersIn`).
 		new Set(
-			texts.flatMap(
-				t =>
-					t
-						.replace(/\/\*[\s\S]*?\*\//g, '')
-						.replace(/\/\/.*$/gm, '')
-						.match(/[A-Za-z_$][\w$]*/g) ?? [],
+			texts.flatMap(t =>
+				identifiersIn(
+					t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, ''),
+				),
 			),
 		)
 	const serverTypeNames = typeNamesIn(typeTexts.server)

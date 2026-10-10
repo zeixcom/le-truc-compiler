@@ -28,7 +28,13 @@ import type {
 	TopEffectPlan,
 } from './analysis/plan'
 import { freeIdentifiers, sanitizeVarName } from './ast-utils'
-import { CodeBuilder, isJsIdentifier, jsData, jsString } from './codegen'
+import {
+	CodeBuilder,
+	dataArmsSelector,
+	isJsIdentifier,
+	jsData,
+	jsString,
+} from './codegen'
 import { carriedKinds, FORMATTING_KINDS, type Message } from './icu/evaluate'
 import { clientSourceRecord } from './icu/parse'
 import { computeClientNeededNames } from './imports'
@@ -39,6 +45,7 @@ import {
 	type DirtyFlagControlTag,
 	FACTORY_CONTEXT_MEMBERS,
 } from './vocabulary'
+import { loopBindingNames } from './walk'
 
 /* === Types === */
 
@@ -500,7 +507,12 @@ const emitEachBlock = (
  * Every name the author binds in the factory scope, for the alias check in
  * {@link ClientImports}. `host`/`internals` are left out: the plan
  * addresses the root through the literal `host`, so an authored `host`
- * const is the author's own shadow, not a synthesized-site collision.
+ * const is the author's own shadow, not a synthesized-site collision. The
+ * client twin of `renderScopeNames` (emit-server.ts) — both feed the
+ * shadow-alias policy over the same `loopBindingNames` fors-walk core
+ * (walk.ts) and differ only in their extras: this set adds clientSetup,
+ * the signal names and the plan queries, and deliberately NO reconcile
+ * key (the factory never opens the list loop; the item mount binds it).
  */
 const factoryScopeNames = (
 	component: ComponentIR,
@@ -511,13 +523,7 @@ const factoryScopeNames = (
 		if (stmt.name) names.add(stmt.name)
 	for (const signal of component.signals) names.add(signal.name)
 	for (const query of plan.queries) names.add(query.name)
-	for (const loop of component.fors.values()) {
-		names.add(loop.itemName)
-		if (loop.kind === 'each') {
-			if (loop.indexName) names.add(loop.indexName)
-			for (const hoisted of loop.hoisted) names.add(hoisted.name)
-		} else for (const stmt of loop.setup) if (stmt.name) names.add(stmt.name)
-	}
+	for (const loop of component.fors.values()) loopBindingNames(loop, names)
 	names.delete('host')
 	names.delete('internals')
 	return names
@@ -926,7 +932,7 @@ export const emitClientModule = (
 				: ' return null'
 			thunk = `() => { switch (${plan.testText}) { ${cases.join('; ')} }${fallback} }`
 		}
-		const templates = `${plan.container}.querySelectorAll<HTMLTemplateElement>(${jsString(`:scope > template[data-arms="${plan.armSet}"]`)})`
+		const templates = `${plan.container}.querySelectorAll<HTMLTemplateElement>(${jsString(dataArmsSelector(plan.armSet))})`
 		const mounted = plan.arms.filter(
 			arm => arm.effects.length > 0 || arm.keyAttrs.length > 0,
 		)
@@ -1083,7 +1089,7 @@ export const emitClientModule = (
 	): void => {
 		const watch = imports.use('watch')
 		const unset = imports.use('UnsetSignalValueError')
-		const templates = `${plan.container}.querySelectorAll<HTMLTemplateElement>(${jsString(`:scope > template[data-arms="${plan.armSet}"]`)})`
+		const templates = `${plan.container}.querySelectorAll<HTMLTemplateElement>(${jsString(dataArmsSelector(plan.armSet))})`
 		const usesFirst = plan.arms.some(arm => arm.locals.length > 0)
 		out.open(
 			`${imports.local('reconcile')}(${plan.container}, ${templates}, () => {`,
@@ -1373,7 +1379,15 @@ export const emitClientModule = (
 	// whether or not the author imported the name (the profile declares it
 	// ambient). Tokenized over the emitted text like the server emitter's
 	// scan — it cannot under-match, and an authored import is deduplicated
-	// by the `clientLeTrucNames` filter below.
+	// by the `clientLeTrucNames` filter below. Lines-only is the WHOLE
+	// surface here (TC-007): every runtime position this emitter writes —
+	// effects, queries, `expose()` verbatim, clientSetup, requestContext
+	// re-declarations, item setups — flows through `out`, and the server
+	// scan's extra terms (the re-declared setup builder, the root
+	// attributes' HtmlWriter) have no client counterpart. The remaining
+	// module text — authored imports, type declarations — needs no runtime
+	// binding: a value read of `isPending` in authored client code is
+	// itself a line of `out`.
 	if (out.lines.some(line => /\bisPending\b/.test(line)))
 		imports.add('isPending')
 

@@ -159,6 +159,25 @@ export const enclosingLists = (
 }
 
 /**
+ * The names one loop binds in the scope that renders it (TC-007): the
+ * item; an `@each`'s index and hoisted consts; a reactive list's
+ * item-setup names. The reconcile key is NOT here, on purpose — the render
+ * scope binds it (the server loop opens `for (const [key, item] of …)`),
+ * the factory scope does not (its loop never opens; the item mount does) —
+ * so collectors add such extras themselves. The shared core of
+ * `renderScopeNames` (emit-server.ts) and `factoryScopeNames`
+ * (emit-client.ts), the shadow-alias policy's two name sets: whatever this
+ * walk returns, both must agree on.
+ */
+export const loopBindingNames = (loop: ForIR, into: Set<string>): void => {
+	into.add(loop.itemName)
+	if (loop.kind === 'each') {
+		if (loop.indexName) into.add(loop.indexName)
+		for (const hoisted of loop.hoisted) into.add(hoisted.name)
+	} else for (const stmt of loop.setup) if (stmt.name) into.add(stmt.name)
+}
+
+/**
  * Does `target` sit inside a Mount Scope other than the host (ADR 0046 s1)
  * — in an arm of an arm set, or inside a reactive-list item? Strict: an arm
  * set or a list is itself nested when its POSITION is, so a list whose

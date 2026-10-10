@@ -489,6 +489,19 @@ export const text = (
 		? source.slice(node.start, node.end)
 		: ''
 
+/**
+ * The identifier tokens of a text: maximal `[A-Za-z_$][\w$]*` runs, in
+ * order. Deliberately a flat text match, not a scope analysis — the
+ * reference tests it feeds (the server emitter's retention and
+ * harness-name scans, `imports.ts`'s type-name placement) ask what
+ * RESOLVES in text that must resolve verbatim, where a genuine reference
+ * appears character-for-character. Over-matching (a name inside a string
+ * literal or a comment) costs a dead binding at worst; each consumer
+ * documents its own trade-off.
+ */
+export const identifiersIn = (source: string): string[] =>
+	source.match(/[A-Za-z_$][\w$]*/g) ?? []
+
 export const attrName = (attr: AstNode): string => {
 	// `truc:pass` parses as a JSXNamespacedName (namespace + name), which
 	// `jsxName` deliberately does not flatten — it is also used for element
