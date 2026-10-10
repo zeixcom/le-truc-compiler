@@ -45,6 +45,14 @@ stays here until the Architect and the owner refine it back to `open`.
   **Affinity:** the demo corpus type-check (TC-012) exercises the same
   table; consumer-side typing becomes load-bearing with template emission
   (TC-006, TC-007).
+
+- [ ] TC-013: Gate the zero-config pin — check:corpus refuses a root le-truc.config.json
+  **Area:** tooling
+  **Context:** Incident 2026-10-10, during the iteration-2 review pass (owner-confirmed): a stale untracked `le-truc.config.json` sat at this repo's root, and the corpus run honored it — every corpus-executing test emitted modules importing the file's pre-TC-003 `runtimeImport` pin (`'../../compiler/runtime'`), failing 93 module resolutions deep in the suite instead of surfacing as a config problem. The root cause is now structural: ADR 0014 s2 pins this repository to a **zero-config setup** — "this repository carries no config file: it runs on the defaults"; in-tree harness overrides live per caller in code (`tests/helpers/generated-corpus.ts`, `scripts/build-demo.ts`). A root config file appearing at all violates the pin, and nothing in the gates would notice.
+
+  **Goal:** `scripts/check-corpus.ts` gains a preflight before the corpus pass runs: if `le-truc.config.json` exists at the repo root, exit non-zero citing ADR 0014 s2 (zero-config owner ruling, 2026-10-10) — the repo runs on the defaults; per-caller overrides live in code, and a root config is either a leftover to delete or a proposal to the Architect. One unit test asserts the preflight trips on the file's presence and passes on its absence (fixture dirs, not the real root).
+
+  No behavior change to compilation or emission; the default path keeps byte-identical output.
 ## P3 — later
 
 - [ ] TC-003: Migrate the ADR record — fresh corpus in this repo
@@ -87,9 +95,23 @@ stays here until the Architect and the owner refine it back to `open`.
   Le Truc ADR 0017 (list emission targets the keyed reconcile contract).
   `adr/0005` — the first port: Le Truc ADR 0024 in full, sixteen
   sub-designs re-anchored, s2 sharpened with the corpus-level
-  `registry.json`/D-32 wording; status carries the five amendments as
-  forward references until their ports land. Template and index are in
-  place (`adr/0000`, `adr/adr-index.md`).
+  `registry.json`/D-32 wording; status carries the remaining four
+  amendments as forward references until their ports land. `adr/0006`–
+  `adr/0009` — the simulation/tiering/i18n batch (Le Truc 0027–0030)
+  ported together, so their intra-batch citations use final numbers;
+  0005's reference to 0029 now resolves to 0008. `adr/0010`–`adr/0015` —
+  the surface/CSS/distribution/seam/config/conditions batch (Le Truc
+  0032–0037); 0005's amendment chain now holds only 0046, 0006's and
+  0008's Le Truc links resolve, and 0004's 0037 reference resolves to
+  0015. Owner rulings folded: 0014 records the zero-config posture (a
+  root config copied from the sibling was deleted — its pre-cutover
+  `runtimeImport` pin would have broken the main build; `check:corpus`
+  green after). `adr/0016`–`adr/0021` — the build-path/variants/IR/
+  intrinsics/stylesheet/emitter batch (Le Truc 0038–0043); every Le Truc
+  link in 0002, 0010–0012 and 0014–0015 that this batch could resolve now
+  points at our records. 0020 is ⏸️ On hold (owner ruling: recorded
+  directions await real consumers; may land in a later minor).
+  Template and index are in place (`adr/0000`, `adr/adr-index.md`).
 
   **Classification (ruled 2026-10-10).** Adapters are complete (0010,
   0012, 0017 → 0002–0004). **Dropped, citation repair only:** sibling 0011
@@ -99,7 +121,8 @@ stays here until the Architect and the owner refine it back to `open`.
   the port set** — the format decision is compiler-native and the
   citation graph's hub. Pending: 0025 (likely citation repair only — its
   one citation explains a retired script). Remaining port set:
-  0027–0030, 0032–0049 — 22 records. Next free ADR number: 0006.
+  0044–0049 — 6 records (the final batch; closes 0005's last link and
+  0021's Reads). Next free ADR number: 0022.
 
   **Renumbering:** one number sequence for both classes, relative original
   order preserved. The mapping table below is built as adapters and ports
@@ -112,6 +135,22 @@ stays here until the Architect and the owner refine it back to `open`.
   | 0012 | 0003 | Pass bindings accept only mediated forms | adapter | 2026-10-10 (Proposed) |
   | 0017 | 0004 | List emission targets the keyed reconcile contract | adapter | 2026-10-10 (Proposed) |
   | 0024 | 0005 | Adopt TSRX as the isomorphic component format | port | 2026-10-10 (Proposed) |
+  | 0027 | 0006 | Server simulation — render initial HTML by executing the client module | port | 2026-10-10 (Proposed) |
+  | 0028 | 0007 | Tiered error surfacing — compiler first, contained runtime | port | 2026-10-10 (Proposed) |
+  | 0029 | 0008 | Tiered server evaluation — route each component to the cheapest phase that can answer | port | 2026-10-10 (Proposed) |
+  | 0030 | 0009 | Internationalization as build-time server data | port | 2026-10-10 (Proposed) |
+  | 0032 | 0010 | Adopt .tsx as the primary authored surface (.tsrx retained) | port | 2026-10-10 (Proposed) |
+  | 0033 | 0011 | Compiled component CSS is platform CSS | port | 2026-10-10 (Proposed) |
+  | 0034 | 0012 | Distribution — @zeix/le-truc-compiler and template emission | port | 2026-10-10 (Proposed) |
+  | 0035 | 0013 | The simulation seam | port | 2026-10-10 (Proposed) |
+  | 0036 | 0014 | The corpus configuration surface | port | 2026-10-10 (Proposed) |
+  | 0037 | 0015 | Reactive conditions — conditional arms as template-cloned branches | port | 2026-10-10 (Proposed) |
+  | 0038 | 0016 | Runtime-neutral build path | port | 2026-10-10 (Proposed) |
+  | 0039 | 0017 | Canonical-plus-variants — one tag, build-selected surface spellings | port | 2026-10-10 (Proposed) |
+  | 0040 | 0018 | Typed IR contracts — discriminated unions and pass signatures | port | 2026-10-10 (Proposed) |
+  | 0041 | 0019 | truc: intrinsic elements for compiler-consumed constructs in .tsx | port | 2026-10-10 (Proposed) |
+  | 0042 | 0020 | The component stylesheet as a compiler artifact | port (on hold) | 2026-10-10 (On hold) |
+  | 0043 | 0021 | The target-emitter interface — shared decisions, per-target syntax | port | 2026-10-10 (Proposed) |
 
   **Execution order.**
 
@@ -122,8 +161,10 @@ stays here until the Architect and the owner refine it back to `open`.
      numbers — and in `src/`, where ~10 files cite ADR numbers in doc
      comments; fix the ~22 dangling `../../adr/` links and the
      `../../DONE.md` residue in `CONTEXT.md`; replace the two standing
-     sibling pointers in `ARCHITECTURE.md`. One commit, after the table is
-     complete.
+     sibling pointers in `ARCHITECTURE.md`; catch stale sibling-doc
+     mentions in our docs (`COMPILER_SPEC.md`, `LE_TRUC_COMPILER.md`,
+     `VOCABULARY_LEDGER.md` — e.g. `HOST_PROFILE.md:108`). One commit,
+     after the table is complete.
   3. Rework `REQUIREMENTS.md` with the owner: high-level overview plus the
      requirement→decision map. Keeps its traceability role for the queue.
   4. Owner act, in `../le-truc`: delete the port-class records (adapter
@@ -136,3 +177,28 @@ stays here until the Architect and the owner refine it back to `open`.
 - [ ] TC-010: Architecture review pass over css-scope.ts and sim/
   **Area:** design
   **Context:** Coverage gap from the 2026-10-10 architecture review: the deepening sweep covered the front ends, pipeline, corpus, contract, analysis, emitters and setup extraction, but `src/css-scope.ts` (1,582 lines — the scoped-CSS lowering, ADR 0033) and `src/sim/` (`realm.ts` 894, `patch-table.ts` 276, `boundary.ts` 123 — the Server Simulation driver, ADR 0027/0035) got only a structural glance, and no findings are claimed there. Owner + Architect session, not contributor work: apply the deepening heuristics (deletion test, interface-vs-implementation, locality, seams, coupling leaks — `references/deepening.md`), present numbered candidates, triage with the owner. Outcome feeds a later iteration's chain or the backlog.
+
+- [ ] TC-014: Wire check:portability and fix its stale header path
+  **Area:** tooling
+  **Gates:** typecheck
+  **Context:** ADR 0016 s4 names `scripts/corpus-portability-check.ts`
+  (LT-267) as the standing cross-runtime gate: bundle the published
+  `compileCorpus` entry once, run the same bundle under every runtime
+  found on PATH, compile the corpus into per-runtime scratch trees, and
+  require byte-identical emitted `.ts`/`.css`/`.json`. The script exists;
+  no `bun run` entry is wired — ADR 0016 records "the script is the gate
+  of record; the `bun run` entry is not yet wired". Owner ruling
+  2026-10-10: wire it.
+
+  **Scope:**
+
+  1. Add `"check:portability": "bun run scripts/corpus-portability-check.ts"`
+     to `package.json` — the script's own usage line already documents
+     that invocation; nothing else in the file changes.
+  2. Fix the script's stale header comment: it says the runtime seam
+     lives at `server/runtimes/` — post-move it is `tests/runtimes/`.
+     One line, comment only.
+  3. Run the wired entry and report the result. The check discovers
+     runtimes on PATH; if fewer than two are found, report whether it
+     skips or fails — that behavior is the script's own and is not this
+     task's to change.

@@ -10,7 +10,7 @@ and stabilized the analysis tree they touch (the import cycles, the
 effects split) — which is why the dedup runs now: every task in this
 iteration is byte-identical output by goldens.
 
-**Next free task ID:** TC-013
+**Next free task ID:** TC-015
 
 **Rulings.**
 

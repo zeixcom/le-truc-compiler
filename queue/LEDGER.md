@@ -18,3 +18,15 @@ deleted and its durable rulings carried here.
   main-checkout-shaped and breaks gate runs from task worktrees. The
   analysis dependency-shape rulings live on in `ARCHITECTURE.md` § 3 and
   the `src/analysis/` module headers.
+- 2026-10-10 — Iteration 2 pruned after the changelog pass: TC-006, TC-007,
+  TC-008, TC-009 (byte-identical refactors, judged internal — the changelog
+  carries TC-012's two user-visible additions), TC-012. The kept-pieces
+  rulings from the dedup track live in `ARCHITECTURE.md` § 3 and the
+  module headers (`effects.ts`'s forwarding adapters stay the
+  fx-parameterized export surface; the LT-122 synthesized-mirror branch
+  keeps its own dirty-flag call; the client-only gate stays two mechanisms,
+  contract documented on both gates). Open obligations carried from TC-012,
+  awaiting an owner ruling: whether `check:demo` also runs as a standing
+  test (nothing in `bun test tests` runs it — demo type drift is caught
+  only when a contributor runs the demo gates), and whether `AGENTS.md`'s
+  board paragraph cites it.
