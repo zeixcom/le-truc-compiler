@@ -8,11 +8,11 @@
  * (milestone gates); errors fail it.
  *
  * The `.tsx` surface's `compileComponentTsx`
- * (`server/compiler/frontend/tsx/index.ts`) is the same shell over the same pipeline
+ * (`src/frontend/tsx/index.ts`) is the same shell over the same pipeline
  * with the front end swapped — the anti-drift contract of ADR 0032
  * sub-design 6.
  *
- * Until TSRX reaches 1.0 this compiler lives in-repo (`server/compiler/`,
+ * Until TSRX reaches 1.0 this compiler lives in-repo (`src/`,
  * ROADMAP "Packaging"); with Le Truc v3.0 it ships as `@tsrx/le-truc`.
  */
 

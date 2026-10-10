@@ -1,17 +1,16 @@
 /**
  * The `.tsx` front end's compiler — the surface-specific half (LT-183 spike,
  * productionized by LT-202). Produces the same `ComponentIR` as
- * `server/compiler/frontend/tsrx/compiler.ts` (`ComponentIR` is the seam), so `analysis/*`,
+ * `src/frontend/tsrx/compiler.ts` (`ComponentIR` is the seam), so `analysis/*`,
  * both emitters, `tier.ts`, and `sim/` are reused unmodified.
  *
  * What is surface-specific here:
  *
- * - Parsing goes through the repo's `typescript` package
- *   (`ts.createSourceFile`, `ScriptKind.TSX`), converted to estree by
- *   `@typescript-eslint/typescript-estree` behind `to-estree.ts` — the
- *   `@tsrx/core` pin, `core.ts`, `core-shim.d.ts`, and `newerGrammarHint`
- *   have no role on this surface. A TypeScript parse error is LTC008, as a
- *   `@tsrx/core` parse error is on `.tsrx`.
+ * - Parsing is `@typescript-eslint/typescript-estree`'s own `parse()` in
+ *   `to-estree.ts` — no module under `src/` imports the `typescript`
+ *   package — and the `@tsrx/core` pin, `core.ts`, `core-shim.d.ts`, and
+ *   `newerGrammarHint` have no role on this surface. A TypeScript parse
+ *   error is LTC008, as a `@tsrx/core` parse error is on `.tsrx`.
  * - Module shape: one exported component function per file whose body is
  *   statements + a single `return <jsx/>`. Statements before the return are
  *   the setup (the `@{ }` block's replacement); the returned JSX (the bare root

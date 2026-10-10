@@ -3,7 +3,7 @@
  *
  * 1. Parity — every identifier the compiler recognizes as an ambient (signal
  *    constructors, context names, parser factories, `expose`, `defineMethod`,
- *    `FormAssociatedElement`) is declared in server/compiler/frontend/tsrx/globals.d.ts, and
+ *    `FormAssociatedElement`) is declared in src/frontend/tsrx/globals.d.ts, and
  *    the file declares nothing outside that vocabulary.
  * 2. Barrel parity — every recognized-name set that names `@zeix/le-truc`
  *    value exports is pinned against the package barrel (LT-232): subsets

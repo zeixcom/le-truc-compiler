@@ -70,7 +70,7 @@
  *   reused; the spent-number ledger is `VOCABULARY_LEDGER.md` (ADR 0028
  *   sub-design 1, as amended — the `LTC###` default, the six `TSRX###`
  *   `.tsrx`-grammar exceptions).
- * - Everything else under `server/compiler/` is internal and may change in
+ * - Everything else under `src/` is internal and may change in
  *   any release, including a patch release — the IR and `compileFromIR`
  *   included, and `compileComponentTsx` with them.
  *

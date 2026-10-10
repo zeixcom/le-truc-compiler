@@ -9,10 +9,10 @@
  * promise — a consumer holding the minimum version can always run what
  * this compiler emits:
  *
- * 1. The floor in `compiler/package.json`'s peer range must be satisfied
- *    by THIS repo's runtime version — the two packages release in
- *    lockstep from one checkout, so a runtime major (or a floor the
- *    current runtime cannot satisfy) fails here until the manifest moves.
+ * 1. The floor in `package.json`'s peer range must be satisfied by THIS
+ *    repo's runtime version — the two packages release in lockstep, so a
+ *    runtime major (or a floor the current runtime cannot satisfy) fails
+ *    here until the manifest moves.
  * 2. Every `@zeix/le-truc` import in the corpus's emitted client AND
  *    server modules — values and types, authored plain imports included —
  *    must exist in that version's export list. The export list is read

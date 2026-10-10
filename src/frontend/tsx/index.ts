@@ -1,9 +1,9 @@
 /**
  * The `.tsx` front end's public API (LT-183 spike, productionized by
- * LT-202): the SHARED pipeline (`server/compiler/pipeline.ts` — compose
+ * LT-202): the SHARED pipeline (`src/pipeline.ts` — compose
  * validation, `analyzeClient`, tier classification, both emitters, the
  * registry entry) over `compileSourceTsx`. Everything after the front end
- * is imported unmodified from `server/compiler/`; this shell differs from
+ * is imported unmodified from `src/`; this shell differs from
  * `compileComponent` ONLY in which front end parses the source — the
  * anti-drift contract of ADR 0032 sub-design 6.
  */
