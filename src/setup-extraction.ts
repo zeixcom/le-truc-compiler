@@ -27,7 +27,10 @@ import type {
 	ExposeKind,
 	ExposePropDecl,
 	ExposeStmt,
+	HarvestSeedIR,
+	InitSignalIR,
 	ItemSetupStmt,
+	ListItemIR,
 	SetupStmt,
 	SignalIR,
 	SourceRange,
@@ -176,6 +179,156 @@ const readThroughHarvest = (
 /** Is `node` a function expression (an initializer defined, not called)? */
 const isFunctionNode = (node: unknown): node is AstNode =>
 	isNode(node) && /Function(Expression)?$/.test(String(node.type))
+
+/**
+ * A `first()` call's parsed literal arguments (LT-055), as both setup
+ * loops record them.
+ */
+type FirstCallRef = {
+	selectorText: string
+	reasonText: string | null
+	maybe: boolean
+}
+
+/**
+ * The single-initialized-`const` guard both setup loops share. Returns
+ * the first declaration's name and initializer; null when `stmt` is no
+ * `VariableDeclaration` at all (the loops dispatch on that first) or —
+ * after reporting the refusal — anything but one initialized `const`
+ * with a plain identifier name.
+ */
+const singleConstDeclOf = (
+	ctx: ExtractContext,
+	stmt: AstNode,
+): { name: string; init: AstNode } | null => {
+	if (stmt.type !== 'VariableDeclaration') return null
+	const declarations = asArray(stmt.declarations)
+	const decl = declarations[0] ?? null
+	const name = identifierName(decl?.id)
+	if (
+		stmt.kind !== 'const' ||
+		declarations.length !== 1 ||
+		!name ||
+		!isNode(decl?.init)
+	) {
+		ctx.diagnostics.push(
+			diagnostic.unsupported(
+				ctx.source,
+				stmt,
+				'A setup declaration other than a single initialized `const`',
+				'Declare one initialized `const` per statement.',
+			),
+		)
+		return null
+	}
+	return { name, init: (decl as AstNode).init as AstNode }
+}
+
+/**
+ * Parse a `first(selector, required?)` call's literal arguments and
+ * validate the arity (LT-055): one literal (a selector alone) is the
+ * OPTIONAL form (LT-123) — the reference may be absent at activation and
+ * effects over it register under a presence guard; two literals (selector
+ * + required-reason) is the required form; anything else is LTC025,
+ * reported as `invalidFirstCall`. Only the refusal is shared: the
+ * component loop records an `elementRefs` entry, the item loop pushes a
+ * `kind: 'ref'` statement.
+ */
+const firstCallOf = (
+	ctx: ExtractContext,
+	stmt: AstNode,
+	init: AstNode,
+	name: string,
+): FirstCallRef | null => {
+	const args = asArray(init.arguments)
+	const [selectorArg, reasonArg] = args
+	const selectorText =
+		selectorArg?.type === 'Literal' && typeof selectorArg.value === 'string'
+			? selectorArg.value
+			: null
+	const reasonText =
+		reasonArg?.type === 'Literal' && typeof reasonArg.value === 'string'
+			? reasonArg.value
+			: null
+	const validArity = args.length === 1 || args.length === 2
+	if (
+		!validArity ||
+		selectorText === null ||
+		(args.length === 2 && reasonText === null)
+	) {
+		ctx.diagnostics.push(diagnostic.invalidFirstCall(ctx.source, stmt, name))
+		return null
+	}
+	return { selectorText, reasonText, maybe: args.length === 1 }
+}
+
+/**
+ * Refuse a ternary between two signal-constructor calls: with no single
+ * `.callee` the loop recognizes no signal at all, so it is diagnosed
+ * (`conditionalSignalConstructor`) rather than silently treated as an
+ * ordinary setup const (ADR 0024 sub-design 12). True when refused; the
+ * else paths stay with the loops (component: a plain const; item: the
+ * plain-const classification).
+ */
+const refuseConditionalSignalConstructor = (
+	ctx: ExtractContext,
+	stmt: AstNode,
+	init: AstNode,
+	name: string,
+): boolean => {
+	const consequentName = identifierName(
+		(init.consequent as AstNode | undefined)?.callee,
+	)
+	const alternateName = identifierName(
+		(init.alternate as AstNode | undefined)?.callee,
+	)
+	if (
+		consequentName &&
+		SIGNAL_CONSTRUCTORS.has(consequentName) &&
+		alternateName &&
+		SIGNAL_CONSTRUCTORS.has(alternateName)
+	) {
+		ctx.diagnostics.push(
+			diagnostic.conditionalSignalConstructor(ctx.source, stmt, name),
+		)
+		return true
+	}
+	return false
+}
+
+/**
+ * The signal IR both loops build from a recognized signal-constructor
+ * call (ADR 0040 s2): mutable constructors declare a Slot-backed signal,
+ * the rest derive one. `base` carries the family-neutral fields;
+ * `declared`/`derived` the loop's family-specific extras — the
+ * component's list fields and unresolvable-sensor mark, nothing for an
+ * item signal.
+ */
+const signalIROf = (
+	base: {
+		name: string
+		text: string
+		textStart: number
+		init: AstNode | null
+		inferredType: 'string' | 'number' | 'boolean' | 'unknown'
+	},
+	callee: string,
+	declared: { listItem?: ListItemIR; harvest?: HarvestSeedIR } = {},
+	derived: { unresolvable?: true } = {},
+): InitSignalIR =>
+	MUTABLE_SIGNAL_CONSTRUCTORS.has(callee)
+		? {
+				...base,
+				family: 'declared',
+				constructor: callee as DeclaredSignalIR['constructor'],
+				...declared,
+			}
+		: {
+				...base,
+				family: 'derived',
+				constructor: callee as DerivedSignalIR['constructor'],
+				...derived,
+			}
 
 /**
  * Why a `createSensor(start, options)` call has no server value, or null
@@ -357,26 +510,9 @@ export const extractSetup = (
 			)
 		}
 		if (stmt.type === 'VariableDeclaration') {
-			const declarations = asArray(stmt.declarations)
-			const decl = declarations[0] ?? null
-			const declName = identifierName(decl?.id)
-			if (
-				stmt.kind !== 'const' ||
-				declarations.length !== 1 ||
-				!declName ||
-				!isNode(decl?.init)
-			) {
-				ctx.diagnostics.push(
-					diagnostic.unsupported(
-						source,
-						stmt,
-						'A setup declaration other than a single initialized `const`',
-						'Declare one initialized `const` per statement.',
-					),
-				)
-				continue
-			}
-			const authoredInit = (decl as AstNode).init as AstNode
+			const single = singleConstDeclOf(ctx, stmt)
+			if (!single) continue
+			const { name: declName, init: authoredInit } = single
 			// A `harvest()` seed is read through to its seed for every
 			// consumer of the statement; the signal keeps the marker call.
 			const readThrough = seedHarvest
@@ -395,39 +531,8 @@ export const extractSetup = (
 			// it (same as `ref={}` names, which never entered these either).
 			// Handled entirely separately, before the generic push/set below.
 			if (identifierName(init.callee) === 'first') {
-				const args = asArray(init.arguments)
-				const [selectorArg, reasonArg] = args
-				const selectorText =
-					selectorArg?.type === 'Literal' &&
-					typeof selectorArg.value === 'string'
-						? selectorArg.value
-						: null
-				const reasonText =
-					reasonArg?.type === 'Literal' && typeof reasonArg.value === 'string'
-						? reasonArg.value
-						: null
-				// One literal (a selector alone) is the OPTIONAL form
-				// (LT-123): the reference may be absent at activation
-				// and effects over it register under a presence guard.
-				// Two literals (selector + required-reason) is the
-				// required form. Anything else is LTC025.
-				const validArity = args.length === 1 || args.length === 2
-				if (
-					!validArity ||
-					selectorText === null ||
-					(args.length === 2 && reasonText === null)
-				)
-					ctx.diagnostics.push(
-						diagnostic.invalidFirstCall(source, stmt, declName),
-					)
-				else {
-					elementRefs.set(declName, {
-						selectorText,
-						reasonText,
-						maybe: args.length === 1,
-						node: init,
-					})
-				}
+				const firstRef = firstCallOf(ctx, stmt, init, declName)
+				if (firstRef) elementRefs.set(declName, { ...firstRef, node: init })
 				continue
 			}
 			setupInits.set(declName, init)
@@ -454,7 +559,7 @@ export const extractSetup = (
 			// form-spinbutton's `commit`/`typed`/`stepBy`, and rejecting it would
 			// reject the corpus). Everything else is evaluated, including a
 			// compute thunk handed to a derived constructor.
-			if (!/Function(Expression)?$/.test(String(init.type))) {
+			if (!isFunctionNode(init)) {
 				const refReads = [...freeIdentifiers(init)]
 					.filter(n => elementRefs.has(n))
 					.sort()
@@ -532,8 +637,7 @@ export const extractSetup = (
 					(calleeName === 'deriveCell' ||
 						calleeName === 'deriveStore' ||
 						calleeName === 'createMemo') &&
-					isNode(computeArg) &&
-					/Function(Expression)?$/.test(computeArg.type)
+					isFunctionNode(computeArg)
 				const badContextNames = isDerivedCallback
 					? [...freeIdentifiers(computeArg as AstNode)].filter(n =>
 							CONTEXT_NAMES.has(n),
@@ -602,45 +706,18 @@ export const extractSetup = (
 							: matchedMarker?.kind === 'scalar'
 								? { harvest: matchedMarker }
 								: {}
-					const signal: SignalIR = MUTABLE_SIGNAL_CONSTRUCTORS.has(calleeName)
-						? {
-								...base,
-								family: 'declared',
-								constructor: calleeName as DeclaredSignalIR['constructor'],
-								...listFields,
-							}
-						: {
-								...base,
-								family: 'derived',
-								constructor: calleeName as DerivedSignalIR['constructor'],
-								...(sensorResolution ? { unresolvable: true as const } : {}),
-							}
+					const signal = signalIROf(
+						base,
+						calleeName,
+						listFields,
+						sensorResolution ? { unresolvable: true as const } : {},
+					)
 					signals.push(signal)
 					signalByName.set(declName, signal)
 				}
 			} else if (init.type === 'ConditionalExpression') {
-				// A ternary between two constructor calls isn't recognized as a
-				// signal at all (no single `.callee`) — diagnose it explicitly
-				// rather than silently treating it as an ordinary setup const
-				// (ADR 0024 sub-design 12).
-				const consequentName = identifierName(
-					(init.consequent as AstNode | undefined)?.callee,
-				)
-				const alternateName = identifierName(
-					(init.alternate as AstNode | undefined)?.callee,
-				)
-				if (
-					consequentName &&
-					SIGNAL_CONSTRUCTORS.has(consequentName) &&
-					alternateName &&
-					SIGNAL_CONSTRUCTORS.has(alternateName)
-				) {
-					ctx.diagnostics.push(
-						diagnostic.conditionalSignalConstructor(source, stmt, declName),
-					)
-				} else {
+				if (!refuseConditionalSignalConstructor(ctx, stmt, init, declName))
 					plainSetup.push(setupStmt)
-				}
 			} else {
 				plainSetup.push(setupStmt)
 				// A plain setup const calling a client-only primitive directly —
@@ -677,12 +754,18 @@ export const extractSetup = (
 			ctx.diagnostics.push(diagnostic.reactReturnJsx(source, stmt))
 			continue
 		}
-		// The client-only free-name gate (LT-008, widened by LT-069/087/088):
-		// a name resolves client-side when it is a JS global, a context
-		// member, a signal, an expose ambient, a `first()`-bound element
-		// local, an earlier setup const, a composed-element ref, an authored
-		// import binding, or a client-only FactoryContext primitive (watch/
-		// on/pass/…). Used by bare client-only expression statements.
+		// The client-only gate (LT-008, widened by LT-069/087/088) — one
+		// contract, two mechanisms, by ruling (iteration ruling, 2026-10-10):
+		// the component loop checks name-set membership (`clientKnownName`),
+		// the item loop classifies each name by phase (`classOf`), because
+		// the two read genuinely different inputs. The contract: a
+		// client-only statement may read what exists client-side — JS
+		// globals, context members, signals, earlier setup consts,
+		// `first()`-bound element refs, authored import bindings and the
+		// client-only primitives, plus each loop's own sets — but never a
+		// server arg or a bare message key; the one admitted server binding
+		// is a static `t.<key>` read of a declared key (LT-349). Any other
+		// name may be server code.
 		const clientKnownName = (freeName: string): boolean => {
 			if (JS_GLOBALS.has(freeName)) return true
 			if (CONTEXT_NAMES.has(freeName)) {
@@ -942,6 +1025,18 @@ export const extractItemSetup = (
 	const setup: ItemSetupStmt[] = []
 	const itemSignals: SignalIR[] = []
 	const own = new Map<string, ItemNameClass>()
+	// The client-only gate (LT-008, widened by LT-069/087/088) — one
+	// contract, two mechanisms, by ruling (iteration ruling, 2026-10-10):
+	// the component loop checks name-set membership (`clientKnownName`),
+	// the item loop classifies each name by phase (`classOf`), because
+	// the two read genuinely different inputs. The contract: a
+	// client-only statement may read what exists client-side — JS
+	// globals, context members, signals, earlier setup consts,
+	// `first()`-bound element refs, authored import bindings and the
+	// client-only primitives, plus each loop's own sets — but never a
+	// server arg or a bare message key; the one admitted server binding
+	// is a static `t.<key>` read of a declared key (LT-349). Any other
+	// name may be server code.
 	const classOf = (name: string): ItemNameClass => {
 		const mine = own.get(name)
 		if (mine) return mine
@@ -1017,26 +1112,9 @@ export const extractItemSetup = (
 			continue
 		}
 		if (stmt.type === 'VariableDeclaration') {
-			const declarations = asArray(stmt.declarations)
-			const decl = declarations[0] ?? null
-			const declName = identifierName(decl?.id)
-			if (
-				stmt.kind !== 'const' ||
-				declarations.length !== 1 ||
-				!declName ||
-				!isNode(decl?.init)
-			) {
-				ctx.diagnostics.push(
-					diagnostic.unsupported(
-						source,
-						stmt,
-						'A setup declaration other than a single initialized `const`',
-						'Declare one initialized `const` per statement.',
-					),
-				)
-				continue
-			}
-			const init = (decl as AstNode).init as AstNode
+			const single = singleConstDeclOf(ctx, stmt)
+			if (!single) continue
+			const { name: declName, init } = single
 			const base = {
 				text: text(source, stmt),
 				range: rangeOfStmt(stmt),
@@ -1047,33 +1125,14 @@ export const extractItemSetup = (
 			// `first()` against the item's own `first` (ADR 0046 s2): resolved
 			// against the item's content once it is lowered.
 			if (calleeName === 'first') {
-				const args = asArray(init.arguments)
-				const [selectorArg, reasonArg] = args
-				const selectorText =
-					selectorArg?.type === 'Literal' &&
-					typeof selectorArg.value === 'string'
-						? selectorArg.value
-						: null
-				const reasonText =
-					reasonArg?.type === 'Literal' && typeof reasonArg.value === 'string'
-						? reasonArg.value
-						: null
-				if (
-					(args.length !== 1 && args.length !== 2) ||
-					selectorText === null ||
-					(args.length === 2 && reasonText === null)
-				) {
-					ctx.diagnostics.push(
-						diagnostic.invalidFirstCall(source, stmt, declName),
-					)
-					continue
-				}
+				const firstRef = firstCallOf(ctx, stmt, init, declName)
+				if (!firstRef) continue
 				setup.push({
 					...base,
 					kind: 'ref',
-					selector: selectorText,
-					reason: reasonText,
-					required: args.length === 2,
+					selector: firstRef.selectorText,
+					reason: firstRef.reasonText,
+					required: !firstRef.maybe,
 					root: false,
 				})
 				own.set(declName, 'client')
@@ -1117,25 +1176,17 @@ export const extractItemSetup = (
 					)
 						continue
 				} else if (refusePhase(stmt, init, subject, false)) continue
-				const signalBase = {
-					name: declName,
-					text: text(source, init),
-					textStart: typeof init.start === 'number' ? init.start : 0,
-					init: args[0] ?? null,
-					inferredType: 'unknown' as const,
-				}
 				itemSignals.push(
-					MUTABLE_SIGNAL_CONSTRUCTORS.has(calleeName)
-						? {
-								...signalBase,
-								family: 'declared',
-								constructor: calleeName as DeclaredSignalIR['constructor'],
-							}
-						: {
-								...signalBase,
-								family: 'derived',
-								constructor: calleeName as DerivedSignalIR['constructor'],
-							},
+					signalIROf(
+						{
+							name: declName,
+							text: text(source, init),
+							textStart: typeof init.start === 'number' ? init.start : 0,
+							init: args[0] ?? null,
+							inferredType: 'unknown',
+						},
+						calleeName,
+					),
 				)
 				setup.push({
 					...base,
@@ -1148,25 +1199,11 @@ export const extractItemSetup = (
 				own.set(declName, 'both')
 				continue
 			}
-			if (init.type === 'ConditionalExpression') {
-				const consequentName = identifierName(
-					(init.consequent as AstNode | undefined)?.callee,
-				)
-				const alternateName = identifierName(
-					(init.alternate as AstNode | undefined)?.callee,
-				)
-				if (
-					consequentName &&
-					SIGNAL_CONSTRUCTORS.has(consequentName) &&
-					alternateName &&
-					SIGNAL_CONSTRUCTORS.has(alternateName)
-				) {
-					ctx.diagnostics.push(
-						diagnostic.conditionalSignalConstructor(source, stmt, declName),
-					)
-					continue
-				}
-			}
+			if (
+				init.type === 'ConditionalExpression' &&
+				refuseConditionalSignalConstructor(ctx, stmt, init, declName)
+			)
+				continue
 			// A plain const. A function is defined in both phases and called on
 			// the client only, so its body may read client-only names — the
 			// server then leaves it out.
@@ -1204,9 +1241,7 @@ export const extractItemSetup = (
 			continue
 		}
 		if (expression) {
-			// A client-only side effect, gated like component setup's: every
-			// name client-known, a static `t.<key>` read of a declared key the
-			// one server binding admitted (LT-349).
+			// A client-only side effect, gated by the contract on `classOf`.
 			const bad = [...freeIdentifiers(expression)].filter(n => {
 				const cls = classOf(n)
 				if (cls === 'both' || cls === 'client') return false
