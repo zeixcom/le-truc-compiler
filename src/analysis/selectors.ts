@@ -1134,6 +1134,32 @@ export const selectorFor = (
 	return { selector: clauses.join(', '), unique: true }
 }
 
+/** The component-bound selector adapters `selectorAdaptersOf` returns. */
+export type SelectorAdapters = {
+	/** `resolveSelector` — synthesized, uniqueness-proven selector. */
+	resolveSelector: (el: ElementNode) => { selector: string; unique: boolean }
+	/** `selectorFor` — union-addressed when `el` is an @if branch root. */
+	selectorFor: (el: ElementNode) => { selector: string; unique: boolean }
+	/** `loopFor` — the @for loop whose output element `node` is. */
+	loopFor: (node: TemplateNode) => ForIR | null
+	/** `enclosingIfOf` — the server-known @if holding `target` as a branch root. */
+	enclosingIfOf: (target: ElementNode) => IfNode | null
+}
+
+/**
+ * The component-scoped selector adapters (TC-006): the element-only forms
+ * of the four component-first selectors above, bound to one component —
+ * the closures the loop and harvest passes used to re-spell per function.
+ */
+export const selectorAdaptersOf = (
+	component: ComponentIR,
+): SelectorAdapters => ({
+	resolveSelector: el => resolveSelector(component, el),
+	selectorFor: el => selectorFor(component, el),
+	loopFor: node => loopFor(component, node),
+	enclosingIfOf: target => enclosingIfOf(component, target),
+})
+
 /**
  * The shapes one template node contributes to its component's registry
  * record: an element its own shape (plus `any` when `truc:html` fills it),

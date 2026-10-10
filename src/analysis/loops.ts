@@ -8,7 +8,7 @@
  */
 
 import type { AstNode } from '../ast-node'
-import { hostPropOf, nodeType, objectKeys, sanitizeVarName } from '../ast-utils'
+import { nodeType, objectKeys, sanitizeVarName } from '../ast-utils'
 import { diagnostic } from '../diagnostics'
 import { dependenciesOf } from '../evaluability'
 import type {
@@ -18,13 +18,13 @@ import type {
 	TemplateNode,
 } from '../ir'
 import { wordingOf } from '../surface'
-import { isDirtyFlagControlAttr } from '../vocabulary'
 import {
 	inNestedScope,
 	isClientConstructAttr,
 	listIndexOf,
 	walkTemplate,
 } from '../walk'
+import { dispatchOf } from './attr-dispatch'
 import type {
 	ForClientPlan,
 	LoopEffectPlan,
@@ -37,8 +37,8 @@ import {
 	type ElementNode,
 	isElement,
 	resolveScopedSelector,
-	resolveSelector as resolveSelectorIn,
 	resolveSelectorIn as resolveSelectorScoped,
+	selectorAdaptersOf,
 	staticAttrs,
 } from './selectors'
 import { reportServerOnlyNames } from './server-only-names'
@@ -113,7 +113,7 @@ export const planEachLoop = (
 		badListBodyNames,
 	} = shared
 	const wording = wordingOf(component)
-	const resolveSelector = (el: ElementNode) => resolveSelectorIn(component, el)
+	const { resolveSelector } = selectorAdaptersOf(component)
 	const output = loop.output
 	const loopBound = new Set<string>([loop.itemName])
 	if (loop.indexName) loopBound.add(loop.indexName)
@@ -184,24 +184,12 @@ export const planEachLoop = (
 		for (const attr of el.attrs) {
 			if (attr.kind === 'reactive') {
 				checkClientNames(attr.thunk, `Reactive attribute \`${attr.name}\``)
-				// LT-116: same dispatch rule the top-level path applies —
-				// a bare host-prop mirror OR a dirty-flag IDL attr
-				// (`value`/`checked`/`selected`) on a native form control
-				// lowers to a property write. Inside `each()` this is
-				// exactly what the hand-written twin did
-				// (`radio.checked = isChecked`): once the user clicks a
-				// radio, attribute removal no longer clears the live
-				// property, so `bindAttribute` mirrors stop tracking and
-				// mutual exclusion breaks (NOTES LT-092).
-				const mirror = hostPropOf(attr.thunk)
+				// LT-116's dispatch rule lives in analysis/attr-dispatch.ts.
 				effectsPlan.push({
 					kind: 'watch-attr',
 					attr: attr.name,
 					thunkText: attr.thunkText,
-					dispatch:
-						mirror !== null || isDirtyFlagControlAttr(el.tag, attr.name)
-							? 'property'
-							: 'attribute',
+					dispatch: dispatchOf(attr, el.tag),
 					coerceToString: returnsNumber(attr.thunk.body, component.signals),
 					sourceStart: attr.thunk.start,
 					sourceEnd: attr.thunk.end,
@@ -500,7 +488,7 @@ const runReconcileLoops = (
 ): Map<ReconcileForIR, ReconcilePlan> => {
 	const { component, source, diagnostics, addQuery } = shared
 	const wording = wordingOf(component)
-	const resolveSelector = (el: ElementNode) => resolveSelectorIn(component, el)
+	const { resolveSelector } = selectorAdaptersOf(component)
 	const reconcilePlans = new Map<ReconcileForIR, ReconcilePlan>()
 
 	// The element directly holding `target`, through any control flow above
