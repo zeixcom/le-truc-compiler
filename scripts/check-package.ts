@@ -6,8 +6,9 @@
  * Proves the distribution end to end, from tarballs to rendered HTML, in
  * an empty project outside the repo:
  *
- * 1. Builds the package (`build:compiler`), then `npm pack`s BOTH the
- *    compiler (`compiler/`) and the runtime peer (repo root).
+ * 1. Builds the package (`build`), then `npm pack`s BOTH the
+ *    compiler (repo root) and the runtime peer (the sibling `le-truc`
+ *    checkout the dev dependency resolves through, `file:../le-truc`).
  * 2. Installs the two tarballs into a scratch project — the compiler's
  *    own dependency closure (`@tsrx/core`, `typescript-estree`, the CSS
  *    and ICU packages) resolves from the registry, proving the manifest
@@ -31,6 +32,7 @@
  */
 
 import {
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -44,6 +46,25 @@ import { fileURLToPath } from 'node:url'
 /* === Constants === */
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+
+/**
+ * The runtime peer's checkout: the sibling `le-truc` repository the dev
+ * dependency resolves through (`file:../le-truc`). The walk upward starts
+ * at ROOT because the gate also runs from a task worktree, whose parent
+ * chain reaches the sibling one level further out.
+ */
+const RUNTIME_ROOT = ((): string => {
+	for (let dir = ROOT; ; dir = dirname(dir)) {
+		const candidate = join(dir, 'le-truc')
+		if (existsSync(join(candidate, 'package.json'))) {
+			const manifest = JSON.parse(
+				readFileSync(join(candidate, 'package.json'), 'utf8'),
+			) as { name?: string }
+			if (manifest.name === '@zeix/le-truc') return candidate
+		}
+		if (dirname(dir) === dir) return ''
+	}
+})()
 
 const run = (cmd: string[], cwd: string, label: string): string => {
 	const proc = Bun.spawnSync(cmd, {
@@ -257,17 +278,22 @@ console.log('  ok: composed start={7} folded into the child render')
 const scratch = mkdtempSync(join(tmpdir(), 'le-truc-package-'))
 const keep = process.argv.includes('--keep')
 try {
-	// 1. Build + pack both tarballs.
+	// 1. Build + pack both tarballs: the compiler from the repo root, the
+	// runtime peer from its sibling checkout.
 	run(['bun', 'run', 'build'], ROOT, 'build')
-	const runtimePack = run(
-		['npm', 'pack', '--pack-destination', scratch, '--json'],
-		ROOT,
-		'npm pack (runtime)',
-	)
+	if (!RUNTIME_ROOT)
+		throw new Error(
+			'package check failed: no `le-truc` checkout found above this repo — the runtime peer packs from the sibling checkout the dev dependency resolves through (file:../le-truc)',
+		)
 	const compilerPack = run(
 		['npm', 'pack', '--pack-destination', scratch, '--json'],
-		join(ROOT, 'compiler'),
+		ROOT,
 		'npm pack (compiler)',
+	)
+	const runtimePack = run(
+		['npm', 'pack', '--pack-destination', scratch, '--json'],
+		RUNTIME_ROOT,
+		'npm pack (runtime)',
 	)
 	const tarballOf = (json: string): string =>
 		join(scratch, (JSON.parse(json)[0] as { filename: string }).filename)

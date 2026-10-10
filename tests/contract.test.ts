@@ -2,7 +2,7 @@
  * The designated export surface pin (LT-265, ADR 0032 amended 2026-09-19;
  * reshaped to the D-32 ruling at LT-480).
  *
- * `server/compiler/contract.ts` names the exact symbol set the published
+ * `src/contract.ts` names the exact symbol set the published
  * `@zeix/le-truc-compiler` package will carry (`exports` entry rides LT-254).
  * These tests make widening or shrinking that set a DELIBERATE act: the value
  * set is pinned at runtime, and the type set — erased at runtime — is pinned
