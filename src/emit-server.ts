@@ -1402,17 +1402,16 @@ const emitAsyncBoundary = (
 }
 
 /**
- * The if/switch JS emission shape, one body for the two renderers that
- * walk a server conditional's arms' children (TC-007): `emit`'s
- * server-data arm and `listTemplate`'s folded shape. The construct opens
- * on `testText` — an `@if` renders its then arm, an `@else` with content
- * becomes `} else {` — and an `@switch` opens one breaking `case` block
- * per arm (arms are mutually exclusive, so JS fall-through cannot blend
- * them). `renderArm` draws one arm's content; both callers walk its
- * children, and an absent arm renders nothing.
- * `emitReactiveConditional`'s live winner shares the shape but renders by
- * ROOT (an arm may deliberately render nothing) over the folded
- * `serverTestExpr` text, so it keeps its own spelling below.
+ * The if/switch JS emission shape, one body for the three renderers that
+ * draw a server conditional's arms (TC-007): `emit`'s server-data arm and
+ * `listTemplate`'s folded shape walk an arm's children through the
+ * `renderArm` callback, and `emitReactiveConditional`'s live winner passes
+ * `renderLive` — an arm renders by ROOT there, free to render nothing,
+ * over the folded `serverTestExpr` text rather than `node.testText`. The
+ * construct opens on `testText` — an `@if` renders its then arm, an
+ * `@else` with content becomes `} else {` — and an `@switch` opens one
+ * breaking `case` block per arm (arms are mutually exclusive, so JS
+ * fall-through cannot blend them). An absent arm renders nothing.
  */
 const emitJsConditional = (
 	out: CodeBuilder,
@@ -1517,10 +1516,9 @@ const emitReactiveConditional = (
 	} else if ('constant' in initial)
 		renderLive(node.arms.find(arm => arm.key === initial.constant))
 	else if (test !== null)
-		// The same if/switch shape as the server conditional's two child
-		// renderers (`emitJsConditional`) — not unified with them: the test
-		// is the folded `serverTestExpr` text (not `node.testText`) and an
-		// arm renders by ROOT through `renderLive`, free to render nothing.
+		// The shared if/switch shape (`emitJsConditional`): the test is the
+		// folded `serverTestExpr` text, not `node.testText`, and `renderArm`
+		// is `renderLive` — root-based, free to render nothing.
 		emitJsConditional(ctx.out, test, node, renderLive)
 	const armSet = String(armSetOf(ctx.component.root, node))
 	for (const arm of node.arms) {
