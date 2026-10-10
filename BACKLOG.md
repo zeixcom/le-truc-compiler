@@ -10,50 +10,6 @@ stays here until the Architect and the owner refine it back to `open`.
 ## P2 — soon
 
 
-- [ ] TC-006: Pin the hand-copied emission rules (dispatch, adapters, vocabulary)
-  **Area:** compiler
-  **Context:** From the 2026-10-10 architecture review. Three duplications where copies must never drift but nothing enforces it:
-
-  - **The watch-attribute dispatch rule** exists line-for-line twice: `planEachLoop`'s attribute walk in `src/analysis/loops.ts` and `emitConstructEffects` in `src/analysis/effects.ts` (post-TC-005: `src/analysis/construct-effects.ts`) — same `hostPropOf(mirror) || isDirtyFlagControlAttr(tag, name)` → `'property'` rule, same `coerceToString: returnsNumber(…)}`, and the LT-116 hazard comment copied verbatim. Extract one `dispatchOf(attr, tag)` helper in a new leaf `src/analysis/attr-dispatch.ts` that both call; the hazard comment moves with it and both call sites keep a one-line pointer.
-  - **The selector-adapter closures** (`resolveSelector`, `selectorFor`, `loopFor` rebound over `component`) are re-spelled five times across `loops.ts` (×2), `harvest.ts` (×3) and as module-level wrappers in `effects.ts`. Add one parameterized helper in `src/analysis/selectors.ts` taking the component explicitly, and replace all five spellings.
-  - **The form-control tag table** is duplicated: `SUBMITTABLE_FORM_CONTROL_TAGS` (post-TC-004 in `src/analysis/server-only-names.ts`) and `NAMED_FORM_CONTROL_TAGS` in `src/validate-lowered.ts`, with a comment in the analysis copy admitting the front-end→analysis import direction is the excuse. FIRST verify the two sets are semantically identical member-for-member; if they are not, stop and report the difference in `NOTES.md` (that is a finding, not a refactor premise). If identical, move the table to `src/vocabulary.ts` (which exists for exactly this) and import it from both.
-
-  No behavior change of any kind.
-
-  **Verification:** `bun run build`, `bun run test`, `bun run typecheck`, `bun run lint` green; zero snapshot/golden changes; no diagnostic message changes.
-
-- [ ] TC-007: Deduplicate emit-server.ts and route serverTestExpr through initialFold
-  **Area:** compiler
-  **Context:** From the 2026-10-10 architecture review. The fold gate is implemented twice: `serverTestExpr` in `src/emit-server.ts` re-implements `initialFold` from `src/initial-winner.ts` inline (same `isServerEvaluable` gate, same `hostDerivedFold` fallback spliced by hand) — the all-or-nothing fold rule exists in two bodies that must not drift. Also inside `src/emit-server.ts`:
-
-  - Route `serverTestExpr` through `initialFold` so the rule has one body; keep whatever thin adaptation the call site needs.
-  - The host-derived splice callback (the ref→`foldableRefGuards` / prop→`hostSeedExpr` + `useSeedNames` lambda) appears three times (`hostDerivedExpr`, `serverTestExpr`, the setup host-fold) — one internal helper.
-  - The `<template data-arms data-key>` stamping block appears twice (`emitAsyncBoundary`'s `templates()`, `emitReactiveConditional`'s tail), and the matching client query string `:scope > template[data-arms="…"]` is a repeated literal twice in `src/emit-client.ts` and once in `src/sim/realm.ts`. Give the stamping one emitter-side helper in `src/emit-server.ts` and the selector string one named constant in `src/codegen.ts` (the shared code-generation kit — import it in all three).
-  - The identifier tokenizer (`text.match(/[A-Za-z_$][\w$]*/g)`) is defined twice and inlined four more times in `src/emit-server.ts`, plus twice in `src/imports.ts`. One helper in `src/ast-utils.ts`, imported everywhere.
-  - The if/switch JS emission shape appears three times (`listTemplate.shape`, `emit`'s conditional arm, `emitReactiveConditional.renderLive`). Unify behind one internal emitter where the shapes are genuinely the same; where a site truly differs, leave it with a comment naming its twins — no forced unification.
-  - `renderScopeNames` (emit-server) and `factoryScopeNames` (emit-client) are parallel name-collectors over `component.fors` with deliberately divergent extras, both feeding the shadow-alias policy. Extract the shared fors-walk core; keep the divergent extras in place, each doc comment naming the other and the shared contract.
-  - The `isPending` presence scan: emit-server scans lines + setup + expose + root attrs; emit-client scans lines only. Check what the client actually consumes; if lines-only covers its use, document why on the scan; if it does not, unify on the stronger scan and say so in the handoff.
-
-  No behavior change of any kind — this task's whole point is that the goldens prove it.
-
-  **Verification:** `bun run build`, `bun run test`, `bun run typecheck`, `bun run lint` green; `tests/server.golden.test.ts`, `tests/client.golden.test.ts` and `tests/emit-tier.test.ts` green with zero snapshot changes.
-
-- [ ] TC-008: Unify setup-extraction's twin loops
-  **Area:** compiler
-  **Context:** From the 2026-10-10 architecture review. `src/setup-extraction.ts` runs two classification loops — `extractSetup` (component setup, ~580 lines) and `extractItemSetup` (a reactive list item's setup, ~300 lines) — over the same grammar. They share some helpers (`seedHarvestOf`, `setupStatementRefusal`, `sensorSeedResolution`) but copy-paste five fragments:
-
-  - `first()` call parsing + arity validation (identical selector/reason literal extraction and `diagnostic.invalidFirstCall` guard; only the success path differs);
-  - the single-initialized-const guard (including the identical diagnostic string);
-  - the ternary-of-constructors refusal (`consequentName`/`alternateName` over `SIGNAL_CONSTRUCTORS`, `diagnostic.conditionalSignalConstructor`);
-  - the signal-IR construction shape (`MUTABLE_SIGNAL_CONSTRUCTORS.has(callee) ? declared : derived`);
-  - micro: `extractSetup` inlines a `/Function(Expression)?$/` test instead of calling the file's own `isFunctionNode`.
-
-  Extract each shared fragment as a file-local helper both loops call. The client-only gate stays TWO mechanisms by ruling (iteration ruling, 2026-10-10): the component loop's `clientKnownName` name-set membership and the item loop's `classOf` phase classification read genuinely different inputs — do not force them together; instead write the shared contract once as a doc comment on both gates (what a client-only statement may read; static `t.<key>` reads of declared keys admitted, LT-349).
-
-  No behavior change of any kind.
-
-  **Verification:** `bun run build`, `bun run test`, `bun run typecheck`, `bun run lint` green; zero snapshot/golden changes; `tests/item-setup.test.ts` and `tests/diagnostics.test.ts` green unmodified.
-
 - [ ] TC-011: Generate the .tsx tag augmentation from compiler facts; retire the hand-maintained host-profile table
   **Area:** design
   **Context:** The strict per-tag `IntrinsicElements` table in
@@ -177,41 +133,6 @@ stays here until the Architect and the owner refine it back to `open`.
   No gates touched — markdown only. Target: complete before the first
   lockstep publish, so the public repo never ships dangling citations.
 
-- [ ] TC-009: Carve planHarvests into named stages
-  **Area:** compiler
-  **Needs:** TC-005
-  **Context:** From the 2026-10-10 architecture review. `planHarvests` in `src/analysis/harvest.ts` is one ~877-line function containing roughly twelve inner closures (`reportUnharvestable`, `paramDomRead`, `unportableNames`, `substituteArgExpr`, its own `selectorFor`/`resolveSelector`/`loopFor` adapters, …) — the largest function in the codebase; the closures are modules without interfaces. Promote each closure to a named module-private function over explicit parameters, keeping `runHarvest` as the thin public entry (it is 5 lines today and stays 5 lines). No signature changes outside the module; nothing outside `harvest.ts` and its test imports change. Sequenced behind TC-005 so the analysis tree is stable first; if TC-006's selector-adapter helper has landed, the closures it replaces inside `planHarvests` dissolve into that helper instead of becoming functions.
-
-  No behavior change of any kind.
-
-  **Verification:** `bun run build`, `bun run test`, `bun run typecheck`, `bun run lint` green; zero snapshot/golden changes; `tests/scalar-harvest.test.ts`, `tests/list-harvest.test.ts`, `tests/key-alias-harvest.test.ts` green unmodified.
-
 - [ ] TC-010: Architecture review pass over css-scope.ts and sim/
   **Area:** design
   **Context:** Coverage gap from the 2026-10-10 architecture review: the deepening sweep covered the front ends, pipeline, corpus, contract, analysis, emitters and setup extraction, but `src/css-scope.ts` (1,582 lines — the scoped-CSS lowering, ADR 0033) and `src/sim/` (`realm.ts` 894, `patch-table.ts` 276, `boundary.ts` 123 — the Server Simulation driver, ADR 0027/0035) got only a structural glance, and no findings are claimed there. Owner + Architect session, not contributor work: apply the deepening heuristics (deletion test, interface-vs-implementation, locality, seams, coupling leaks — `references/deepening.md`), present numbered candidates, triage with the owner. Outcome feeds a later iteration's chain or the backlog.
-
-- [ ] TC-012: Type-check the demo corpus
-  **Area:** tooling
-  **Gates:** typecheck
-  **Context:** `demo/` is the corpus behind the live board — rendered
-  through the compiler's own output and built by `build:demo` into
-  `server/generated/demo/`. It is deliberately separate from `examples/`
-  (the golden-pinned test corpus), but that separation left it with no
-  gate at all: `examples/` has `check:corpus` and the goldens, `demo/` has
-  nothing — its components can drift type-wise with no check catching it.
-  Owner ruling 2026-10-10: a gap to close.
-
-  **Goal:** wire the demo corpus through typecheck — `tsc` over the
-  authored `demo/` sources against the `.tsx` host profile, the same
-  check authored sources get — as a `bun run` entry (e.g. `check:demo`),
-  cited where the board's build is documented.
-
-  **Scope notes:**
-
-  - No goldens for `demo/` — it is not the test corpus; board-output
-    correctness stays `build:demo`'s own concern.
-  - Type errors the check surfaces in demo components are in scope to fix
-    here: the board is product surface.
-  - Until TC-011 generates the tag augmentation, new demo tags extend the
-    hand-maintained `host-profile.d.ts` table in the same change (the
-    Wave-4 rule, applied to demo).
