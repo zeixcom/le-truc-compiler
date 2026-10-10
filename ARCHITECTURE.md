@@ -437,7 +437,7 @@ front-end modules, then the two front ends:
 | `assemble-ir.ts` | IR assembly (`assembleComponentIR`), import placement, module-level declarations (`readModuleDecls`) |
 | `lower-shared.ts` | Surface-independent lowering core: condition validation, element/compose lowering, the expression-child lift rule, positional reactivity, `lowerChildrenSkeleton` — the `Lowering` hooks carry each surface's child-node dispatch — and the programs after header parsing: `lowerLoop` over a `LoopSource` (routing, list-body validation, `each()`/reconcile IR), `finishIf`, `finishTry`, `reportEmptySwitch` |
 | `ast-utils.ts` | Shared AST predicates, text-extraction helpers, and the one estree child enumeration every walk runs on (`forEachChild`/`walkNodes`: child keys from `eslint-visitor-keys`, type positions skipped unless a site opts into `'descend'`) plus the scope-aware free-identifier walk (`forEachFreeIdentifier`) |
-| `vocabulary.ts` | The recognized-name tables (signal constructors, context members, parser factories, real exports, reserved/managed prop names, JS/DOM globals) those walks consult |
+| `vocabulary.ts` | The recognized-name tables (signal constructors, context members, parser factories, real exports, reserved/managed prop names, JS/DOM globals, the submittable form-control tags) those walks consult |
 | `walk.ts` | Generic structural `TemplateNode` visitor (`walkTemplate`, `collectAttrs`, `collectComposeElements`) |
 | `children-region.ts` | The Children Region (ADR 0048 s1, LT-472): `data-children` marker ownership at compose sites, `excludeUnlessOwned`, and the `childrenRegion` shapes the registry carries |
 | `frontend/tsrx/compiler.ts` | `.tsrx` front end: the `@tsrx/core` parse (`newerGrammarHint` on failure) and the `.tsrx` `SurfaceAdapter` (the `@{ }` body splits into setup + output; the React JSX near-miss pre-scan; the lazy-pattern scan retired at the 0.2 pin — the grammar now rejects the construct itself) |
@@ -472,15 +472,16 @@ front-end modules, then the two front ends:
 | `i18n-catalog.ts` | The catalog pipeline's corpus half (ADR 0030 s4+s5): `readCatalogs`, `collectI18n`, `syncLocale`, the generated `i18n` module writer and the census report |
 | `fs.ts` | The package's file-system seam (D-32): the shared glob translator and the node-portable read/write/scan surface the corpus pass goes through — the ONE place under `src/` that touches a disk |
 | `analysis/plan.ts` | `ClientPlan` types, `PassShared` assembly, `analyzeClient` orchestration |
-| `analysis/selectors.ts` | Pure selector POLICY: synthesis, candidate order, union/compose addressing; the ENGINE (matching, counting, existence) runs on the materialized probe |
+| `analysis/selectors.ts` | Pure selector POLICY: synthesis, candidate order, union/compose addressing, the component-bound adapters `selectorAdaptersOf` the loop and harvest passes consume; the ENGINE (matching, counting, existence) runs on the materialized probe |
 | `analysis/probe.ts` | The materialized-probe selector engine (ADR 0045): template IR → HTML (each element stamped with its exclusive-arm path) → parse5 → css-select, aggregated max-over-arms |
 | `analysis/compose-refs.ts` | Registry-aware resolution of `first()` references addressing composed children |
 | `analysis/handler-args.ts` | Handler args (LT-461): the child's placements for its registry entry (`handlerPlacementsOf` — selectors proven with composed markup unknown), and the parent's resolution of a compose-site handler through that record, across forwards (`resolveHandlerPlacements`, `joinSelector`) |
 | `analysis/content-model.ts` | The content model (ADR 0048 s4, LTC085): interactive content refused at compose sites of `'non-interactive'` children, transitively through the registry |
 | `analysis/role-writes.ts` | One writer per property (ADR 0048 s3, LTC084): `roleWrites` collection and the parent-binding conflict check |
 | `analysis/naming.ts` | `uniqueName`, `addQuery` (query table + name allocation) |
-| `analysis/server-only-names.ts` | The LTC005 server-only-name check (`reportServerOnlyNames`) as a stateless leaf every pass reports through, with its managed-prop reader (`managedPropRead`) and the submittable-control tag table |
+| `analysis/server-only-names.ts` | The LTC005 server-only-name check (`reportServerOnlyNames`) as a stateless leaf every pass reports through, with its managed-prop reader (`managedPropRead`) |
 | `analysis/thunk-types.ts` | The thunk-body number predicate `returnsNumber` (LT-126/LT-443) shared by loop and effect planning |
+| `analysis/attr-dispatch.ts` | The watch-attribute dispatch rule `dispatchOf` (LT-116): property vs. content-attribute write for a reactive attribute's client watch — one decision every `watch-attr` plan site reads (construct lowering, `each()` loop bodies) |
 | `analysis/harvest.ts` | Passes 2+3: render sites (`collectRenderSites`), harvest-plan selection and arg→DOM-site substitution (`planHarvests`) |
 | `analysis/list-harvest.ts` | Pass 3's per-field plan for a list seeded from server args (ADR 0046 s7, LT-429): each field's site in the adopted item (`data-key`, else the first text child or reactive attribute reading exactly the field) and its parser; LTC072/LTC076, LTC059 per field. The key-alias plan (ADR 0047, LT-453, `planKeyAliasHarvest`): the same field plan read from the alias scope, the container path through the enclosing list items, LTC080 |
 | `key-alias.ts` | The key alias's syntactic half (ADR 0047, LT-453), shared by Pass 3 and the server emitter: which host-level lists the alias may harvest (`isAliasHarvestable`), every `list.byKey(…)` read in an item setup (`byKeyReadsOf`), and the alias scope the witness records (`aliasScopeOf`) |
@@ -517,9 +518,9 @@ the shared leaves — `vocabulary.ts`, `ast-utils.ts`, `walk.ts`, `evaluability.
 no parser values by design, only the loose
 `AstNode` type) — and the machinery does not
 depend on either front end. Within `analysis/`, `plan.ts` orchestrates
-`{selectors, naming, harvest, loops, effects}` over two shared leaves:
-`server-only-names.ts` (the LTC005 check) and `thunk-types.ts`
-(`returnsNumber`). Pass 4 is a mutually recursive cluster: `effects.ts`
+`{selectors, naming, harvest, loops, effects}` over three shared leaves:
+`server-only-names.ts` (the LTC005 check), `thunk-types.ts`
+(`returnsNumber`), and `attr-dispatch.ts` (the LT-116 dispatch rule). Pass 4 is a mutually recursive cluster: `effects.ts`
 homes the pass context and the selector adapters while importing the
 subsystem entry points (`construct-`, `branch-`, `mount-`,
 `compose-effects.ts`), `branch-effects.ts` and `mount-scopes.ts` call
