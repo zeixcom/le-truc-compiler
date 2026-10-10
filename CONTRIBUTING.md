@@ -152,9 +152,9 @@ board all call the same readiness and lane functions, so they cannot disagree.
   queue change.
 - `bun run queue:build` — renders `BACKLOG.md` and `DONE.md` from the store.
 - `bun run queue:serve` — serves the live board: a kanban rendered by the
-  compiler's own output from `demo/` (build it with `bun run build:demo`),
-  reading the store directly and pushing a fresh snapshot over SSE whenever
-  `queue/` changes.
+  compiler's own output from `demo/` (build it with `bun run build:demo`,
+  type-check it with `bun run check:demo`), reading the store directly and
+  pushing a fresh snapshot over SSE whenever `queue/` changes.
 
 One session works one task from start to finish: start, implement, gate,
 self-review, commit, annotate, report. Integration belongs to the
@@ -192,7 +192,7 @@ Run the gates for the area you touched. A red gate is not done.
 | `src/**` | `build` · `test` · `typecheck` · `lint` · `check:contract` when the public contract can change · `check:peer` when runtime-peer imports change |
 | `scripts/**`, root config | `lint` · `typecheck` · the changed script, run against the real corpus |
 | `examples/**` | `build:corpus` · `lint` |
-| `demo/**` | `build:demo` |
+| `demo/**` | `build:demo` · `check:demo` |
 
 The full gate, required before an iteration milestone, is `build`,
 `typecheck`, `test`, `lint`, `check:contract` and `check:peer`, all green on

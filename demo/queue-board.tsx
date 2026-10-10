@@ -26,7 +26,13 @@
  * make a selector; and the meta cells seed from plain typed parameters — a
  * `join()` seed hides its type from the harvest (LTC077).
  */
-import { asNumber, asString, createCell, createList } from '@zeix/le-truc'
+import {
+	asNumber,
+	asParser,
+	asString,
+	createCell,
+	createList,
+} from '@zeix/le-truc'
 import { css, harvest } from '@zeix/le-truc-compiler/macros'
 import { connectBoard } from './_common/live.ts'
 import type { BoardLane } from './types.ts'
@@ -73,18 +79,38 @@ export function QueueBoard({
 	const updated = createCell(generatedAt)
 	const issues = createCell(problems)
 
+	// The lane field's parser, shared by all six harvests: `BoardLane` is a
+	// union of the six lane keys, and no peer factory parser returns it —
+	// `asParser` is the documented spelling for a field type the factories
+	// do not cover (FieldParser<V>). The narrowing comparisons alone produce
+	// the union; an unknown key falls to the first lane instead of passing a
+	// bare string through.
+	const parseLane = asParser(
+		(value): BoardLane =>
+			value === 'waiting' ||
+			value === 'ready' ||
+			value === 'in-progress' ||
+			value === 'review-pending' ||
+			value === 'in-review' ||
+			value === 'done'
+				? value
+				: 'waiting',
+	)
+
 	// One seeded list per lane, mapped directly below: each lane's cards are
 	// server-rendered from its arg and harvested field by field (ADR 0003),
 	// and every SSE message replaces each lane wholesale. The item type is
 	// imported, so each `harvest` declares the field list and parsers inline
 	// (ADR 0046 s7, LT-429 — a shared setup const would hide the seed from
-	// the compiler); the id rides the compiler-stamped `data-key`.
+	// the compiler); the id rides the compiler-stamped `data-key`. `lane`'s
+	// parser is declared, not inferred: the imported `BoardLane` union is
+	// beyond the inference (LTC076), so the maps share `parseLane` below.
 	const waitingList = createList<BoardTask>(
 		harvest(waiting ?? [], {
 			id: asString(),
 			title: asString(),
 			area: asString(),
-			lane: asString(),
+			lane: parseLane,
 			order: asNumber(),
 			badges: asString(),
 			hint: asString(),
@@ -96,7 +122,7 @@ export function QueueBoard({
 			id: asString(),
 			title: asString(),
 			area: asString(),
-			lane: asString(),
+			lane: parseLane,
 			order: asNumber(),
 			badges: asString(),
 			hint: asString(),
@@ -108,7 +134,7 @@ export function QueueBoard({
 			id: asString(),
 			title: asString(),
 			area: asString(),
-			lane: asString(),
+			lane: parseLane,
 			order: asNumber(),
 			badges: asString(),
 			hint: asString(),
@@ -120,7 +146,7 @@ export function QueueBoard({
 			id: asString(),
 			title: asString(),
 			area: asString(),
-			lane: asString(),
+			lane: parseLane,
 			order: asNumber(),
 			badges: asString(),
 			hint: asString(),
@@ -132,7 +158,7 @@ export function QueueBoard({
 			id: asString(),
 			title: asString(),
 			area: asString(),
-			lane: asString(),
+			lane: parseLane,
 			order: asNumber(),
 			badges: asString(),
 			hint: asString(),
@@ -144,7 +170,7 @@ export function QueueBoard({
 			id: asString(),
 			title: asString(),
 			area: asString(),
-			lane: asString(),
+			lane: parseLane,
 			order: asNumber(),
 			badges: asString(),
 			hint: asString(),
