@@ -269,22 +269,28 @@ const byIdNumber = (a: QueueTask, b: QueueTask): number =>
 	Number(a.id.slice(3)) - Number(b.id.slice(3))
 
 /** The chain's bare TC-IDs in pick order: parentheticals, possessive citations and
- * `∥`/`→` structure reduced to one flat sequence per track. */
+ * `∥`/`→` structure reduced to one flat sequence per track. Positions are
+ * first-mention (owner ruling 2026-10-10): a task stands where the chain names
+ * it first, in document order — a later track's prose citation of it adds no
+ * position, for prerequisites ride the task's `needs:`. `duplicates` reports
+ * every id the raw chain names at more than one position, with the track
+ * names, so the check can flag the citation. */
 export function chainOrder(iteration: string): {
 	tracks: { name: string; ids: string[] }[]
 	closed: Set<string>
+	duplicates: { id: string; tracks: string[] }[]
 } {
 	const lines = iteration.split('\n')
 	const start = lines.findIndex(l => /^\*\*The chain\.\*\*/.test(l))
-	const tracks: { name: string; ids: string[] }[] = []
+	const raw: { name: string; ids: string[] }[] = []
 	const closed = new Set<string>()
-	if (start === -1) return { tracks, closed }
-	let raw: string | null = null
+	if (start === -1) return { tracks: [], closed, duplicates: [] }
+	let pending: string | null = null
 	let name = ''
 	const flush = () => {
-		if (raw === null) return
-		const rest = raw
-		raw = null
+		if (pending === null) return
+		const rest = pending
+		pending = null
 		for (const m of rest.matchAll(/~~\s*(TC-\d+)/g)) if (m[1]) closed.add(m[1])
 		let flat = rest
 		let prev = ''
@@ -303,7 +309,7 @@ export function chainOrder(iteration: string): {
 		// A track whose ids are all struck is closed (the gate-zero pattern) and
 		// contributes nothing; a track with live positions stays open even when
 		// it also strikes one id (`~~TC-371~~ → TC-375 → …`).
-		if (ids.length) tracks.push({ name, ids })
+		if (ids.length) raw.push({ name, ids })
 	}
 	for (let i = start + 1; i < lines.length; i++) {
 		const line = lines[i] ?? ''
@@ -312,13 +318,37 @@ export function chainOrder(iteration: string): {
 		if (bullet) {
 			flush()
 			name = bullet[1] ?? ''
-			raw = bullet[2] ?? ''
-		} else if (raw !== null && /^\s/.test(line)) {
-			raw += ` ${line.trim()}`
+			pending = bullet[2] ?? ''
+		} else if (pending !== null && /^\s/.test(line)) {
+			pending += ` ${line.trim()}`
 		} else break
 	}
 	flush()
-	return { tracks, closed }
+	// First mention wins: every raw occurrence feeds `duplicates` (the check
+	// flags the citation), the deduped ids drop each later mention — a track
+	// whose ids were all citations contributes nothing, like the all-struck
+	// one above.
+	const seen = new Set<string>()
+	const counts = new Map<string, number>()
+	const tracksOf = new Map<string, string[]>()
+	const tracks: { name: string; ids: string[] }[] = []
+	for (const track of raw) {
+		const ids: string[] = []
+		for (const id of track.ids) {
+			counts.set(id, (counts.get(id) ?? 0) + 1)
+			const where = tracksOf.get(id) ?? []
+			if (!where.length) tracksOf.set(id, where)
+			if (!where.includes(track.name)) where.push(track.name)
+			if (seen.has(id)) continue
+			seen.add(id)
+			ids.push(id)
+		}
+		if (ids.length) tracks.push({ name: track.name, ids })
+	}
+	const duplicates = [...counts]
+		.filter(([, n]) => n > 1)
+		.map(([id]) => ({ id, tracks: tracksOf.get(id) ?? [] }))
+	return { tracks, closed, duplicates }
 }
 
 export const flatChain = (store: Store): string[] =>
@@ -630,7 +660,8 @@ export function checkStore(root: string): {
 	const notes: string[] = []
 	const ids = new Set(store.tasks.keys())
 	const ledgerMentions = mentionedIds(store.ledger)
-	const tracks = chainOrder(store.iteration).tracks
+	const chain = chainOrder(store.iteration)
+	const tracks = chain.tracks
 
 	for (const task of store.tasks.values()) {
 		for (const need of task.needs) {
@@ -656,6 +687,13 @@ export function checkStore(root: string): {
 				`${task.id} is parked but named by the chain — refine it (status: open) or remove it from the chain`,
 			)
 		}
+	}
+	// First-mention rule: a prose citation is not a position — the raw chain
+	// naming one id at more than one position is an authoring error.
+	for (const { id, tracks: where } of chain.duplicates) {
+		problems.push(
+			`The chain names ${id} at more than one position (${where.join('; ')}) — a prose citation is not a position; prerequisites ride the task's needs`,
+		)
 	}
 	for (const track of tracks) {
 		for (const id of track.ids) {
