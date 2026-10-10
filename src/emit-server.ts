@@ -18,7 +18,7 @@
  */
 
 import type { AstNode } from './ast-node'
-import { freeIdentifiers, hostPropOf } from './ast-utils'
+import { freeIdentifiers, hostPropOf, identifiersIn } from './ast-utils'
 import {
 	type BoundaryArmRoot,
 	htmlThunkSignalName,
@@ -48,6 +48,7 @@ import { i18nAnnotated } from './i18n'
 import { carriedKinds, FORMATTING_KINDS, type Message } from './icu/evaluate'
 import { clientSourceRecord } from './icu/parse'
 import { RUNTIME_HARNESS_EXPORTS } from './imports'
+import { initialFold } from './initial-winner'
 import type {
 	ArmTemplate,
 	AttributeIR,
@@ -76,7 +77,7 @@ import {
 	inNestedScope,
 	isIf,
 	listIndexOf,
-	thenOf,
+	loopBindingNames,
 	walkTemplate,
 } from './walk'
 
@@ -130,21 +131,25 @@ const EMITTED_HARNESS_NAMES = [
 ] as const
 type EmittedHarnessName = (typeof EMITTED_HARNESS_NAMES)[number]
 
-/** Every name the render function binds, for the harness-alias check. */
+/**
+ * Every name the render function binds, for the harness-alias check. The
+ * server twin of `factoryScopeNames` (emit-client.ts) — both feed the
+ * shadow-alias policy over the same `loopBindingNames` fors-walk core
+ * (walk.ts) and differ only in their extras: this set adds the params, the
+ * setup names, the reconcile key (the server loop binds it) and the
+ * `@try` catch parameters; the factory's adds clientSetup, signals and
+ * plan queries, and drops `host`/`internals`.
+ */
 const renderScopeNames = (component: ComponentIR): Set<string> => {
 	// Bindings only — not `serverKnown`, which also holds module imports: an
 	// authored `isPending` import IS the harness name, not a shadow of it.
 	const names = new Set<string>(component.paramNames)
 	for (const stmt of component.setup) if (stmt.name) names.add(stmt.name)
 	for (const loop of component.fors.values()) {
-		names.add(loop.itemName)
-		if (loop.kind === 'each') {
-			if (loop.indexName) names.add(loop.indexName)
-			for (const hoisted of loop.hoisted) names.add(hoisted.name)
-		} else {
-			if (loop.keyName) names.add(loop.keyName)
-			for (const stmt of loop.setup) if (stmt.name) names.add(stmt.name)
-		}
+		loopBindingNames(loop, names)
+		// The key is this scope's extra (walk.ts's loopBindingNames leaves
+		// it out): only a reconcile loop binds one.
+		if (loop.kind === 'reconcile' && loop.keyName) names.add(loop.keyName)
 	}
 	walkTemplate(component.root, node => {
 		if (node.kind === 'try' && node.catchParam) names.add(node.catchParam)
@@ -328,7 +333,8 @@ const pushClose = (ctx: EmitContext, tag: string): void => {
  * which appears nowhere in the markup — a one-step seed would drop it.
  *
  * The reference test is identifier-boundary tokenisation of the generated
- * text — deliberately a text match, not a scope analysis: the generated text
+ * text (`identifiersIn`, ast-utils.ts) — deliberately a text match, not a
+ * scope analysis: the generated text
  * is exactly what must resolve. It can over-retain (a name that also appears
  * inside a static string literal survives as a dead const, which is the
  * Folded behaviour anyway); it cannot under-retain, because a genuine
@@ -344,8 +350,6 @@ const retainReferenced = (
 	setup: readonly SetupStmt[],
 	markup: readonly string[],
 ): SetupStmt[] => {
-	const identifiersIn = (text: string): string[] =>
-		text.match(/[A-Za-z_$][\w$]*/g) ?? []
 	const referenced = new Set(markup.flatMap(identifiersIn))
 	const retained = new Set<SetupStmt>()
 	for (let changed = true; changed; ) {
@@ -376,8 +380,6 @@ const dropUnreferencedUnevaluable = (
 	unevaluable: (stmt: SetupStmt) => boolean,
 	markup: readonly string[],
 ): SetupStmt[] => {
-	const identifiersIn = (text: string): string[] =>
-		text.match(/[A-Za-z_$][\w$]*/g) ?? []
 	let kept = [...setup]
 	for (let changed = true; changed; ) {
 		changed = false
@@ -408,13 +410,12 @@ const dropUnreferencedUnevaluable = (
  * owns its value, and empty is its connect-time state.
  */
 const lazyValueExpression = (
-	component: ComponentIR,
+	ctx: EmitContext,
 	exprText: string,
 	expr: AstNode,
 	scope: ReadonlySet<string>,
-	foldScope: ReadonlySet<string>,
-	onSeed?: (seed: string) => void,
 ): { expr: string; thunk: boolean } => {
+	const component = ctx.component
 	const value = (text: string) => ({ expr: text, thunk: false })
 	if (expr.type === 'Identifier') {
 		const name = String(expr.name)
@@ -443,13 +444,7 @@ const lazyValueExpression = (
 	if (expr.type === 'ArrowFunctionExpression') {
 		const mirror = hostPropMirrorExpr(component, expr)
 		if (mirror !== null) return value(mirror)
-		const derived = hostDerivedExpr(
-			component,
-			expr,
-			exprText,
-			foldScope,
-			onSeed,
-		)
+		const derived = hostDerivedExpr(ctx, expr, exprText, ctx.foldScope)
 		if (derived !== null) return value(derived)
 	}
 	if (!isServerEvaluable(expr, scope)) return value("''")
@@ -491,9 +486,37 @@ const hostPropMirrorExpr = (
  * references respectively, in every tier.
  */
 const useSeedNames = (ctx: EmitContext, seed: string): void => {
-	for (const id of seed.match(/[A-Za-z_$][\w$]*/g) ?? [])
+	for (const id of identifiersIn(seed))
 		if (RUNTIME_HARNESS_EXPORTS.has(id)) ctx.used.add(id)
 }
+
+/**
+ * The splice callback of every host-derived fold in this module, one body
+ * for the seed account (TC-007): a ref read folds to whatever decides its
+ * presence in the server's OWN output (LT-118) — `refBranchGuard`'s
+ * condition — and a prop read to `hostSeedExpr`'s seed (LT-386: the parser
+ * applied to the root attribute, the plain-value initializer, the
+ * attribute expression, or the harvesting arg — never a guess), which
+ * {@link useSeedNames} registers for the module's import line. Consumers:
+ * `hostDerivedExpr` (thunk sites), `serverTestExpr` (conditional tests)
+ * and the setup host-fold in `emitServerModule` (signal initializers —
+ * whose reads `initializerHostReads` collects with no foldable refs, so
+ * only the prop branch ever fires there).
+ */
+const foldSeedOf =
+	(ctx: EmitContext) =>
+	(prop: string, kind: 'prop' | 'ref'): string => {
+		// A ref read folds to whatever decides its presence in the
+		// server's OWN output (LT-118) — `refBranchGuard`'s condition.
+		if (kind === 'ref') return foldableRefGuards(ctx.component).get(prop) ?? ''
+		// Membership in foldableHostProps and the seed are one account
+		// (evaluability.ts, LT-386): the parser applied to the root
+		// attribute, the plain-value initializer, the attribute
+		// expression, or the harvesting arg — never a guess.
+		const seed = hostSeedExpr(ctx.component, prop)
+		if (seed !== null) useSeedNames(ctx, seed)
+		return seed ?? ''
+	}
 
 /**
  * The server expression for a thunk that reads ONLY `host.<prop>` members
@@ -504,42 +527,29 @@ const useSeedNames = (ctx: EmitContext, seed: string): void => {
  * harvesting arg), then the whole rewritten thunk is IIFE-invoked, same
  * posture as the plain-`isServerEvaluable` case below. Null when the thunk
  * reads anything other than foldable `host.<prop>` members (a signal, a
- * bare `host` escape, an unexposed prop). `onSeed` receives every spliced
- * seed so the caller can import the harness names one names (a Parser
- * factory).
+ * bare `host` escape, an unexposed prop). The splice seeds through the
+ * shared {@link foldSeedOf} callback, so every spliced seed's harness
+ * names reach the import line.
  */
 const hostDerivedExpr = (
-	component: ComponentIR,
+	ctx: EmitContext,
 	thunk: AstNode,
 	thunkText: string,
 	allow: ReadonlySet<string>,
-	onSeed?: (seed: string) => void,
 ): string | null => {
 	const reads = hostDerivedFold(
 		thunk,
-		foldableHostProps(component),
-		foldableRefGuards(component),
+		foldableHostProps(ctx.component),
+		foldableRefGuards(ctx.component),
 		allow,
 	)
 	if (reads === null || reads.length === 0) return null
-	const spliced = spliceHostDerivedFold(
+	return `(${spliceHostDerivedFold(
 		thunkText,
 		typeof thunk.start === 'number' ? thunk.start : 0,
 		reads,
-		(prop, kind) => {
-			// A ref read folds to whatever decides its presence in the
-			// server's OWN output (LT-118) — `refBranchGuard`'s condition.
-			if (kind === 'ref') return foldableRefGuards(component).get(prop) ?? ''
-			// Membership in foldableHostProps and the seed are one account
-			// (evaluability.ts, LT-386): the parser applied to the root
-			// attribute, the plain-value initializer, the attribute
-			// expression, or the harvesting arg — never a guess.
-			const seed = hostSeedExpr(component, prop)
-			if (seed !== null) onSeed?.(seed)
-			return seed ?? ''
-		},
-	)
-	return `(${spliced})()`
+		foldSeedOf(ctx),
+	)})()`
 }
 
 /**
@@ -628,27 +638,9 @@ const listTemplate = (
 		if (node.kind === 'conditional' && node.mode === 'server') {
 			// Server-known control flow folds to its winner, evaluated per
 			// render call; the template carries that arm for every clone.
-			if (isIf(node)) {
-				const win = node.arms[0]
-				const lose = node.arms[1]
-				out.open(`if (${node.testText}) {`)
-				if (win) for (const child of win.children) shape(child)
-				if (lose && lose.children.length > 0) {
-					out.between('} else {')
-					for (const child of lose.children) shape(child)
-				}
-				out.close()
-				return
-			}
-			out.open(`switch (${node.testText}) {`)
-			for (const arm of node.arms) {
-				out.open(
-					`${arm.testText === null ? 'default' : `case ${arm.testText}`}: {`,
-				)
-				for (const child of arm.children) shape(child)
-				out.line('break').close()
-			}
-			out.close()
+			emitJsConditional(out, node.testText, node, arm => {
+				for (const child of arm?.children ?? []) shape(child)
+			})
 			return
 		}
 		if (node.kind === 'compose') {
@@ -851,7 +843,7 @@ const emitItemSetup = (
 	for (const stmt of setup) {
 		if (stmt.kind === 'signal') {
 			ctx.used.add(stmt.constructor)
-			for (const id of stmt.text.match(/[A-Za-z_$][\w$]*/g) ?? [])
+			for (const id of identifiersIn(stmt.text))
 				if (RUNTIME_HARNESS_EXPORTS.has(id)) ctx.used.add(id)
 		}
 		ctx.out.line(stmt.text, [{ text: stmt.text, start: stmt.range.start }])
@@ -1044,13 +1036,7 @@ const emitElement = (
 				const mirror = hostPropMirrorExpr(ctx.component, attr.thunk)
 				const derived =
 					mirror === null
-						? hostDerivedExpr(
-								ctx.component,
-								attr.thunk,
-								attr.thunkText,
-								ctx.foldScope,
-								seed => useSeedNames(ctx, seed),
-							)
+						? hostDerivedExpr(ctx, attr.thunk, attr.thunkText, ctx.foldScope)
 						: null
 				if (mirror !== null) {
 					ctx.used.add('attr')
@@ -1242,6 +1228,35 @@ const emitCompose = (
 }
 
 /**
+ * One inert arm `<template data-arms data-key>` (ADR 0037 s1), one body
+ * for both stamping sites (TC-007): the stamp — whose exact selector the
+ * generated clients and the realm run (`dataArmsSelector`, codegen.ts) —
+ * the arm root rendered between its halves with client-written sites baked
+ * empty (LT-385c: `inArmTemplate` on for the body), and the stamp closed.
+ * The live winner renders OUTSIDE this helper and keeps its values.
+ */
+const stampArmTemplate = (
+	ctx: EmitContext,
+	armSet: string,
+	key: string,
+	renderRoot: () => void,
+): void => {
+	push(
+		ctx,
+		`${new HtmlWriter()
+			.static('<template')
+			.attr('data-arms', armSet)
+			.attr('data-key', key)
+			.static('>')}`,
+	)
+	const wasInTemplate = ctx.inArmTemplate
+	ctx.inArmTemplate = true
+	renderRoot()
+	ctx.inArmTemplate = wasInTemplate
+	push(ctx, "'</template>'")
+}
+
+/**
  * The async boundary form of `@try` (ADR 0024 sub-design 13, LT-012; ADR
  * 0037 s4, LT-276): the arm that won at render time renders live, keyed
  * `ok`/`nil`/`err` by its root's `data-key`, followed by one inert
@@ -1325,22 +1340,12 @@ const emitAsyncBoundary = (
 			['nil', pendingRoot, scope],
 			['err', errRoot, errScope],
 		] as const) {
-			push(
-				ctx,
-				`${new HtmlWriter()
-					.static('<template')
-					.attr('data-arms', armSet)
-					.attr('data-key', key)
-					.static('>')}`,
-			)
 			// LT-385c: same rule as the conditional's templates — client-written
 			// sites bake empty in the boundary's arms too (a pending task's
 			// `get()` would throw); the mounts write them on enter.
-			const wasInTemplate = ctx.inArmTemplate
-			ctx.inArmTemplate = true
-			emitArmRoot(root, armScope, null)
-			ctx.inArmTemplate = wasInTemplate
-			push(ctx, "'</template>'")
+			stampArmTemplate(ctx, armSet, key, () =>
+				emitArmRoot(root, armScope, null),
+			)
 		}
 	}
 	// Inside a template (an arm's, a list item's; LT-424) nothing is live:
@@ -1397,37 +1402,77 @@ const emitAsyncBoundary = (
 }
 
 /**
+ * The if/switch JS emission shape, one body for the two renderers that
+ * walk a server conditional's arms' children (TC-007): `emit`'s
+ * server-data arm and `listTemplate`'s folded shape. The construct opens
+ * on `testText` — an `@if` renders its then arm, an `@else` with content
+ * becomes `} else {` — and an `@switch` opens one breaking `case` block
+ * per arm (arms are mutually exclusive, so JS fall-through cannot blend
+ * them). `renderArm` draws one arm's content; both callers walk its
+ * children, and an absent arm renders nothing.
+ * `emitReactiveConditional`'s live winner shares the shape but renders by
+ * ROOT (an arm may deliberately render nothing) over the folded
+ * `serverTestExpr` text, so it keeps its own spelling below.
+ */
+const emitJsConditional = (
+	out: CodeBuilder,
+	testText: string,
+	node: ConditionalNode,
+	renderArm: (arm: ArmTemplate | undefined) => void,
+): void => {
+	if (isIf(node)) {
+		out.open(`if (${testText}) {`)
+		renderArm(node.arms[0])
+		if (elseOf(node).length > 0) {
+			out.between('} else {')
+			renderArm(node.arms[1])
+		}
+		out.close()
+		return
+	}
+	out.open(`switch (${testText}) {`)
+	for (const arm of node.arms) {
+		out.open(`${arm.testText === null ? 'default' : `case ${arm.testText}`}: {`)
+		renderArm(arm)
+		out.line('break').close()
+	}
+	out.close()
+}
+
+/**
  * The server expression a reactive conditional's test folds to, or null
- * when no server phase can evaluate it (`initialFold`): the test itself
- * when the value harness can evaluate it, else the test with each
- * `host.<prop>` read spliced for the prop's server seed (`hostSeedExpr` —
- * the parser applied to the root attribute for a Parser-backed prop,
- * LT-386).
+ * when no server phase can evaluate it. The gate is `initialFold`'s — the
+ * all-or-nothing fold rule in one body (`initial-winner.ts` answers the
+ * same question for the winner rewrite; TC-007) — this wrapper only
+ * adapts the answer to the emitted expression: the test itself when the
+ * value harness can evaluate it, else the test with each `host.<prop>`
+ * read spliced for the prop's server seed through the shared
+ * {@link foldSeedOf} callback (`hostSeedExpr` — the parser applied to the
+ * root attribute for a Parser-backed prop, LT-386).
  */
 const serverTestExpr = (
 	ctx: EmitContext,
 	node: ConditionalNode,
 	scope: ReadonlySet<string>,
 ): string | null => {
+	if (!initialFold(ctx.component, node, scope)) return null
 	if (isServerEvaluable(node.test, scope)) return node.testText
+	// `initialFold` proved the fold exists; this re-walk is its same query,
+	// kept for the reads the splice needs.
 	const reads = hostDerivedFold(
 		node.test,
 		foldableHostProps(ctx.component),
 		foldableRefGuards(ctx.component),
 		new Set([...ctx.foldScope, ...scope]),
 	)
+	// Unreachable: `initialFold` returning true over a non-server-evaluable
+	// test is exactly this call being non-null.
 	if (reads === null) return null
 	return spliceHostDerivedFold(
 		node.testText,
 		typeof node.test.start === 'number' ? node.test.start : 0,
 		reads,
-		(prop, kind) => {
-			if (kind === 'ref')
-				return foldableRefGuards(ctx.component).get(prop) ?? ''
-			const seed = hostSeedExpr(ctx.component, prop)
-			if (seed !== null) useSeedNames(ctx, seed)
-			return seed ?? ''
-		},
+		foldSeedOf(ctx),
 	)
 }
 
@@ -1471,46 +1516,23 @@ const emitReactiveConditional = (
 		// no live arm
 	} else if ('constant' in initial)
 		renderLive(node.arms.find(arm => arm.key === initial.constant))
-	else if (test !== null && isIf(node)) {
-		ctx.out.open(`if (${test}) {`)
-		renderLive(node.arms[0])
-		if (elseOf(node).length > 0) {
-			ctx.out.between('} else {')
-			renderLive(node.arms[1])
-		}
-		ctx.out.close()
-	} else if (test !== null) {
-		ctx.out.open(`switch (${test}) {`)
-		for (const arm of node.arms) {
-			ctx.out.open(
-				`${arm.testText === null ? 'default' : `case ${arm.testText}`}: {`,
-			)
-			renderLive(arm)
-			ctx.out.line('break').close()
-		}
-		ctx.out.close()
-	}
+	else if (test !== null)
+		// The same if/switch shape as the server conditional's two child
+		// renderers (`emitJsConditional`) — not unified with them: the test
+		// is the folded `serverTestExpr` text (not `node.testText`) and an
+		// arm renders by ROOT through `renderLive`, free to render nothing.
+		emitJsConditional(ctx.out, test, node, renderLive)
 	const armSet = String(armSetOf(ctx.component.root, node))
 	for (const arm of node.arms) {
 		const root = rootOf(arm)
 		if (!root) continue
-		push(
-			ctx,
-			`${new HtmlWriter()
-				.static('<template')
-				.attr('data-arms', armSet)
-				.attr('data-key', arm.key)
-				.static('>')}`,
-		)
 		// LT-385c: the losing arms bake client-written sites empty — their
 		// condition did not hold at render time. The live winner above keeps
 		// its values.
-		const wasInTemplate = ctx.inArmTemplate
-		ctx.inArmTemplate = true
-		if (root.kind === 'compose') emitCompose(ctx, root, scope)
-		else emitPlainElement(ctx, root, scope)
-		ctx.inArmTemplate = wasInTemplate
-		push(ctx, "'</template>'")
+		stampArmTemplate(ctx, armSet, arm.key, () => {
+			if (root.kind === 'compose') emitCompose(ctx, root, scope)
+			else emitPlainElement(ctx, root, scope)
+		})
 	}
 }
 
@@ -1559,14 +1581,7 @@ const emit = (
 			node.expr.type === 'Identifier' && ctx.listItems.has(node.exprText)
 				? { expr: `${node.exprText}.get()`, thunk: false }
 				: node.reactivity === 'reactive'
-					? lazyValueExpression(
-							ctx.component,
-							node.exprText,
-							node.expr,
-							scope,
-							ctx.foldScope,
-							seed => useSeedNames(ctx, seed),
-						)
+					? lazyValueExpression(ctx, node.exprText, node.expr, scope)
 					: { expr: node.exprText, thunk: false }
 		// An authored arrow is `textOf`'s argument, anything else `text`'s.
 		pushText(ctx, ctx.out, value.thunk ? 'textOf' : 'text', value.expr, node)
@@ -1576,30 +1591,12 @@ const emit = (
 		emitReactiveConditional(ctx, node, scope)
 		return
 	}
-	if (isIf(node)) {
+	if (node.kind === 'conditional') {
 		// The condition is server-known (validated at lowering) — the
 		// render function evaluates it against the real args.
-		ctx.out.open(`if (${node.testText}) {`)
-		for (const child of thenOf(node)) emit(ctx, child, scope)
-		if (elseOf(node).length > 0) {
-			ctx.out.between('} else {')
-			for (const child of elseOf(node)) emit(ctx, child, scope)
-		}
-		ctx.out.close()
-		return
-	}
-	if (node.kind === 'conditional') {
-		// Arms are mutually exclusive — each case block breaks so JS
-		// fall-through cannot blend arms.
-		ctx.out.open(`switch (${node.testText}) {`)
-		for (const arm of node.arms) {
-			ctx.out.open(
-				`${arm.testText === null ? 'default' : `case ${arm.testText}`}: {`,
-			)
-			for (const child of arm.children) emit(ctx, child, scope)
-			ctx.out.line('break').close()
-		}
-		ctx.out.close()
+		emitJsConditional(ctx.out, node.testText, node, arm => {
+			for (const child of arm?.children ?? []) emit(ctx, child, scope)
+		})
 		return
 	}
 	if (node.kind === 'try' && node.pendingChildren !== null) {
@@ -1970,11 +1967,10 @@ export const emitServerModule = (
 							r.start >= piece.start &&
 							r.end <= piece.start + piece.text.length,
 					),
-					prop => {
-						const seed = hostSeedExpr(component, prop) ?? ''
-						useSeedNames(ctx, seed)
-						return seed
-					},
+					// The shared splice callback (foldSeedOf): these reads come
+					// from `initializerHostReads`, which admits no foldable
+					// refs, so only the prop branch ever fires here.
+					foldSeedOf(ctx),
 				),
 				start: piece.start,
 			})),
@@ -2009,7 +2005,7 @@ export const emitServerModule = (
 		// `RUNTIME_HARNESS_EXPORTS` (imports.ts), so the runtime import line
 		// must provide it: register every harness name the declaration's own
 		// text mentions.
-		for (const id of signal.text.match(/[A-Za-z_$][\w$]*/g) ?? [])
+		for (const id of identifiersIn(signal.text))
 			if (RUNTIME_HARNESS_EXPORTS.has(id)) used.add(id)
 	}
 	// `expose()` declares no name, so the retention rule never keeps it; its
@@ -2191,7 +2187,7 @@ export const emitServerModule = (
 							if (!optionalish) stmts.push('\telse return null')
 							for (const id of [
 								parser.parser,
-								...(parser.fallbackText?.match(/[A-Za-z_$][\w$]*/g) ?? []),
+								...identifiersIn(parser.fallbackText ?? ''),
 							])
 								if (RUNTIME_HARNESS_EXPORTS.has(id)) used.add(id)
 						} else if (param.isString) {

@@ -92,6 +92,17 @@ export const jsData = (value: unknown): string => JSON.stringify(value)
 export const isJsIdentifier = (name: string): boolean =>
 	/^[A-Za-z_$][\w$]*$/.test(name)
 
+/**
+ * The client query for one arm set's inert `<template>`s (ADR 0037): the
+ * exact selector the generated client modules run (`emit-client.ts`'s
+ * `reconcile()` calls) and the realm's `liveArmOf` re-derives
+ * (`sim/realm.ts`) — against the `<template data-arms data-key>` stamp the
+ * server emitter writes (`stampArmTemplate`, emit-server.ts). One spelling
+ * here, or the three drift.
+ */
+export const dataArmsSelector = (armSet: string | number): string =>
+	`:scope > template[data-arms="${armSet}"]`
+
 /* === Classes === */
 
 /**

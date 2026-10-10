@@ -106,6 +106,7 @@
  */
 
 import { JSDOM, VirtualConsole } from 'jsdom'
+import { dataArmsSelector } from '../codegen'
 import {
 	type SimDiagnostic,
 	type SimRenderRequest,
@@ -562,9 +563,9 @@ export function createSimulationRealm(
 	 * form adopts by.
 	 */
 	const liveArmOf = (container: Element, armSet: number): Element | null => {
-		const templates = container.querySelectorAll(
-			`:scope > template[data-arms="${armSet}"]`,
-		)
+		// The same selector the generated clients run (`dataArmsSelector`,
+		// codegen.ts) against the stamp the server emitter writes.
+		const templates = container.querySelectorAll(dataArmsSelector(armSet))
 		const previous = templates[0]?.previousElementSibling ?? null
 		const key = previous?.getAttribute('data-key') ?? null
 		return previous !== null &&
