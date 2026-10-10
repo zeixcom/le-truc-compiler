@@ -249,6 +249,7 @@ declare namespace JSX {
 		method?: 'get' | 'post' | 'dialog'
 		onSubmit?: ((event: SubmitEvent) => unknown) | undefined
 	}
+	interface h1 extends CommonLightDom {}
 	interface h2 extends CommonLightDom {}
 	interface h3 extends CommonLightDom {}
 	interface footer extends CommonLightDom {}
@@ -282,6 +283,8 @@ declare namespace JSX {
 	interface small extends CommonLightDom {}
 	interface strong extends CommonLightDom {}
 	interface summary extends CommonLightDom {}
+	/** The queue board's lanes (demo/queue-board). */
+	interface section extends CommonLightDom {}
 	interface li extends CommonLightDom {}
 	/** schema.org microdata, the attributes basic-blogmeta's byline carries. */
 	interface Microdata {
@@ -471,6 +474,10 @@ declare namespace JSX {
 	 * Scope fixture pair's `.tsx` twin takes no args, so only the common
 	 * set applies. */
 	type TestListitemTsxAttrs = CommonLightDom
+	/** The queue board's own tag (demo/queue-board, TC-012): the server
+	 * renders it from `renderQueueBoard({ … })` args, so the tag itself
+	 * carries no light-DOM attributes beyond the common set. */
+	type QueueBoardAttrs = CommonLightDom
 
 	/**
 	 * `<truc:try>` (ADR 0041), the `.tsx` spelling of
@@ -515,6 +522,7 @@ declare namespace JSX {
 		th: th
 		td: td
 		form: form
+		h1: h1
 		h2: h2
 		h3: h3
 		footer: footer
@@ -531,6 +539,7 @@ declare namespace JSX {
 		ol: ol
 		p: p
 		pre: pre
+		section: section
 		small: small
 		span: span
 		svg: svg
@@ -573,6 +582,7 @@ declare namespace JSX {
 		'css-probe-child': CssProbeChildAttrs
 		'x-kid-widget': XKidWidgetAttrs
 		'test-listitem-tsx': TestListitemTsxAttrs
+		'queue-board': QueueBoardAttrs
 		'truc:try': TrucTryAttrs
 	}
 }

@@ -51,6 +51,7 @@
 		"build:demo": "bun run scripts/build-demo.ts",
 		"check:contract": "bun run scripts/contract-check.ts",
 		"check:corpus": "bun run scripts/check-corpus.ts",
+		"check:demo": "tsc -p demo/tsconfig.json --noEmit",
 		"check:package": "bun run scripts/check-package.ts",
 		"check:peer": "bun run scripts/check-runtime-peer.ts",
 		"check:queue": "bun run scripts/queue.ts check",
