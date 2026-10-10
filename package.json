@@ -1,6 +1,6 @@
 {
 	"name": "@zeix/le-truc-compiler",
-	"version": "0.1-next.1",
+	"version": "3.0.0-next.1",
 	"description": "The Le Truc component compiler: builds a corpus of .tsx (stable) and .tsrx (experimental) component sources into server render modules, client modules and scoped CSS.",
 	"keywords": [
 		"Le Truc",
