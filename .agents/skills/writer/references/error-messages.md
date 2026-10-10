@@ -1,6 +1,6 @@
 # Error Messages
 
-**Use when:** an error class in `src/errors.ts` or a diagnostic code in `server/compiler/diagnostics.ts` (`LTC###`, or `TSRX###` for a `.tsrx`-grammar rule) is added, reworded, or removed — or when the two lists need a consistency pass.
+**Use when:** a diagnostic code in `src/diagnostics.ts` (`LTC###`, or `TSRX###` for a `.tsrx`-grammar rule) is added, reworded, or removed — or when the two lists need a consistency pass.
 
 **Ownership:** whoever changes the condition writes the copy, to the criteria below — a contributor in the same change, or `writer` on request for a batch. The Architect fixes the channel and tier at task-writing time (ADR 0028); copy follows the tier.
 
@@ -17,22 +17,18 @@ These are not advice. A message that fails one of them is not done.
 ### 1. Three parts, in this order
 
 1. **What failed** — the condition, in the author's vocabulary, not the implementation's.
-2. **Which component and site** — `elementName()` / `describeRoot()` supply this for runtime classes, `lineOf()` for compiler diagnostics. If the builder does not receive enough to name the site, that is a signature gap to raise with the developer, not something to write around.
+2. **Which module and site** — `lineOf()` and the phase context supply this for compiler diagnostics. If the builder does not receive enough to name the site, that is a signature gap to raise with the developer, not something to write around.
 3. **What the author should do** — an imperative fix. This is the part that goes missing. "X is not allowed" is not a message; "X is not allowed — do Y instead" is.
 
 Where the fix genuinely depends on information the builder does not have, name the *decision* the author has to make rather than omitting part 3.
 
 ### 2. Name the paired rule
 
-A runtime message whose condition has a compiler rule **must not name that rule's code**. The compiler is not the only way to author Le Truc components — hand-authored, no-build setups exist — and a compiler code would be non-actionable noise there. Instead, [errors.md](../../../../skills/le-truc/references/errors.md) tells agents that hit the backstop about the compiler check upstream (ADR 0028 sub-design 1 — the runtime is a backstop, not the notification).
-
-The reverse cross-reference belongs on the compiler side: a compiler message whose condition also throws at connect names the runtime error class.
+A compiler message whose condition also throws at connect **names the runtime error class**: the author who skips the compiler meets the class next, and the class is the actionable spelling there. The reverse direction — a runtime message naming a compiler code — is wrong, but that copy is owned by the sibling `le-truc` repo (ADR 0028 sub-design 1 — the runtime is a backstop, not the notification); raise a pairing gap in `NOTES.md` rather than editing across repos.
 
 ### 3. Do not imply a Tier 2 failure broke the page
 
-A contained error means the component degraded to its server-rendered markup, which is *already correct* (ADR 0028 sub-design 4). "Broken", "crashed", "failed to render" are all wrong for Tier 2. "Did not enhance", "did not activate", "kept its server-rendered markup" are right. This applies to `reportConnectFailure` and `reportEffectFailure` in **both** branches — the production branch is shorter, not more alarming.
-
-Tier 3 is the exception, and there are only two sites: `defineComponent()` at module evaluation, and the Trusted Types re-throw.
+A contained error means the component degraded to its server-rendered markup, which is *already correct* (ADR 0028 sub-design 4). "Broken", "crashed", "failed to render" are all wrong for Tier 2. "Did not enhance", "did not activate", "kept its server-rendered markup" are right. Tier 3 is the exception.
 
 ### 4. One voice across both lists
 
@@ -42,7 +38,7 @@ Message shape: a sentence stating the condition, an em-dash clause for the mecha
 
 ## Which prefix a new code gets
 
-The `DiagnosticCode` union carries two prefixes, split by ownership ([ADR 0028](../../../../adr/0028-tiered-error-surfacing.md) sub-design 1, as amended 2026-09-19; full disposition in `server/compiler/VOCABULARY_LEDGER.md`):
+The `DiagnosticCode` union carries two prefixes, split by ownership ([ADR 0028](../../../../adr/0028-tiered-error-surfacing.md) sub-design 1, as amended 2026-09-19; full disposition in `CONTEXT.md`):
 
 - **`LTC###` — the default.** Every rule the shared machinery emits on both authored surfaces.
 - **`TSRX###` — the exception.** Only for a rule specific to `.tsrx` grammar with no `.tsx` counterpart. Today that is exactly `TSRX018`, `TSRX020` and `TSRX021`–`TSRX024`: the React idioms they guard against are `.tsx`'s *correct* spellings ([ADR 0032](../../../../adr/0032-adopt-tsx-as-the-authored-component-surface.md) s6), so those rules cannot be compiler-wide, and none of them is in the published package.
@@ -53,7 +49,7 @@ The number spaces do not overlap; both prefixes live in the one union. New codes
 
 ## Event: a new error
 
-**Trigger:** a developer adds a class to `src/errors.ts` or a code to `server/compiler/diagnostics.ts`.
+**Trigger:** a developer adds a code to `src/diagnostics.ts`.
 
 1. **Confirm the tier is recorded.** The Architect decides the tier at task-writing time; if the task does not say, ask before writing copy — the tier decides the wording.
 2. **Pick the prefix.** `LTC###` unless the rule is specific to `.tsrx` grammar — see *Which prefix a new code gets* above.
@@ -67,7 +63,7 @@ The number spaces do not overlap; both prefixes live in the one union. New codes
 **Trigger:** wording changes on an existing class or code.
 
 1. Re-check all four criteria — a reword is the cheapest moment to close a missing part 3.
-2. **Check the caller-side reason strings.** Several classes take a `reason` argument assembled at the throw site, not in `src/errors.ts`: `InvalidPropertyNameError` (`src/component.ts`), `InvalidPassPropertyError` (`src/helpers/reactive.ts`), `UnsafeAttributeError` (`src/bindings.ts`), `MissingElementError` (the author's own required-reason). The sentence the reader sees is assembled from both halves — read it whole before judging it.
+2. **Check the fragments assembled at the emit site.** A diagnostic's sentence is assembled from the builder plus the values passed where it is emitted — read the rendered message whole (`tests/diagnostics.test.ts` and the snapshot goldens show it) before judging it.
 3. Propagate (checklist below). **Message-substring tests are the failure mode here:** they break silently in the sense that they were checking the right thing and now fail for the wrong reason.
 
 ## Event: a retired error
@@ -75,15 +71,14 @@ The number spaces do not overlap; both prefixes live in the one union. New codes
 **Trigger:** a class is deleted, or a rule stops being emitted.
 
 1. Search the whole repo for the name or code, not just the source file. A retired code often survives in a union type with no builder behind it — `LTC031` was exactly this. Mark it retired in the union comment rather than deleting the member silently, so the next reader knows the number is spent.
-2. Remove its row from `references/errors.md`, or mark it retired if authors may still meet it in an older build.
+2. Remove its substring-test assertions (below), or mark them retired if authors may still meet the code in an older build.
 3. Propagate (checklist below), including the ADR that decided the retirement.
 
 ## Event: periodic consistency review
 
-**Trigger:** after a batch of error work, or when the two lists have drifted.
+**Trigger:** after a batch of error work, or when the list and its references have drifted.
 
-1. Read both lists end to end in one sitting. Drift is only visible in aggregate: the two channels evolved independently, and it showed as compiler messages naming the fix inline while runtime messages stated the condition and stopped.
-2. Check every runtime class against the ADR 0028 inventory table. Every row must name a channel that exists — no code that no builder emits, no ✅ for a rule that was never written.
+1. Read the code list end to end in one sitting, against the ADR 0028 inventory. Every row must name a channel that exists — no code that no builder emits, no ✅ for a rule that was never written. The runtime classes live in the sibling `le-truc` repo; check the pairing only when a task touches it.
 3. Check every message for part 3.
 4. Check every Tier 2 message against criterion 3.
 5. Record anything you cannot fix as copy — a missing rule, a builder that cannot name its site — in `NOTES.md` for the Architect to turn into a task, not as a hedge in the message.
@@ -96,16 +91,11 @@ An error message has more downstream copies than any other string in the project
 
 | Target | What to do |
 |---|---|
-| `src/errors.ts` / `server/compiler/diagnostics.ts` | The builder and its JSDoc — the authoritative copy |
-| Caller-side `reason` strings | `src/component.ts`, `src/helpers/reactive.ts`, `src/bindings.ts` — half the sentence lives here |
-| `skills/le-truc/references/errors.md` | One row per error: what fired, why, how to fix, tier. Do not restate the message — point at the condition |
-| `skills/le-truc/SKILL.md` § When debugging | Routes named errors to `errors.md`; a new *class* of error may need a step |
-| The JSDoc of the function that surfaces the error, or `AGENTS.md` for a cross-cutting surprise (never `runtime-internals.md` — it is a pointer file, not a content home) | Any prose describing how the error surfaces |
-| `docs-src/pages/` | Prose naming the error: `props.md`, `components.md`, `extensions.md`, `async.md`, `api.md` |
-| `docs-src/api/classes/*.md` | **Generated.** Never hand-edit — regenerate with `bun run build:docs` after the JSDoc change |
+| `src/diagnostics.ts` | The builder and its JSDoc — the authoritative copy |
+| The JSDoc of the emitting function, or `AGENTS.md` for a cross-cutting surprise | Any prose describing how the diagnostic surfaces |
+| `ARCHITECTURE.md` | The diagnostic inventory, for a new or retired code. Architect-owned — propose the change in `NOTES.md` |
 | **Message-substring tests** | See below — these fail the build, so find them first |
 | `adr/0028-tiered-error-surfacing.md` | The inventory table, if the channel or tier changed. Follow `architect` → `references/adr.md` |
-| `server/compiler/LE_TRUC_COMPILER.md` | The diagnostic inventory, for a new or retired code |
 | `CHANGELOG.md` | A user-visible message change is a change. Follow `changelog.md` |
 
 ### Message-substring tests
@@ -115,9 +105,6 @@ These assert on fragments of the exact strings this workflow edits. Grep them be
 | File | Asserts on |
 |---|---|
 | `examples/test/audit/test-audit.spec.ts` | `'reserved word'` |
-| `server/tests/compiler/diagnostics.test.ts` | `'reserved word or Object builtin'`, and code-specific fragments throughout |
-| `src/tests/component.test.ts` | `'did not enhance'`, `'the component factory'`, `'server-rendered markup'`, `'pass()'`, `'hand-authored'` |
-| `src/tests/internal.test.ts` | `'watch()'`, `'<my-element>'` |
-| `src/tests/reactive.test.ts` | failing prop names in `InvalidPassPropertyError` |
+| `tests/diagnostics.test.ts` | `'reserved word or Object builtin'`, and code-specific fragments throughout |
 
-Verify with `bun test src/tests`, `bun test server/tests`, and the Playwright examples run.
+Verify with `bun test tests`. When the audit spec's asserted fragment changes, its Playwright run is an owner browser gate.

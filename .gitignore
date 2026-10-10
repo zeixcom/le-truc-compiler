@@ -180,3 +180,6 @@ dataset/
 .zcode/plans/
 .zcodeignore
 /.worktrees/
+
+# Agent skill proposals (mirrored .agents/ replacements, transitory)
+.agents-proposals/

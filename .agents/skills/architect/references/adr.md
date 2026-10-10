@@ -6,8 +6,8 @@ ADRs live in `adr/`: the template is `adr/0000-template.md` and the index is `ad
 
 | Content | Home — never the ADR |
 |---|---|
-| Ticket numbers (`LT-NNN`), iteration plans, rounds of shape exploration | The queue files and commit messages |
-| Reference tables that drift: diagnostic codes, option lists, per-surface matrices | `ARCHITECTURE.md`, `server/compiler/HOST_PROFILE.md`, `LE_TRUC_COMPILER.md`, JSDoc, or the source constant |
+| Ticket numbers (`TC-NNN`), iteration plans, rounds of shape exploration | The queue files and commit messages |
+| Reference tables that drift: diagnostic codes, option lists, per-surface matrices | `ARCHITECTURE.md`, `HOST_PROFILE.md`, JSDoc, or the source constant |
 | Code examples for public interfaces | JSDoc and source. The ADR names the key file. |
 | Implementation mechanics | Source and `ARCHITECTURE.md` |
 
