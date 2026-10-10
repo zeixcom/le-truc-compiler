@@ -2,6 +2,8 @@
 
 ADRs live in `adr/`: the template is `adr/0000-template.md` and the index is `adr/adr-index.md`. An ADR records timeless reasoning — the problem, the commitment, the rejected alternatives and why, and the lasting trade-offs. It must stay true after the code is refactored.
 
+**Scope (owner ruling 2026-10-10):** ADRs cover shipped code only — the compiler, its public contract, its generated modules and its diagnostics. Internal tooling decisions (queue, board, demo, scripts, server) are planned with the owner first and recorded in the code and the skills once built; they take no ADRs.
+
 ## Where content goes
 
 | Content | Home — never the ADR |

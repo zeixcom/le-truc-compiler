@@ -22,7 +22,7 @@ When a doc and the source disagree, the source wins. Fix the doc in the same cha
 
 ## Hard rules
 
-1. **Work the queue.** Start every task with `bun run scripts/start-task.ts [TC-NNN]` (see *Working a task*). Never take a task the chain does not name. `TODO.md`, `BACKLOG.md` and `DONE.md` are generated views of `queue/`; never edit them.
+1. **Work the queue.** Start every task with `bun run scripts/start-task.ts [TC-NNN]` (see *Working a task*). Never take a task the chain does not name. `BACKLOG.md` and `DONE.md` are generated views of `queue/`; never edit them. The board (`bun run queue:serve`, the owner's window) reads the store live.
 2. **Never move entries between queue files, and never edit `ARCHITECTURE.md`.** Both belong to the Architect. Record your outcome with `bun run scripts/queue.ts annotate TC-NNN <pending-review|done|blocked> <prose-file>`: it sets `status:` in `queue/TC-NNN.md` and inserts the handoff. Propose an `ARCHITECTURE.md` change in `NOTES.md`.
 3. **Mark API changes for review.** If the change touches the public API, a compiler-authored surface's semantics, a diagnostic code's meaning, or emitted output, annotate it `pending-review` with a `**Changed:**` / `**How:**` / `**Check:**` handoff. Annotate anything else `done` with a one-line `**Changed:**`. When in doubt, it is `pending-review`.
 4. **Stop when the plan is wrong.** If the task needs an architectural decision it does not contain, or you would deviate from it, annotate it `blocked` (annotate writes the `NOTES.md` entry), and stop. Do not design around the gap.

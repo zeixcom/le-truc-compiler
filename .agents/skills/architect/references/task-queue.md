@@ -1,20 +1,21 @@
 # Task Queue
 
-The queue is a per-task store: one `queue/TC-NNN.md` per task, plus the prose files `queue/ITERATION.md`, `queue/BANDS.md` and `queue/LEDGER.md`. `BACKLOG.md`, `TODO.md` and `DONE.md` are generated views — `bun run queue:build` renders them from the store, and a hand edit is lost on the next build. Task IDs (`TC-NNN`) are unique by construction (the filename is the ID) and sequential; the "Next free task ID" line lives in the `queue/ITERATION.md` header.
+The queue is a per-task store: one `queue/TC-NNN.md` per task, plus the prose files `queue/ITERATION.md`, `queue/BANDS.md` and `queue/LEDGER.md`. `BACKLOG.md` and `DONE.md` are generated markdown views — `bun run queue:build` renders them from the store, and a hand edit is lost on the next build. The iteration's working view is the **live board** (owner ruling 2026-10-10): `bun run queue:serve` serves a kanban rendered by the compiler's own output (`demo/`, built by `bun run build:demo`), reading the store directly and pushing a fresh snapshot over SSE whenever `queue/` changes — no build, no reload. Task IDs (`TC-NNN`) are unique by construction (the filename is the ID) and sequential; the "Next free task ID" line lives in the `queue/ITERATION.md` header.
 
 The format and the chain below are **machine-enforced**: `bun run check:queue` validates every rule in *Entry format* and *The chain*, and a contributor session picks, claims and annotates only through `bun run scripts/start-task.ts` and `bun run scripts/queue.ts` — never by editing a store file directly. This page is the contract that script implements; when the contract and the script disagree, fix one of them in the same commit.
 
 | File | Holds | Who writes |
 |---|---|---|
 | `queue/TC-NNN.md` | One task. YAML front matter carries the machine fields (`id`, `title`, `area`, `status`, `note`, `needs`, `gates`, `band`); the body is the entry prose. | Architect creates entries and moves them (a `status:`/`band:` edit). Contributors claim and annotate through `bun run scripts/queue.ts`. |
-| `queue/ITERATION.md` | The TODO view's prose: the header, rulings, **the chain** | Architect only |
+| `queue/ITERATION.md` | The iteration header, the rulings, **the chain** | Architect only |
 | `queue/BANDS.md` | The BACKLOG view's prose: the static explainer and the band preambles | Architect only |
 | `queue/LEDGER.md` | The DONE view's prose: the compaction policy, the rulings carried from prunes, open obligations | Architect only |
-| `BACKLOG.md` / `TODO.md` / `DONE.md` | Generated views — never hand-edit them; `bun run queue:build` renders them | Nobody by hand |
+| `BACKLOG.md` / `DONE.md` | Generated markdown views — never hand-edit them; `bun run queue:build` renders them | Nobody by hand |
+| the board (`bun run queue:serve`) | The live kanban: six lanes derived from statuses and the chain | Nobody — it reads the store |
 
 ## Entry format
 
-The views render each task in this format; here from `TODO.md`:
+The views render each task in this format; here from the board's waiting lane:
 
 ```markdown
 - [ ] TC-410: Brief imperative title
@@ -78,10 +79,12 @@ The suffix is the task's `status:` front-matter field. The contributor writes it
 | `— in review 🔍` | `in-review` | The Architect claimed the review (`queue.ts review TC-NNN`). The entry takes no annotation until the verdict; reviewer nit commits still land on the branch. A dead review session leaves it claimed; `queue.ts reset` returns it to `pending-review`. |
 | `— done ✓` | `done` | A bug fix, test, internal change, or docs change. The entry carries a one-line `Changed`, and the commit sits on the task's branch. |
 | `— changes requested ↩` | `changes-requested` | Review found work inside the task's scope. The `**Review:**` line numbers the findings. The contributor fixes them in the same task, adds a `**Reworked:**` line, and sets the suffix again. |
-| `— reviewed ✓` | `reviewed` | The Architect approved it. |
 | `— blocked ⛔` | `blocked` | The contributor stopped. An entry in `NOTES.md` explains why. |
+| `— reviewed ✓` | `reviewed` | The Architect approved it. Leads the board's done lane. |
+| `— closed ✕` | `closed` | The task never happened (moot, won't do) but its number is spent. Trails the done lane; satisfies prerequisites. A `note:` carries the reason. |
+| `— parked ⏸` | `parked` | A backlog state (owner ruling 2026-10-10): the task is not eligible for the next iteration until the Architect and the owner refine it back to `open`. A parked task the chain names fails `check:queue`. |
 
-A few entries carry a non-contract closed tail instead (`parked`, `closed as moot`, `rolled back`) — in the store, `status: note` with a `note:` field holding the raw tail. The queue tool classifies these as closed, so they never block a pick; normalize one to a contract status when you touch the entry.
+There is no non-contract status: `closed` and `parked` are the contract spellings for what once were free-form tails.
 
 ## Where the work happens
 
@@ -104,7 +107,7 @@ The session never implements in the main checkout. The worktree is `.worktrees/T
 
 ## The chain
 
-`queue/ITERATION.md` has a `**The chain.**` section that orders the iteration; it renders verbatim into `TODO.md`, with the tracks' open entries appended beneath it. A contributor session started without a TC-ID picks from it with no Architect present, so keep it mechanical:
+`queue/ITERATION.md` has a `**The chain.**` section that orders the iteration; it drives the board's lane order and the pick. A contributor session started without a TC-ID picks from it with no Architect present, so keep it mechanical:
 
 - Group the tasks into tracks with one line of purpose each. Inside a track, list the tasks in pick order.
 - A task is **ready** when four things hold: it has no suffix, its `Area` is not `design`, every TC-ID in its `**Needs:**` is satisfied, and every earlier task in its track is satisfied or `blocked ⛔`.
@@ -112,11 +115,11 @@ The session never implements in the main checkout. The worktree is `.worktrees/T
 - A track whose next task is claimed (`⚙`) or on a non-contract status **stalls**: that task and everything behind it in that track is skipped, and the scan falls through to the next track. A `blocked ⛔` task is skipped and the track continues.
 - When the order depends on a ruling that a `Needs:` field cannot express, write the ruling into the header's rulings list and the dependency into `Needs:`.
 
-`bun run scripts/queue.ts pick [TC-NNN]` prints this decision as JSON, and `list [--status <status>]` prints the store's tasks as JSON (both read-only; `claim`, `annotate`, `review`, `reset` are the write commands, and each write re-renders the views). `bun run check:queue` runs the store suite, then fails the build when a task file is malformed, a `Needs:` or chain reference names no task file (a `queue/LEDGER.md` mention satisfies), an ID disagrees with its filename, or a view is stale against `queue/` — run `bun run queue:build`; an open, unbanded, unchained task is reported as a note.
+`bun run scripts/queue.ts pick [TC-NNN]` prints this decision as JSON, and `list [--status <status>]` prints the store's tasks as JSON (both read-only; `claim`, `annotate`, `review`, `reset` are the write commands, and each write re-renders the markdown views — the board needs no rebuild, it watches `queue/`). `bun run check:queue` fails the build when a task file is malformed, a `Needs:` or chain reference names no task file (a `queue/LEDGER.md` mention satisfies), an ID disagrees with its filename, a parked task is named by the chain, or a markdown view is stale against `queue/` — run `bun run queue:build`; the store contract itself is pinned by `tests/queue-store.test.ts`. An open, unbanded, unchained task is reported as a note.
 
 ## Moves (Architect only)
 
-A move is an edit in the store — a `status:`/`band:` field in `queue/TC-NNN.md`, or the chain in `queue/ITERATION.md` — followed by `bun run queue:build`. Never hand-edit the views.
+A move is an edit in the store — a `status:`/`band:` field in `queue/TC-NNN.md`, or the chain in `queue/ITERATION.md` — followed by `bun run queue:build` (the markdown views; the board refreshes itself). Never hand-edit the views.
 
 - **Iteration planning**: write the header (what the iteration is and why now), the rulings and the chain into `queue/ITERATION.md`. Naming an entry in the chain is the move into the iteration; deleting it from the chain moves it back to its band in `BACKLOG.md`. Bump the next free task ID.
 - **After review**: you review the pending tasks yourself, in one session (`SKILL.md` rule 3), and confirm the verdicts with the owner. An approval compacts the task file in place and sets `status: reviewed`: keep the ID, the title, the final status, rulings recorded nowhere else (those go into `queue/LEDGER.md`), live handoffs into open tasks (by TC-ID), and the changed-artifact facts the changelog needs; drop verification transcripts and file-line inventories. Integration runs `bun run scripts/worktree.ts integrate <TC-NNN>`, one branch at a time in pick order. A `changes requested ↩` sets `status: changes-requested`, with the numbered findings on the Review line.

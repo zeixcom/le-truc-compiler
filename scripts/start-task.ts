@@ -1,9 +1,9 @@
 /**
  * Start a queue task — pick, claim and worktree bootstrap in one step.
  *
- *   bun run scripts/start-task.ts [LT-NNN]
+ *   bun run scripts/start-task.ts [TC-NNN]
  *
- * Runs `scripts/queue.ts pick [LT-NNN]`, then `scripts/queue.ts claim <id>`,
+ * Runs `scripts/queue.ts pick [TC-NNN]`, then `scripts/queue.ts claim <id>`,
  * then `scripts/worktree.ts <id>`, all against the main checkout, and prints
  * one JSON object: the pick decision (task id, title, area, rework, needs,
  * gates, citations, entry text) plus the worktree facts. A failed bootstrap
@@ -38,8 +38,8 @@ const stop = (report: Record<string, unknown>): never => {
 }
 
 const [id] = process.argv.slice(2)
-if (id && !/^LT-\d+$/.test(id)) {
-	console.error('usage: start-task.ts [LT-NNN]')
+if (id && !/^TC-\d+$/.test(id)) {
+	console.error('usage: start-task.ts [TC-NNN]')
 	process.exit(2)
 }
 

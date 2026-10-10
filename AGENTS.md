@@ -4,6 +4,10 @@
 
 ## Surprising Behaviors
 
+- **The queue's iteration view is a live Le Truc app, not a markdown file (owner ruling 2026-10-10).** `bun run queue:serve` renders the kanban from `queue/*.md` through the compiler's own output and pushes SSE snapshots on every store write. The static shell lives in `demo/` (a corpus SEPARATE from `examples/` — examples is the test corpus behind golden baselines; internal tooling stays out of it), built by `bun run build:demo` into `server/generated/demo/`. Changing board components means rebuild + server restart, by design. `queue:build` still renders the `BACKLOG.md`/`DONE.md` markdown views; there is no `TODO.md`.
+
+- **All queue semantics live in `scripts/lib/queue-store.ts` — one library, three consumers.** The CLI pick, `check:queue`, and the board's lanes all call the same readiness and lane functions, so they can never disagree. `closed` (moot/won't-do) and `parked` (backlog-only, not iteration-eligible) are contract statuses; `closed` satisfies prerequisites. Store writes are atomic (temp + rename), and the board's watcher debounces at 150ms.
+
 - **The runtime peer is unpublished, and bun copies it — it does not symlink it.** `@zeix/le-truc@3.0.0-next.1` exists only as the sibling `le-truc` checkout (v3 branch), dev-resolved through `"file:../le-truc"`. After any change in the sibling, run `bun install` here before it is visible. This package's own version stays at `0.1-next.1` until both packages publish in lockstep as `3.0.0-next.1` (owner ruling 2026-10-10).
 
 - **`src/` is runtime-neutral (ADR 0038 s2): no `Bun` global, no `import.meta`, anywhere in shipped source.** The emitted package must run on plain Node ESM. `tests/runtime-neutrality.test.ts` enforces the scan; Bun-only behavior belongs in `tests/runtimes/` behind the runtime abstraction.

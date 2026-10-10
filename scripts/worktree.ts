@@ -1,19 +1,15 @@
 /**
  * Worktree bootstrap and integration — one isolated checkout per queue task.
  *
- *   bun run scripts/worktree.ts <LT-NNN>
- *   bun run scripts/worktree.ts commit <LT-NNN> --message-file <path> [--] <path>...
- *   bun run scripts/worktree.ts integrate <LT-NNN>
+ *   bun run scripts/worktree.ts <TC-NNN>
+ *   bun run scripts/worktree.ts commit <TC-NNN> --message-file <path> [--] <path>...
+ *   bun run scripts/worktree.ts integrate <TC-NNN>
  *
  * Bootstrap ensures .worktrees/<id>/ exists as a git worktree on branch
  * task/<id> cut from the current HEAD, with the main checkout's node_modules
  * symlinked in (fresh worktrees lack it, and a fresh install is minutes; the
  * symlink is never staged). Build outputs are not carried over — a task whose
- * gates need built docs/ runs `bun run --cwd <path> build:docs` first.
- * The committed index.js bundle is location-independent: `build:prod` runs
- * scripts/build-bundle.ts, which rewrites Bun's realpath module comments
- * (`// ../../node_modules/…` through the symlink) to the repo-root form, so a
- * worktree's rebuild is byte-identical to the main checkout's (LT-433).
+ * gates read dist/ runs `bun run --cwd <path> build` first.
  * Idempotent: an existing worktree on the right branch is verified and reused,
  * so a resumed run bootstraps again freely; a branch that already carries
  * commits beyond HEAD is reused too, because that is a task's rework
@@ -93,7 +89,6 @@ const git = (args: string[]): string => {
 const EXCLUDED_DIRS = ['.agents', '.claude', '.vscode', '.zcode']
 const PROTECTED_PATHS = [
 	'BACKLOG.md',
-	'TODO.md',
 	'DONE.md',
 	'NOTES.md',
 	'queue/',
@@ -259,7 +254,7 @@ function commit(id: string, args: string[]): never {
 	const rawMessageFile = args[messageFlag + 1]
 	if (messageFlag === -1 || !rawMessageFile)
 		fail(
-			'usage: worktree.ts commit <LT-NNN> --message-file <path> [--] <path>...',
+			'usage: worktree.ts commit <TC-NNN> --message-file <path> [--] <path>...',
 		)
 	// Absolute before git sees it: git runs with -C <worktree>, so a relative
 	// -F path would resolve inside the worktree, not where the caller wrote it
@@ -390,17 +385,17 @@ const [first, ...rest] = process.argv.slice(2)
 
 if (first === 'commit') {
 	const id = rest[0]
-	if (!id || !/^LT-\d+$/.test(id))
+	if (!id || !/^TC-\d+$/.test(id))
 		fail(
-			'usage: worktree.ts commit <LT-NNN> --message-file <path> [--] <path>...',
+			'usage: worktree.ts commit <TC-NNN> --message-file <path> [--] <path>...',
 		)
 	commit(id, rest.slice(1))
 } else if (first === 'integrate') {
 	const id = rest[0]
-	if (!id || !/^LT-\d+$/.test(id)) fail('usage: worktree.ts integrate <LT-NNN>')
+	if (!id || !/^TC-\d+$/.test(id)) fail('usage: worktree.ts integrate <TC-NNN>')
 	integrate(id)
 } else {
-	if (!first || !/^LT-\d+$/.test(first))
-		fail('usage: worktree.ts <LT-NNN> | commit <LT-NNN> … | integrate <LT-NNN>')
+	if (!first || !/^TC-\d+$/.test(first))
+		fail('usage: worktree.ts <TC-NNN> | commit <TC-NNN> … | integrate <TC-NNN>')
 	bootstrap(first)
 }

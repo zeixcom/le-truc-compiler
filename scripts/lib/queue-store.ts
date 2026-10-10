@@ -1,28 +1,34 @@
 /**
- * The queue store: one file per task under queue/, with the kanban files as
- * generated views (Phase 3 of the 2026-10-03 queue reorganization).
+ * The queue store: one file per task under queue/, with BACKLOG.md and
+ * DONE.md as generated markdown views and the live board as the iteration's
+ * working view (owner ruling 2026-10-10).
  *
  * Source files (hand-edited):
- *   queue/LT-NNN.md   One task. YAML front matter carries the machine fields;
- *                     the body is the entry prose, dedented.
- *   queue/BANDS.md    The BACKLOG view's prose: the static explainer and the
- *                     band preambles, one `## <band>` section each.
- *   queue/ITERATION.md  The TODO view's prose: the header, rulings, the chain,
- *                     ending in an `<!-- entries -->` marker.
- *   queue/LEDGER.md   The DONE view's prose: compaction policy, rulings
- *                     carried, open obligations, standing notes.
+ *   queue/TC-NNN.md    One task. YAML front matter carries the machine fields;
+ *                      the body is the entry prose, dedented.
+ *   queue/BANDS.md     The BACKLOG view's prose: the static explainer and the
+ *                      band preambles, one `## <band>` section each.
+ *   queue/ITERATION.md The iteration header, the rulings, and the chain.
+ *   queue/LEDGER.md    The DONE view's prose: compaction policy, rulings
+ *                      carried, open obligations, standing notes.
  *
- * Generated views (committed, by `bun scripts/queue.ts build`):
- *   BACKLOG.md  BANDS.md with each band's open, unchained entries appended.
- *   TODO.md     ITERATION.md with the chain's tasks grouped under their tracks.
- *   DONE.md     LEDGER.md with every reviewed/done/pending-review/in-review task.
+ * Generated views (committed, by `bun run queue:build`):
+ *   BACKLOG.md         BANDS.md with each band's open, unchained entries appended.
+ *   DONE.md            LEDGER.md with every settled task appended.
  *
- * A task's view is derived, never stored: the chain names the iteration, the
- * status names the shelf. `check` fails when a view is stale or a task file
- * is malformed. IDs are unique by construction (the filename is the ID).
+ * Live view (not a file): `bun run queue:serve` renders the board — a small
+ * Le Truc app compiled from demo/ by this repo's own compiler — straight from
+ * this store, and pushes a fresh snapshot over SSE whenever queue/ changes.
+ * It replaces the TODO.md view: lanes are derived, never stored.
+ *
+ * A task's position is derived, never stored: the chain names the iteration,
+ * the status names the lane. `check` fails when a markdown view is stale or a
+ * task file is malformed. IDs are unique by construction (the filename is the
+ * ID). Every write is atomic (temp file + rename) so the board's watcher and
+ * a concurrent reader never parse half a file.
  */
 
-import { readdirSync, readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 export type TaskStatus =
@@ -34,14 +40,15 @@ export type TaskStatus =
 	| 'changes-requested'
 	| 'reviewed'
 	| 'blocked'
-	| 'note'
+	| 'closed'
+	| 'parked'
 
 export interface QueueTask {
 	id: string
 	title: string
 	area: string
 	status: TaskStatus
-	/** The raw tail when status is `note` ("parked 2026-10-01, demand-gated only"). */
+	/** Free-form tail for `parked`/`closed` ("moot, demand-gated"). */
 	note?: string | undefined
 	needs: string[]
 	gates: string[]
@@ -62,7 +69,8 @@ const STATUSES: TaskStatus[] = [
 	'changes-requested',
 	'reviewed',
 	'blocked',
-	'note',
+	'closed',
+	'parked',
 ]
 
 /** The ` — suffix` text each status renders as on a title line. */
@@ -75,10 +83,30 @@ export const STATUS_TAILS: Record<TaskStatus, string | null> = {
 	'changes-requested': 'changes requested ↩',
 	reviewed: 'reviewed ✓',
 	blocked: 'blocked ⛔',
-	note: null, // rendered from `note:` instead
+	closed: 'closed ✕',
+	parked: 'parked ⏸',
 }
 
-const AREAS = ['runtime', 'compiler', 'server', 'examples', 'docs', 'design']
+const AREAS = ['compiler', 'tooling', 'examples', 'demo', 'docs', 'design']
+
+/** A `closed` task never happened (moot, won't do) but its number is spent. */
+export const TERMINAL: TaskStatus[] = [
+	'pending-review',
+	'in-review',
+	'done',
+	'reviewed',
+	'closed',
+]
+
+/** A prerequisite is satisfied by any of these statuses, or by a LEDGER mention. */
+const SATISFIED: TaskStatus[] = [
+	'pending-review',
+	'in-review',
+	'done',
+	'changes-requested',
+	'reviewed',
+	'closed',
+]
 
 // ── Front matter ──────────────────────────────────────────────────────────────
 
@@ -114,8 +142,8 @@ export function parseTaskFile(text: string, path: string): QueueTask {
 	const title = fields.get('title')
 	const area = fields.get('area')
 	const status = fields.get('status') as TaskStatus | undefined
-	if (!id || !/^LT-\d+$/.test(id))
-		throw new StoreError(path, 'front matter has no `id: LT-NNN`')
+	if (!id || !/^TC-\d+$/.test(id))
+		throw new StoreError(path, 'front matter has no `id: TC-NNN`')
 	if (!title) throw new StoreError(path, 'front matter has no `title:`')
 	if (!area || !AREAS.includes(area)) {
 		throw new StoreError(
@@ -130,11 +158,6 @@ export function parseTaskFile(text: string, path: string): QueueTask {
 		)
 	}
 	const note = fields.get('note')
-	if (status === 'note' && !note)
-		throw new StoreError(
-			path,
-			'status `note` needs a `note:` field with the raw tail',
-		)
 	const list = (key: string): string[] => {
 		const raw = fields.get(key)
 		if (!raw) return []
@@ -177,6 +200,17 @@ export function renderTaskFile(task: QueueTask): string {
 	return `---\n${fields.join('\n')}\n---\n\n${task.body ? `${task.body}\n` : ''}`
 }
 
+/** Every TC-ID a text mentions — how a compacted LEDGER entry satisfies a Needs line. */
+export const mentionedIds = (text: string): Set<string> =>
+	new Set(text.match(/\bTC-\d+\b/g) ?? [])
+
+/** Write atomically: a watcher or concurrent reader never sees half a file. */
+export function writeFileAtomic(path: string, text: string): void {
+	const temp = `${path}.tmp`
+	writeFileSync(temp, text)
+	renameSync(temp, path)
+}
+
 // ── The store ─────────────────────────────────────────────────────────────────
 
 export interface Store {
@@ -193,7 +227,7 @@ export function loadStore(root: string): Store {
 	const tasks = new Map<string, QueueTask>()
 	const problems: string[] = []
 	for (const name of readdirSync(dir).sort()) {
-		if (!/^LT-\d+\.md$/.test(name)) continue
+		if (!/^TC-\d+\.md$/.test(name)) continue
 		const path = join(dir, name)
 		try {
 			const task = parseTaskFile(readFileSync(path, 'utf8'), `queue/${name}`)
@@ -229,46 +263,12 @@ export function loadStore(root: string): Store {
 	}
 }
 
-// ── Views ─────────────────────────────────────────────────────────────────────
+// ── The chain ─────────────────────────────────────────────────────────────────
 
 const byIdNumber = (a: QueueTask, b: QueueTask): number =>
 	Number(a.id.slice(3)) - Number(b.id.slice(3))
 
-/** `- [x] LT-410: Title — done ✓` — the title line exactly as the markdown queue writes it. */
-export function renderTitleLine(task: QueueTask): string {
-	const settled =
-		task.status === 'pending-review' ||
-		task.status === 'in-review' ||
-		task.status === 'done' ||
-		task.status === 'reviewed'
-	const tail = task.status === 'note' ? task.note : STATUS_TAILS[task.status]
-	return `- [${settled ? 'x' : ' '}] ${task.id}: ${task.title}${tail ? ` — ${tail}` : ''}`
-}
-
-/** The entry block as it appears in a kanban file: title line, the machine
- * fields as body lines (they live in front matter in the store), then the
- * prose body — indented two spaces, blank lines collapsed away. */
-export function renderEntry(task: QueueTask): string {
-	const fields = [
-		`**Area:** ${task.area}`,
-		...(task.needs.length ? [`**Needs:** ${task.needs.join(', ')}`] : []),
-		...(task.gates.length ? [`**Gates:** ${task.gates.join(', ')}`] : []),
-	]
-	const body = [...fields, ...task.body.split('\n')]
-		.map(line => (line.trim() === '' ? '' : `  ${line}`))
-		.filter((line, i, all) => !(line === '' && all[i - 1] === ''))
-		.join('\n')
-	return `${renderTitleLine(task)}${body ? `\n${body}` : ''}`
-}
-
-const TERMINAL: TaskStatus[] = [
-	'pending-review',
-	'in-review',
-	'done',
-	'reviewed',
-]
-
-/** The chain's bare LT-IDs in pick order: parentheticals, possessive citations and
+/** The chain's bare TC-IDs in pick order: parentheticals, possessive citations and
  * `∥`/`→` structure reduced to one flat sequence per track. */
 export function chainOrder(iteration: string): {
 	tracks: { name: string; ids: string[] }[]
@@ -285,7 +285,7 @@ export function chainOrder(iteration: string): {
 		if (raw === null) return
 		const rest = raw
 		raw = null
-		for (const m of rest.matchAll(/~~\s*(LT-\d+)/g)) if (m[1]) closed.add(m[1])
+		for (const m of rest.matchAll(/~~\s*(TC-\d+)/g)) if (m[1]) closed.add(m[1])
 		let flat = rest
 		let prev = ''
 		while (flat !== prev) {
@@ -294,7 +294,7 @@ export function chainOrder(iteration: string): {
 		}
 		const ids: string[] = []
 		for (const segment of flat.split(/\s*[→∥]\s*/)) {
-			for (const m of segment.matchAll(/LT-\d+/g)) {
+			for (const m of segment.matchAll(/TC-\d+/g)) {
 				const after = segment.slice((m.index ?? 0) + m[0].length)
 				if (/^'s|^’s/.test(after) || /^\s+step\s+\d+['’]s/.test(after)) continue
 				ids.push(m[0])
@@ -302,7 +302,7 @@ export function chainOrder(iteration: string): {
 		}
 		// A track whose ids are all struck is closed (the gate-zero pattern) and
 		// contributes nothing; a track with live positions stays open even when
-		// it also strikes one id (`~~LT-371~~ → LT-375 → …`).
+		// it also strikes one id (`~~TC-371~~ → TC-375 → …`).
 		if (ids.length) tracks.push({ name, ids })
 	}
 	for (let i = start + 1; i < lines.length; i++) {
@@ -321,10 +321,231 @@ export function chainOrder(iteration: string): {
 	return { tracks, closed }
 }
 
+export const flatChain = (store: Store): string[] =>
+	chainOrder(store.iteration).tracks.flatMap(t => t.ids)
+
+// ── Readiness (the single source the pick, the check and the board share) ─────
+
+const needSatisfied = (id: string, store: Store): boolean => {
+	const target = store.tasks.get(id)
+	if (target) return SATISFIED.includes(target.status)
+	return mentionedIds(store.ledger).has(id)
+}
+
+function unsatisfiedNeeds(task: QueueTask, store: Store): string | null {
+	const missing = task.needs.filter(id => !needSatisfied(id, store))
+	if (!missing.length) return null
+	const detail = missing
+		.map(id => {
+			const target = store.tasks.get(id)
+			if (!target) return `${id} (compacted record absent from LEDGER.md)`
+			return `${id} is ${target.status === 'open' ? 'open' : STATUS_TAILS[target.status]}`
+		})
+		.join('; ')
+	return `its Needs are unsatisfied: ${detail}`
+}
+
+/** A track position is passable when the task standing there is satisfied or
+ * blocked — the chain rule that lets a blocked task's track continue. */
+const passable = (task: QueueTask | undefined): boolean =>
+	!!task && (SATISFIED.includes(task.status) || task.status === 'blocked')
+
+/** The documented ready rule, verbatim: no suffix, not design, Needs satisfied,
+ * and every earlier task in its track satisfied or blocked. */
+function readyReason(task: QueueTask, store: Store): string | null {
+	if (task.area === 'design')
+		return 'it is Area: design — the queue never auto-picks it'
+	const needs = unsatisfiedNeeds(task, store)
+	if (needs) return needs
+	for (const track of chainOrder(store.iteration).tracks) {
+		const at = track.ids.indexOf(task.id)
+		if (at === -1) continue
+		const earlier = track.ids
+			.slice(0, at)
+			.map(id => store.tasks.get(id))
+			.find(t => t && !passable(t))
+		if (earlier)
+			return `${earlier.id} stands ahead of it in track "${track.name}" and is ${earlier.status === 'open' ? 'open' : STATUS_TAILS[earlier.status]}`
+	}
+	return null
+}
+
+// ── The board snapshot (what queue:serve renders and pushes) ──────────────────
+
+export type BoardLane =
+	| 'waiting'
+	| 'ready'
+	| 'in-progress'
+	| 'review-pending'
+	| 'in-review'
+	| 'done'
+
+export const BOARD_LANES: readonly BoardLane[] = [
+	'waiting',
+	'ready',
+	'in-progress',
+	'review-pending',
+	'in-review',
+	'done',
+]
+
+export interface BoardTask {
+	id: string
+	title: string
+	area: string
+	lane: BoardLane
+	/** Position within the lane; the board sorts by it. */
+	order: number
+	/** Space-joined badge words: `rework`, `blocked`, `reviewed`, `closed`, … */
+	badges: string
+	/** Why a waiting task is not ready; empty when the store cannot say. */
+	hint: string
+}
+
+export interface BoardSnapshot {
+	meta: {
+		title: string
+		generatedAt: string
+		problems: string[]
+	}
+	/** Each lane carries its own task slice: the board seeds one list per lane. */
+	lanes: Array<{ key: BoardLane; count: number; tasks: BoardTask[] }>
+}
+
+/** The lane a chain task sits in. The odd statuses, by owner ruling
+ * 2026-10-10: `changes-requested` is rework — ready, picked first; `blocked`
+ * stays in-progress; `closed` and `reviewed` are done-lane facts. */
+const laneOf = (
+	task: QueueTask,
+	store: Store,
+): { lane: BoardLane; badge?: string; hint?: string } => {
+	switch (task.status) {
+		case 'changes-requested':
+			return { lane: 'ready', badge: 'rework' }
+		case 'in-progress':
+			return { lane: 'in-progress' }
+		case 'blocked':
+			return { lane: 'in-progress', badge: 'blocked' }
+		case 'pending-review':
+			return { lane: 'review-pending' }
+		case 'in-review':
+			return { lane: 'in-review' }
+		case 'done':
+			return { lane: 'done' }
+		case 'reviewed':
+			return { lane: 'done', badge: 'reviewed' }
+		case 'closed':
+			return { lane: 'done', badge: 'closed' }
+		case 'open': {
+			const reason = readyReason(task, store)
+			return reason ? { lane: 'waiting', hint: reason } : { lane: 'ready' }
+		}
+		case 'parked':
+			return { lane: 'waiting', badge: 'parked', hint: 'parked — backlog only' }
+	}
+}
+
+/** Lane-local ordering, by the same ruling: rework leads ready, blocked leads
+ * in-progress, reviewed leads done, closed trails it; everything else follows
+ * the chain. */
+const laneRank = (task: QueueTask): number => {
+	switch (task.status) {
+		case 'changes-requested':
+			return 0
+		case 'blocked':
+			return 0
+		case 'reviewed':
+			return 0
+		case 'closed':
+			return 2
+		default:
+			return 1
+	}
+}
+
+/** The board's data: chain tasks only (the BACKLOG owns the rest), each with
+ * its lane, order and badges. Invalid store files are skipped by loadStore;
+ * their problems ride in meta.problems so the board can show them. */
+export function boardSnapshot(store: Store): BoardSnapshot {
+	const chain = flatChain(store)
+	const chainAt = new Map(chain.map((id, i) => [id, i]))
+	const placed: Array<{ task: QueueTask } & ReturnType<typeof laneOf>> = []
+	for (const id of chain) {
+		const task = store.tasks.get(id)
+		if (!task) continue
+		placed.push({ task, ...laneOf(task, store) })
+	}
+	const sorted = [...placed].sort((a, b) => {
+		const rank = laneRank(a.task) - laneRank(b.task)
+		if (rank !== 0) return rank
+		const lane = a.lane.localeCompare(b.lane)
+		if (lane !== 0) return lane
+		// Within one lane and rank: rework/blocked/reviewed by chain order
+		// (done-lane reviewed by id when pruned) — chain order is the default.
+		if (a.lane === 'done' && a.task.status !== 'in-progress')
+			return byIdNumber(a.task, b.task)
+		return (chainAt.get(a.task.id) ?? 0) - (chainAt.get(b.task.id) ?? 0)
+	})
+	const order = new Map(sorted.map((p, i) => [p.task.id, i]))
+	const tasks: BoardTask[] = sorted.map(p => ({
+		id: p.task.id,
+		title: p.task.title,
+		area: p.task.area,
+		lane: p.lane,
+		order: order.get(p.task.id) ?? 0,
+		badges: [
+			...(p.badge ? [p.badge] : []),
+			...(p.task.note ? [p.task.note] : []),
+		].join(' '),
+		hint: p.hint ?? '',
+	}))
+	const lanes = BOARD_LANES.map(key => ({
+		key,
+		count: tasks.filter(t => t.lane === key).length,
+		tasks: tasks.filter(t => t.lane === key),
+	}))
+	const title =
+		(/^#\s+(.+)$/m.exec(store.iteration)?.[1] ?? '').trim() || 'Task queue'
+	return {
+		meta: {
+			title,
+			generatedAt: new Date().toISOString(),
+			problems: store.problems,
+		},
+		lanes,
+	}
+}
+
+// ── Markdown views ────────────────────────────────────────────────────────────
+
+/** `- [x] TC-410: Title — done ✓` — the title line exactly as the markdown views write it. */
+export function renderTitleLine(task: QueueTask): string {
+	const settled = TERMINAL.includes(task.status)
+	const tail =
+		task.status === 'parked' || task.status === 'closed'
+			? (task.note ?? STATUS_TAILS[task.status])
+			: STATUS_TAILS[task.status]
+	return `- [${settled ? 'x' : ' '}] ${task.id}: ${task.title}${tail ? ` — ${tail}` : ''}`
+}
+
+/** The entry block as it appears in a markdown view: title line, the machine
+ * fields as body lines (they live in front matter in the store), then the
+ * prose body — indented two spaces, blank lines collapsed away. */
+export function renderEntry(task: QueueTask): string {
+	const fields = [
+		`**Area:** ${task.area}`,
+		...(task.needs.length ? [`**Needs:** ${task.needs.join(', ')}`] : []),
+		...(task.gates.length ? [`**Gates:** ${task.gates.join(', ')}`] : []),
+	]
+	const body = [...fields, ...task.body.split('\n')]
+		.map(line => (line.trim() === '' ? '' : `  ${line}`))
+		.filter((line, i, all) => !(line === '' && all[i - 1] === ''))
+		.join('\n')
+	return `${renderTitleLine(task)}${body ? `\n${body}` : ''}`
+}
+
 export function renderBacklog(store: Store): string {
-	const chainIds = new Set(
-		chainOrder(store.iteration).tracks.flatMap(t => t.ids),
-	)
+	const chainIds = new Set(flatChain(store))
 	const open = [...store.tasks.values()]
 		.filter(t => !TERMINAL.includes(t.status) && !chainIds.has(t.id))
 		.sort(byIdNumber)
@@ -370,34 +591,6 @@ function insertUnderHeading(
 	return `${before}\n${block}\n${markdown.slice(end).replace(/^\n+/, '\n')}`
 }
 
-export function renderTodo(store: Store): string {
-	const marker = '<!-- entries -->'
-	const at = store.iteration.indexOf(marker)
-	if (at === -1) {
-		throw new StoreError(
-			'queue/ITERATION.md',
-			`has no ${marker} marker for the generated entries`,
-		)
-	}
-	const { tracks } = chainOrder(store.iteration)
-	const sections: string[] = []
-	for (const track of tracks) {
-		const members = track.ids.flatMap(id => {
-			const task = store.tasks.get(id)
-			return task && !TERMINAL.includes(task.status) ? [task] : []
-		})
-		if (members.length) {
-			sections.push(
-				`### ${track.name}\n\n${members.map(renderEntry).join('\n\n')}`,
-			)
-		}
-	}
-	// The TODO view is exactly the chain: an open task the chain does not name is
-	// a BACKLOG task and renders there. Store `check` reports misfilings.
-	const head = store.iteration.slice(0, at + marker.length)
-	return `${head}\n\n${sections.join('\n\n')}\n`
-}
-
 export function renderDone(store: Store): string {
 	const done = [...store.tasks.values()]
 		.filter(t => TERMINAL.includes(t.status))
@@ -407,111 +600,8 @@ export function renderDone(store: Store): string {
 	return `${base}\n${done.map(renderEntry).join('\n\n')}\n`
 }
 
-// ── Migration (markdown queue → store) ────────────────────────────────────────
-
-import { mkdirSync, writeFileSync } from 'node:fs'
-import {
-	loadState,
-	mentionedIds,
-	parseEntries,
-	type WriteResult,
-} from './queue.ts'
-
-const stripEntries = (text: string): string => {
-	const { entries } = parseEntries(text, 'BACKLOG.md')
-	const lines = text.split('\n')
-	const drop = new Set<number>()
-	for (const entry of entries) {
-		for (let n = entry.startLine; n <= entry.endLine; n++) drop.add(n)
-	}
-	return lines.filter((_, i) => !drop.has(i + 1)).join('\n')
-}
-
-const bandOf = (backlog: string, id: string): string => {
-	const at = backlog.indexOf(`- [ ] ${id}:`)
-	if (at === -1) return ''
-	const before = backlog.slice(0, at)
-	const headings = [...before.matchAll(/^## (.+)$/gm)]
-	const last = headings[headings.length - 1]
-	return last?.[1]?.split(/[\s—]/)[0] ?? ''
-}
-
-const toBody = (entryText: string): string =>
-	entryText
-		.split('\n')
-		.slice(1)
-		.map(line => (line.startsWith('  ') ? line.slice(2) : line))
-		// The machine fields move to front matter; keeping them in the body
-		// too would double-render them in the views and invite drift.
-		.filter(line => !/^\*\*(Area|Needs|Gates):\*\*/.test(line))
-		.join('\n')
-		.replace(/^\n+/, '')
-
-/** Split the three markdown queue files into queue/LT-NNN.md task files and seed
- * BANDS.md / ITERATION.md / LEDGER.md from their headers. One-off; the views
- * come out of `build`. */
-export function migrateQueue(root: string): {
-	written: string[]
-	problems: string[]
-} {
-	const problems: string[] = []
-	const written: string[] = []
-	const state = loadState(root)
-	problems.push(...state.problems)
-	const backlog = readFileSync(join(root, 'BACKLOG.md'), 'utf8')
-	const todo = readFileSync(join(root, 'TODO.md'), 'utf8')
-	const ledger = readFileSync(join(root, 'DONE.md'), 'utf8')
-
-	mkdirSync(join(root, 'queue'), { recursive: true })
-	for (const entry of state.entries) {
-		// The queue sometimes decorates the area ("design (then compiler)"); the
-		// store carries the closed vocabulary and the decoration stays in prose.
-		const area = (entry.area ?? '').split(/[\s(]/)[0] ?? ''
-		const task: QueueTask = {
-			id: entry.id,
-			title: entry.title,
-			area,
-			status:
-				entry.suffix === 'other'
-					? 'note'
-					: entry.suffix === 'changes-requested'
-						? 'changes-requested'
-						: entry.suffix,
-			note: entry.suffixOther,
-			needs: entry.needs,
-			gates: entry.gates,
-			band: entry.file === 'BACKLOG.md' ? bandOf(backlog, entry.id) : '',
-			body: toBody(entry.text),
-			path: `queue/${entry.id}.md`,
-		}
-		if (!task.area)
-			problems.push(`${entry.id}: no **Area:** line; the store requires one`)
-		const path = join(root, 'queue', `${entry.id}.md`)
-		writeFileSync(path, renderTaskFile(task))
-		written.push(`queue/${entry.id}.md`)
-	}
-
-	const todoHeader = todo.slice(0, todo.search(/^-\ \[.\]\ LT-\d+/m))
-	writeFileSync(
-		join(root, 'queue', 'ITERATION.md'),
-		`${todoHeader.replace(/\n+$/, '\n')}\n<!-- entries -->\n`,
-	)
-	written.push('queue/ITERATION.md')
-	writeFileSync(
-		join(root, 'queue', 'BANDS.md'),
-		stripEntries(backlog).replace(/\n{3,}/g, '\n\n'),
-	)
-	written.push('queue/BANDS.md')
-	writeFileSync(
-		join(root, 'queue', 'LEDGER.md'),
-		stripEntries(ledger).replace(/\n{3,}/g, '\n\n'),
-	)
-	written.push('queue/LEDGER.md')
-	return { written, problems }
-}
-
-/** Regenerate the three kanban views from the store. `outDir` defaults to the
- * repo root (the real build); tests pass a scratch directory. */
+/** Regenerate the markdown views from the store. The board is live and needs
+ * no build. `outDir` defaults to the repo root; tests pass a scratch dir. */
 export function buildViews(
 	root: string,
 	outDir: string = root,
@@ -521,16 +611,15 @@ export function buildViews(
 	if (problems.length) return { written: [], problems }
 	const views: [string, string][] = [
 		['BACKLOG.md', renderBacklog(store)],
-		['TODO.md', renderTodo(store)],
 		['DONE.md', renderDone(store)],
 	]
 	for (const [name, text] of views) {
-		writeFileSync(join(outDir, name), text)
+		writeFileAtomic(join(outDir, name), text)
 	}
 	return { written: views.map(([name]) => name), problems }
 }
 
-// ── Store validation (the `check` meaning once queue/ exists) ─────────────────
+// ── Store validation (the `check` meaning) ────────────────────────────────────
 
 export function checkStore(root: string): {
 	problems: string[]
@@ -541,6 +630,7 @@ export function checkStore(root: string): {
 	const notes: string[] = []
 	const ids = new Set(store.tasks.keys())
 	const ledgerMentions = mentionedIds(store.ledger)
+	const tracks = chainOrder(store.iteration).tracks
 
 	for (const task of store.tasks.values()) {
 		for (const need of task.needs) {
@@ -553,14 +643,21 @@ export function checkStore(root: string): {
 		if (
 			!task.band &&
 			task.status === 'open' &&
-			!chainOrder(store.iteration).tracks.some(t => t.ids.includes(task.id))
+			!tracks.some(t => t.ids.includes(task.id))
 		) {
 			notes.push(
 				`${task.id} is open, unbanded and unchained — give it a band or a chain position`,
 			)
 		}
+		// Parked is a backlog state by ruling: not eligible for the iteration
+		// until the Architect and the owner refine it back to open.
+		if (task.status === 'parked' && flatChain(store).includes(task.id)) {
+			problems.push(
+				`${task.id} is parked but named by the chain — refine it (status: open) or remove it from the chain`,
+			)
+		}
 	}
-	for (const track of chainOrder(store.iteration).tracks) {
+	for (const track of tracks) {
 		for (const id of track.ids) {
 			if (!ids.has(id) && !ledgerMentions.has(id)) {
 				problems.push(
@@ -573,7 +670,6 @@ export function checkStore(root: string): {
 	try {
 		stale = {
 			'BACKLOG.md': renderBacklog(store),
-			'TODO.md': renderTodo(store),
 			'DONE.md': renderDone(store),
 		}
 	} catch (e) {
@@ -594,19 +690,10 @@ export function checkStore(root: string): {
 	return { problems, notes }
 }
 
-// ── Store pick and writes (the contributor queue operations, store dialect) ─────
-// Same contract as scripts/lib/queue.ts (task-queue.md), one dialect down:
-// the chain lives in ITERATION.md, statuses in front matter, and every write
-// re-renders the kanban views so `check` never sees a stale one. NOTES.md is
+// ── Pick and writes (the contributor queue operations) ────────────────────────
+// The chain lives in ITERATION.md, statuses in front matter, and every write
+// re-renders the markdown views so `check` never sees a stale one. NOTES.md is
 // not a view — blocked prose lands in the main checkout's file as before.
-
-const SATISFIED: TaskStatus[] = [
-	'pending-review',
-	'in-review',
-	'done',
-	'changes-requested',
-	'reviewed',
-]
 
 export interface StorePick {
 	picked: boolean
@@ -614,27 +701,10 @@ export interface StorePick {
 	reason: string
 }
 
-const needSatisfied = (id: string, store: Store): boolean => {
-	const target = store.tasks.get(id)
-	if (target) return SATISFIED.includes(target.status)
-	return mentionedIds(store.ledger).has(id)
+export interface WriteResult {
+	ok: boolean
+	error?: string
 }
-
-function unsatisfiedNeeds(task: QueueTask, store: Store): string | null {
-	const missing = task.needs.filter(id => !needSatisfied(id, store))
-	if (!missing.length) return null
-	const detail = missing
-		.map(id => {
-			const target = store.tasks.get(id)
-			if (!target) return `${id} (compacted record absent from LEDGER.md)`
-			return `${id} is ${target.status === 'open' ? 'open' : STATUS_TAILS[target.status]}`
-		})
-		.join('; ')
-	return `its Needs are unsatisfied: ${detail}`
-}
-
-const flatChain = (store: Store): string[] =>
-	chainOrder(store.iteration).tracks.flatMap(t => t.ids)
 
 export function pickStore(root: string): StorePick {
 	const store = loadStore(root)
@@ -645,9 +715,8 @@ export function pickStore(root: string): StorePick {
 			reason: `the store is invalid: ${store.problems[0] ?? 'unknown problem'}`,
 		}
 
-	// Rework first, in chain order — the TODO view's order.
-	const chain = flatChain(store)
-	for (const id of chain) {
+	// Rework first, in chain order — the board's ready lane leads with it too.
+	for (const id of flatChain(store)) {
 		const task = store.tasks.get(id)
 		if (task?.status === 'changes-requested')
 			return {
@@ -657,8 +726,8 @@ export function pickStore(root: string): StorePick {
 			}
 	}
 
-	// First ready task, tracks in order. Same stall rule as the kanban pick: a
-	// claimed or non-contract task standing first ends its own track, and the
+	// First ready task, tracks in order. Same stall rule as the chain: a
+	// claimed or unpassable task standing first ends its own track, and the
 	// scan falls through to the next.
 	let firstStall: string | null = null
 	for (const track of chainOrder(store.iteration).tracks) {
@@ -668,13 +737,13 @@ export function pickStore(root: string): StorePick {
 			// task's Needs line instead.
 			if (!task) continue
 			if (task.area === 'design') continue
-			if (SATISFIED.includes(task.status) || task.status === 'blocked') continue
+			if (passable(task)) continue
 			const notReady =
-				task.status !== 'open'
-					? task.status === 'in-progress'
-						? 'it is in progress ⚙ (claimed by a running session)'
-						: `it is not on a contract status ("— ${task.note}")`
-					: unsatisfiedNeeds(task, store)
+				task.status === 'in-progress'
+					? 'it is in progress ⚙ (claimed by a running session)'
+					: task.status === 'blocked'
+						? 'it is blocked ⛔ (the track continues past it)'
+						: readyReason(task, store)
 			if (notReady) {
 				firstStall ??= `${id} (${track.name}) stands first and ${notReady}`
 				break
@@ -688,7 +757,10 @@ export function pickStore(root: string): StorePick {
 	}
 
 	const openCount = [...store.tasks.values()].filter(
-		t => t.status === 'open' && t.area !== 'design' && chain.includes(t.id),
+		t =>
+			t.status === 'open' &&
+			t.area !== 'design' &&
+			flatChain(store).includes(t.id),
 	).length
 	return {
 		picked: false,
@@ -742,7 +814,7 @@ export function pickByIdStore(id: string, root: string): StorePick {
 			task: null,
 			reason: `${id} is Area: design; the queue never auto-picks it`,
 		}
-	const notReady = unsatisfiedNeeds(task, store)
+	const notReady = readyReason(task, store)
 	if (notReady)
 		return {
 			picked: false,
@@ -753,12 +825,12 @@ export function pickByIdStore(id: string, root: string): StorePick {
 }
 
 // Every store write: re-read the task file, guard the expected status, mutate
-// the front matter or body, rewrite, then rebuild the views so the kanban
-// files stay exact renders of the store.
+// the front matter or body, rewrite atomically, then rebuild the markdown
+// views. The board needs no rebuild — it reads the store live.
 
 const writeTask = (root: string, task: QueueTask): string | null => {
 	try {
-		writeFileSync(join(root, 'queue', `${task.id}.md`), renderTaskFile(task))
+		writeFileAtomic(join(root, 'queue', `${task.id}.md`), renderTaskFile(task))
 	} catch (e) {
 		return String(e)
 	}
@@ -787,11 +859,10 @@ export function claimTaskStore(root: string, id: string): WriteResult {
 
 /** Write the run's outcome: flip the status and append the handoff prose to
  * the task body — except blocked, whose prose is a NOTES.md entry in the main
- * checkout, exactly as the kanban dialect writes it. A claimed task takes its
- * first outcome; a `pending-review` task takes an addendum (an owner-requested
- * change after the hand-off, owner ruling 2026-10-06). Once the Architect has
- * claimed the review (`in-review`), the entry is the reviewer's until the
- * verdict. */
+ * checkout. A claimed task takes its first outcome; a `pending-review` task
+ * takes an addendum (an owner-requested change after the hand-off, owner
+ * ruling 2026-10-06). Once the Architect has claimed the review (`in-review`),
+ * the entry is the reviewer's until the verdict. */
 export function annotateTaskStore(
 	root: string,
 	id: string,
@@ -822,7 +893,7 @@ export function annotateTaskStore(
 				error: 'NOTES.md has no `---` separator to insert below',
 			}
 		const insertAt = separator + '\n---\n'.length
-		writeFileSync(
+		writeFileAtomic(
 			notesPath,
 			`${notes.slice(0, insertAt)}\n${prose.trim()}\n${notes.slice(insertAt)}`,
 		)
