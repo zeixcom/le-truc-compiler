@@ -10,7 +10,22 @@ and stabilized the analysis tree they touch (the import cycles, the
 effects split) — which is why the dedup runs now: every task in this
 iteration is byte-identical output by goldens.
 
-**Next free task ID:** TC-021
+**Next free task ID:** TC-059
+
+**Reserved diagnostic codes:** LTC057, LTC058 and LTC090 are TC-021's (template
+emission's shared walk); the next free code after those is LTC091.
+
+**Rulings.**
+
+- 2026-10-11 — Adopted the Le Truc queue's remaining compiler tasks to this
+  repository's backlog (owner request): 38 entries, TC-021–TC-058, adapted from the
+  source tickets the split's planning had earmarked for this tracker (the setup-const
+  cluster, the estree-walk and client-stmt hardenings, the emission chain, the
+  boundary parity, and the backlog bands). None is chained — iteration-3 planning
+  still waits per the standing instruction. Placement calls and conflicts are
+  escalated to the owner with the adoption report; the parked entries (TC-051,
+  TC-052, TC-053, TC-054, TC-055, TC-056, TC-057, TC-058) refine to `open` only
+  through the Architect and the owner.
 
 **Rulings.**
 
