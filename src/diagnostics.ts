@@ -1842,7 +1842,7 @@ export const diagnostic = {
 	 * author's actual intent), not just a cosmetic pre-hydration flash.
 	 *
 	 * Scoped per-EXPRESSION, not per-component (LT-184, refining ADR 0029
-	 * s5): the caller (`analysis/effects.ts`) pushes it only for a severe
+	 * s5): the caller (`analysis/construct-effects.ts`) pushes it only for a severe
 	 * site whose OWN resolution is `none` — unresolvable in every tier, so
 	 * the value is omitted no matter how the component routes. A severe site
 	 * the realm can answer stays silent (the realm renders the value, so the

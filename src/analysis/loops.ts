@@ -4,7 +4,7 @@
  * rebinding, loop-scoped effects); Pass 1b — reactive-list `@for` over a
  * declared `createList` → `reconcile()` plans (container addressing, the
  * `data-list` stamp, the item hole; the item's Mount Scope itself is planned
- * in pass 4, analysis/effects.ts).
+ * in pass 4, analysis/mount-scopes.ts).
  */
 
 import type { AstNode } from '../ast-node'
@@ -357,7 +357,7 @@ export const planEachLoop = (
 /**
  * Pass 1: server-data `@for` → `each()` plans at host level. A loop nested
  * in a Mount Scope (an arm, a reactive-list item) is planned with its scope
- * in pass 4 (`analysis/effects.ts`, LT-424).
+ * in pass 4 (`analysis/mount-scopes.ts`, LT-424).
  */
 const runEachLoops = (shared: PassShared): Map<EachForIR, ForClientPlan> => {
 	const { component } = shared
@@ -491,7 +491,7 @@ const holeSelectorOf = (
  * Pass 1b: reactive-list `@for` over a declared `createList` →
  * `reconcile()` plans (container addressing, the `data-list` stamp, the
  * item hole). The item's OWN effects — its Mount Scope (ADR 0046 s1) — are
- * planned in pass 4 (`planReconcileItem`, analysis/effects.ts), which shares
+ * planned in pass 4 (`planReconcileItem`, analysis/mount-scopes.ts), which shares
  * the arm machinery; this pass only pins what the plan table and the
  * harvest need before it.
  */
@@ -520,7 +520,7 @@ const runReconcileLoops = (
 		const output = loop.output
 		// A list nested in a Mount Scope (an arm, an item; ADR 0046 s1) is
 		// addressed in pass 4 through its scope's own `first`
-		// (`analysis/effects.ts`); here it only gets the plan the harvest and
+		// (`analysis/mount-scopes.ts`); here it only gets the plan the harvest and
 		// that pass fill in, and the container checks that need no address.
 		const nested = inNestedScope(component.root, component.fors, output)
 		if (nested) {

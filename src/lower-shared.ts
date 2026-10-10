@@ -371,7 +371,7 @@ const liftsToReactive = (
 	// CHECKLIST §4 / LTC033 (error form): a `server` child renders ONCE,
 	// server-side, forever — there is no watch() to ever correct it, unlike
 	// a `reactive` child (which gets the WARNING form of this check in
-	// analysis/effects.ts, since the client's first binding pass corrects
+	// analysis/construct-effects.ts, since the client's first binding pass corrects
 	// an omitted fold there). An impure ambient here (`Date.now()`, a random
 	// id, `Intl`/`toLocaleString`) bakes one build-time reading into the
 	// page permanently with no safety net at all — hard error, not a warning.
@@ -666,7 +666,7 @@ export const lowerElement = (
 			// never bound client-side, so an impure ambient here bakes one
 			// build-time reading into the page permanently. The REACTIVE thunk
 			// form is deliberately NOT escalated — it keeps the warning verdict
-			// in analysis/effects.ts, where the refused fold is corrected by
+			// in analysis/construct-effects.ts, where the refused fold is corrected by
 			// the client's first binding pass.
 			if (
 				classified.kind === 'server' &&

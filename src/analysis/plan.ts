@@ -590,6 +590,13 @@ export type ClientPlan = {
  * HarvestPlans`, `runEffects(shared, loopPlans, harvests) → EffectPlans`),
  * so running a pass before its producer is a type error rather than a read
  * of an empty map. Construct one via `analyzeClient`, or by hand in tests.
+ *
+ * One hidden contract the structural shape cannot show (context-typing
+ * ruling, 2026-10-10): `badFreeNames` appends to `clientMessageKeys` as a
+ * side effect of being called during later passes — a static `t.<key>` read
+ * a pass finds client-resolvable is what puts the key in the serialized
+ * message channel (ADR 0030 s9), so which passes call it is part of the
+ * order above, not an implementation detail.
  */
 export type PassShared = {
 	component: ComponentIR

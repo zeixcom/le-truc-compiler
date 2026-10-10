@@ -578,7 +578,7 @@ export const refBranchGuard = (
  * rendered DOM whenever that branch didn't take, so a reference
  * to it is optional NO MATTER how `first()` was called — the
  * analysis addresses it with a non-throwing query under a
- * presence guard (`handleOptionalBranch`, analysis/effects.ts).
+ * presence guard (`handleOptionalBranch`, analysis/branch-effects.ts).
  */
 export const inOptionalBranch = (
 	root: TemplateNode,
