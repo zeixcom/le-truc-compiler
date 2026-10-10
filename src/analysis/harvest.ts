@@ -55,12 +55,9 @@ import type {
 import {
 	type ElementNode,
 	type ExprNode,
-	enclosingIfOf as enclosingIfOfIn,
 	isElement,
-	loopFor as loopForIn,
 	refOf,
-	resolveSelector as resolveSelectorIn,
-	selectorFor as selectorForIn,
+	selectorAdaptersOf,
 } from './selectors'
 import { reportServerOnlyNames } from './server-only-names'
 
@@ -328,7 +325,7 @@ const collectRenderSites = (component: ComponentIR): RenderSites => {
 	const thunkRendered = new Set<string>()
 	const textChildren: ExprNode[] = []
 	let documentOrder = 0
-	const loopFor = (node: TemplateNode) => loopForIn(component, node)
+	const { loopFor } = selectorAdaptersOf(component)
 
 	const recordSites = (node: TemplateNode, insideLoopOutput: boolean): void => {
 		if (!isElement(node)) return
@@ -645,11 +642,8 @@ const planHarvests = (
 					: resolutionOf(signal.init, component.serverKnown),
 		})
 	}
-	const enclosingIfOf = (target: ElementNode) =>
-		enclosingIfOfIn(component, target)
-	const selectorFor = (el: ElementNode) => selectorForIn(component, el)
-	const resolveSelector = (el: ElementNode) => resolveSelectorIn(component, el)
-	const loopFor = (node: TemplateNode) => loopForIn(component, node)
+	const { enclosingIfOf, loopFor, resolveSelector, selectorFor } =
+		selectorAdaptersOf(component)
 
 	/**
 	 * An attribute read is a string; a `number`-typed arg converts back

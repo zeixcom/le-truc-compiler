@@ -17,22 +17,6 @@ import { MANAGED_TEXT_PROPS } from '../vocabulary'
 import { renderOnlyBindings } from './naming'
 
 /**
- * Native form-control tags a form-associated component's `disabled`/
- * `checked` omission (LTC034) escalates to an ERROR for (LT-062/LT-085):
- * a real submittable control, not the host itself. Compiler-side duplicate
- * of `validate-lowered.ts`'s `NAMED_FORM_CONTROL_TAGS` (LT-059) — front-end/
- * analysis-layer duplication is the established pattern here (same
- * precedent as `MANAGED_FORM_MEMBERS`, vocabulary.ts) rather than an import
- * against the documented front-end → analysis direction.
- */
-export const SUBMITTABLE_FORM_CONTROL_TAGS: ReadonlySet<string> = new Set([
-	'input',
-	'select',
-	'textarea',
-	'button',
-])
-
-/**
  * The managed form prop a reactive child reads, or null. Since LT-052 that
  * is a `host.<prop>` member read; the retired `{'<prop>'}` string-literal
  * spelling is still recognised so a stale source reports the managed-prop

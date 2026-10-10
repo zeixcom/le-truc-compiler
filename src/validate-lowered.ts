@@ -17,16 +17,12 @@ import type { MessageArg } from './icu/parse'
 import type { ConfigIR, ForIR, TemplateNode } from './ir'
 import type { SetupExtraction } from './setup-extraction'
 import { wordingOf } from './surface'
-import { MANAGED_FORM_MEMBERS, RESERVED_PROP_NAMES } from './vocabulary'
+import {
+	MANAGED_FORM_MEMBERS,
+	RESERVED_PROP_NAMES,
+	SUBMITTABLE_FORM_CONTROL_TAGS,
+} from './vocabulary'
 import { childNodes, walkTemplate } from './walk'
-
-/** Native form-control tags whose own `name` would double-submit (LT-059). */
-const NAMED_FORM_CONTROL_TAGS: ReadonlySet<string> = new Set([
-	'input',
-	'select',
-	'textarea',
-	'button',
-])
 
 /**
  * Report a `name` (static or bound) on a descendant `input`/`select`/
@@ -52,7 +48,10 @@ const reportNamedFormControls = (
 	walkTemplate(
 		root,
 		node => {
-			if (node.kind !== 'element' || !NAMED_FORM_CONTROL_TAGS.has(node.tag))
+			if (
+				node.kind !== 'element' ||
+				!SUBMITTABLE_FORM_CONTROL_TAGS.has(node.tag)
+			)
 				return
 			const nameAttr = node.attrs.find(
 				a =>

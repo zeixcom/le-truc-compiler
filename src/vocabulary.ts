@@ -147,6 +147,28 @@ export const isDirtyFlagControlAttr = (tag: string, attr: string): boolean =>
 	DIRTY_FLAG_ATTRS.has(attr) && DIRTY_FLAG_CONTROL_TAGS.has(tag)
 
 /**
+ * The native form-control tags that take part in a form's NATIVE
+ * submission: `input`/`select`/`textarea`/`button`. Two checks read the
+ * same set, from opposite directions — LTC034's severe form escalates a
+ * `disabled`/`checked` omission to an ERROR only when the target is a real
+ * submittable control, not the host itself (LT-062/LT-085, read in
+ * `analysis/construct-effects.ts`), and LT-059 refuses an authored `name`
+ * on a descendant control of a form-associated component: an unnamed
+ * control stays out of native submission (the host submits via
+ * `setFormValue`), so a named one submits the field TWICE
+ * (`validate-lowered.ts`). One table since TC-006 — the analysis copy
+ * (`analysis/server-only-names.ts`'s `SUBMITTABLE_FORM_CONTROL_TAGS`, a
+ * duplicate of the front-end's `NAMED_FORM_CONTROL_TAGS`) had admitted the
+ * front-end→analysis import direction as its excuse.
+ */
+export const SUBMITTABLE_FORM_CONTROL_TAGS: ReadonlySet<string> = new Set([
+	'input',
+	'select',
+	'textarea',
+	'button',
+])
+
+/**
  * Context members usable as free names in any client code position —
  * `host`/`internals` plus the Web Components Community Protocol helpers
  * (LT-035, ADR 0024 sub-design 15): `requestContext(Context, fallback)` in a

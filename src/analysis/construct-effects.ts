@@ -27,18 +27,16 @@ import { rangeFields, resolutionOf } from '../tier'
 import {
 	isDirtyFlagControlAttr,
 	SEMANTICALLY_LOADED_ATTRS,
+	SUBMITTABLE_FORM_CONTROL_TAGS,
 } from '../vocabulary'
 import { childNodes, isClientConstructAttr } from '../walk'
+import { dispatchOf } from './attr-dispatch'
 import type { EffectsContext } from './effects'
 import { lazyWatchSource } from './harvest'
 import type { TopEffectPlan } from './plan'
 import type { ElementNode, ExprNode } from './selectors'
 import { isElement } from './selectors'
-import {
-	managedPropRead,
-	reportServerOnlyNames,
-	SUBMITTABLE_FORM_CONTROL_TAGS,
-} from './server-only-names'
+import { managedPropRead, reportServerOnlyNames } from './server-only-names'
 import { returnsNumber } from './thunk-types'
 
 /**
@@ -607,22 +605,8 @@ export const emitConstructEffects = (
 				)
 				continue
 			}
-			// A host-prop mirror always dispatches as a property —
-			// attribute dispatch would be wrong for property-backed
-			// targets like `input.value`. LT-116: a dirty-flag IDL
-			// attribute on a native form control (`value`/`checked`/
-			// `selected` on input/select/textarea/option) dispatches as
-			// a property too, mirror or not — once the control is dirty,
-			// rewriting the content attribute no longer moves the live
-			// property, so `bindAttribute` would silently stop tracking
-			// (the form-radiogroup mutual-exclusion break, NOTES LT-092).
-			// The thunk's own type is irrelevant to that hazard: the
-			// divergence is a property of the target.
-			const mirror = hostPropOf(attr.thunk)
-			const dispatch: 'attribute' | 'property' =
-				mirror !== null || isDirtyFlagControlAttr(el.tag, attr.name)
-					? 'property'
-					: 'attribute'
+			// LT-116's dispatch rule lives in analysis/attr-dispatch.ts (`dispatchOf`).
+			const dispatch = dispatchOf(attr, el.tag)
 			sink.push({
 				kind: 'watch-attr',
 				query,
