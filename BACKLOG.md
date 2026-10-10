@@ -58,58 +58,75 @@ stays here until the Architect and the owner refine it back to `open`.
 - [ ] TC-003: Migrate the ADR record — fresh corpus in this repo
   **Area:** design
   **Ruling (owner, 2026-10-10):** This repo starts a **fresh ADR record,
-  numbered from 0001**. Compiler-related ADRs port over from the sibling
-  `le-truc` checkout (v3 branch, `../le-truc/adr/`) — each one re-read and
-  re-adopted in a review pass, not copied blind. After the migration the
-  sibling **deletes** the ported ADRs, so this repo becomes their only home.
+  numbered from 0001**. Each candidate gets one of two treatments, decided
+  in the review pass:
+
+  - **Adapter** — for runtime-owned decisions the compiler depends on. Do
+    not duplicate the sibling's wording: a fresh ADR here cites the
+    sibling record as the decision's authority (stable link to its GitHub
+    source on `main`) and states the decisions that follow for the
+    compiler and its emission. The sibling keeps these records; they are
+    not deleted over there. Cross-references to le-truc-internal
+    amendments reduce to the consequence that matters — e.g. 0019's
+    `observedAttributes()` escape hatch: it exists, and here is what
+    follows for emission.
+  - **Port** — for compiler-native decisions. The record moves here under
+    a fresh number, re-read and re-adopted; after the migration the
+    sibling **deletes** these, so this repo is their only home.
+
   `REQUIREMENTS.md` is reworked into a high-level overview of requirements
-  with each requirement's decisions mapped to the new ADR numbers. The owner
+  with each requirement's decisions mapped to the new numbers. The owner
   accepts the extra work deliberately: adopting decisions from an
-  experimental branch is the one chance to look at every one of them again.
-  This amends sibling ADR 0049's "le-truc keeps the complete historical
-  record" for the compiler corpus — moot anyway, since 0049 itself ports and
-  is then deleted over there.
+  experimental branch is the one chance to look at every one of them
+  again. Stable links target `main`; the sibling corpus sits on the `v3`
+  branch until release, so the links resolve when v3 lands — accepted
+  pre-release.
 
-  **Port criterion** (scope ruling 2026-10-10): an ADR is compiler-related
-  when it governs the compiler, its public contract, its generated modules,
-  or its diagnostics. Provisional list, 29 of 49 — everything else stays in
-  the sibling untouched:
+  **Acceptance convention (owner, 2026-10-10):** every migrated ADR stays
+  🔄 Proposed until the `REQUIREMENTS.md` consolidation; acceptance is
+  granted there, corpus-wide, once each record has been re-read against the
+  reworked requirements.
 
-  0003, 0010, 0011, 0012, 0017, 0024, 0025, 0027–0030, 0032–0049
+  **Landed:** `adr/0001` (Proposed, 2026-10-10) — the first adapter. Adopts
+  Le Truc ADR 0003 as a compiler invariant with five consequences
+  (DOM-is-truth, harvest at connect, no state across the boundary,
+  reactive binding never rides attributes, the escape hatch compiled via
+  `export const config`). Template and index are in place (`adr/0000`,
+  `adr/adr-index.md`).
 
-  Seam cases the review pass must settle explicitly:
+  **Classification outlook.** Adapter-leaning: 0010, 0011, 0012, 0017,
+  0024, and 0002 (the emitted client module is that factory form) — all
+  runtime-era, all cited here; the review pass confirms each. Port:
+  0027–0030, 0032–0049. **0025** (playground) is likely no ADR at all —
+  its only citation explains a retired script; the sweep would repoint
+  that link at the sibling record. Runtime ADRs never cited here (0001,
+  0004–0009, 0013–0016, 0018–0023, 0026, 0031) stay in the sibling
+  untouched.
 
-  - **0002** (factory form over builder) — runtime API decision, but the
-    emitted client module *is* that factory form. Include-leaning.
-  - **0009** (security validation in `bindAttribute`) — runtime enforcement;
-    only compiler relevance is the diagnostics story it pairs with 0010 on.
-    Stay-leaning.
-  - **0025** (client-side playground) — cited here only for the rationale of
-    a retired script (`CONTEXT.md`, `build:tsrx:browser`). Include-leaning,
-    lowest value.
+  **Renumbering:** one number sequence for both classes, relative original
+  order preserved. The mapping table below is built as adapters and ports
+  land and drives the citation sweep.
 
-  **Renumbering:** relative original order is preserved, so the corpus stays
-  chronological (0003→0001, 0010→0002, … 0049→0029; shifts if a seam case
-  joins). Ported ADRs keep their original acceptance date and add an
-  adoption line in the status; any ADR the review pass materially changes
-  goes through Proposed→Accepted here. The template ports as `0000`. The
-  mapping table below is built as ports land and drives the citation sweep.
-
-  | sibling | here | title | ported |
-  | ------- | ---- | ----- | ------ |
+  | sibling | here | title | treatment | landed |
+  | ------- | ---- | ----- | --------- | ------ |
+  | 0003 | 0001 | The connect-time attribute model is a compiler invariant | adapter | 2026-10-10 (Proposed) |
 
   **Execution order.**
 
-  1. Port + review sessions (Architect + owner), building the mapping table.
+  1. Review sessions (Architect + owner): classify each remaining
+     candidate, land adapters and ports, fill the mapping table.
   2. Citation sweep: remap every `ADR NNNN` in `ARCHITECTURE.md`,
-     `CONTEXT.md`, `HOST_PROFILE.md`, `REQUIREMENTS.md` to the new numbers;
-     fix the ~22 dangling `../../adr/` links and the `../../DONE.md`
-     residue in `CONTEXT.md`; replace the two standing sibling pointers in
-     `ARCHITECTURE.md`. One commit, after the table is complete.
+     `CONTEXT.md`, `HOST_PROFILE.md`, `REQUIREMENTS.md` to the new
+     numbers — and in `src/`, where ~10 files cite ADR numbers in doc
+     comments; fix the ~22 dangling `../../adr/` links and the
+     `../../DONE.md` residue in `CONTEXT.md`; replace the two standing
+     sibling pointers in `ARCHITECTURE.md`. One commit, after the table is
+     complete.
   3. Rework `REQUIREMENTS.md` with the owner: high-level overview plus the
      requirement→decision map. Keeps its traceability role for the queue.
-  4. Owner act, in `../le-truc`: delete the ported ADRs (its "never delete"
-     supersession discipline is the sibling repo's own call to adapt).
+  4. Owner act, in `../le-truc`: delete the port-class records (adapter
+     sources stay). Its "never delete" supersession discipline is the
+     sibling repo's own call to adapt.
 
   No gates touched — markdown only. Target: complete before the first
   lockstep publish, so the public repo never ships dangling citations.
