@@ -485,8 +485,13 @@ front-end modules, then the two front ends:
 | `analysis/list-harvest.ts` | Pass 3's per-field plan for a list seeded from server args (ADR 0046 s7, LT-429): each field's site in the adopted item (`data-key`, else the first text child or reactive attribute reading exactly the field) and its parser; LTC072/LTC076, LTC059 per field. The key-alias plan (ADR 0047, LT-453, `planKeyAliasHarvest`): the same field plan read from the alias scope, the container path through the enclosing list items, LTC080 |
 | `key-alias.ts` | The key alias's syntactic half (ADR 0047, LT-453), shared by Pass 3 and the server emitter: which host-level lists the alias may harvest (`isAliasHarvestable`), every `list.byKey(…)` read in an item setup (`byKeyReadsOf`), and the alias scope the witness records (`aliasScopeOf`) |
 | `analysis/loops.ts` | Passes 1+1b: `each()` (`runEachLoops`) and `reconcile()` (`runReconcileLoops`) planning |
-| `analysis/effects.ts` | Pass 4: document-ordered per-construct effect planning |
+| `analysis/effects.ts` | Pass 4's orchestration: the `EffectsContext` type and the five selector forwarding adapters (imported back by the subsystem modules), the document-ordered walk driver `emitTopEffects`, and `runEffects`' five phases (`validateArmSetPlacement` → `emitTopEffects` → `planHostComposeHandlers` → `reportUnplannedHandlers` → `validateComposeIds`) |
+| `analysis/construct-effects.ts` | Pass 4's construct lowering: `emitConstructEffects`, the pass-entry twin (`checkPassEntries`/`emitPassEntries`), the lazy-text cluster, and the construct predicates (`hasDeepConstruct` & `directLazyCatchRef` shared with `boundary-arms.ts`) |
+| `analysis/branch-effects.ts` | Pass 4's control-flow addressing: `@if` (union and optional), `@switch`/`@try` construct-free arms, async boundaries, reactive conditionals, and `validateArmSetPlacement` (every arm set and reactive list sits where a mount reaches it) |
+| `analysis/mount-scopes.ts` | Mount Scopes (ADR 0046 s1, LT-424): `mountScope` addressing, nested-scope planning (`planNested`, re-running the branch handlers inside a scope), key-derived attributes, and `planReconcileItem` |
+| `analysis/compose-effects.ts` | Pass 4's compose planning: site handlers (`planComposeHandlers`, `planHostComposeHandlers`, `reportUnplannedHandlers`), arm-root compose passes, content constructs, `validateComposeIds` |
 | `initial-winner.ts` | The compile-time initial arm of every conditional (ADR 0043 s4): what the server renders live beside the inert arm templates |
+| `boundary-arms.ts` | Async-boundary arm-root vocabulary (ADR 0024 s13, ADR 0037 s4) shared by `analysis/branch-effects.ts` and `emit-server.ts`: what counts as an arm root, the catch message element, the unaddressable construct below a root, the `truc:html` thunk signal — a sibling of `initial-winner.ts`, ending the analysis→emitter value leak |
 | `compose-attrs.ts` | Compose-site `class`/`id`/`data-*` post-processing applied to a composed child's rendered root (`composeHostAttrs`); re-exported through `runtime.ts` for generated markup |
 | `emit-server.ts` | `ComponentIR` → server render module |
 | `emit-client.ts` | `ComponentIR` + `ClientPlan` → client factory module |
@@ -514,11 +519,19 @@ no parser values by design, only the loose
 depend on either front end. Within `analysis/`, `plan.ts` orchestrates
 `{selectors, naming, harvest, loops, effects}` over two shared leaves:
 `server-only-names.ts` (the LTC005 check) and `thunk-types.ts`
-(`returnsNumber`). Two back-edges remain, both intentional and documented
-on `effects.ts`: effects→loops (`planEachLoop` — nested Mount-Scope loops
-re-run pass-1 planning, ADR 0046 s2 / LT-424) and harvest↔list-harvest
-(the pass-2/pass-3 planning pair). Every cross-module call on those edges
-stays inside a function body, so no cycle resolves at module load.
+(`returnsNumber`). Pass 4 is a mutually recursive cluster: `effects.ts`
+homes the pass context and the selector adapters while importing the
+subsystem entry points (`construct-`, `branch-`, `mount-`,
+`compose-effects.ts`), `branch-effects.ts` and `mount-scopes.ts` call
+into each other (`planNested` re-runs the branch handlers inside a
+scope), and `effects.ts` value-imports `planEachLoop` from `loops.ts`
+(nested Mount-Scope loops re-run pass-1 planning, ADR 0046 s2 / LT-424);
+harvest↔list-harvest (the pass-2/pass-3 planning pair) is the same shape.
+Every cross-module call on those edges stays inside a function body —
+stated on each module header — so no cycle resolves at module load.
+`boundary-arms.ts` breaks the analysis→emitter value leak: the arm-root
+vocabulary shared by the pass and the server emitter sits at the root,
+one-way over the two construct predicates it walks with.
 
 ## 4. Core data model
 
