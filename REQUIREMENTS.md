@@ -541,6 +541,14 @@ separate records that report without asserting wrongness.
 Emitted bytes are not contract. Everything else under the compiler is
 internal.
 
+What a change to emission must preserve is the **rendered result in the
+browser** and the **content-security footprint**. A change must not make
+the output need a content security policy relaxation that the previous
+output did not need: no `eval` or `new Function`, and no inline script,
+inline handler or `style` attribute the render did not already carry.
+Generated source may change shape freely within those bounds (owner
+ruling, 2026-10-11).
+
 | Published | Role |
 | --- | --- |
 | The host-profile TSX dialect, versioned | What authors write and adapters target; grows only through the ADR 0019 gate |

@@ -16,7 +16,7 @@ and its PHP CI job (TC-023, after TC-025) follow.
 
 - [ ] TC-022: Template emission — the Twig target (ADR 0021): syntax table, exhaustive escaping map, boundary/list/children emission, one partial per component × locale, byte-equivalence on the real engine
   **Area:** compiler
-  **Needs:** TC-021, TC-059, TC-060, TC-061, TC-062, TC-063
+  **Needs:** TC-021, TC-059, TC-060, TC-061, TC-062, TC-063, TC-065
   **Gates:** typecheck, test
   **Context:** REQUIREMENTS §9.2 and ADR 0021. The target owns only syntax: a syntax
   table plus an escaping map, switching exhaustively over the operation set and the
@@ -84,36 +84,57 @@ and its PHP CI job (TC-023, after TC-025) follow.
 
   *Adopted from Le Truc LT-529, 2026-10-11.*
 
-- [ ] TC-062: Converge emit-server.ts onto the shared template walk — SSG as a backend of the walk (ADR 0021, REQUIREMENTS §9.2)
+- [ ] TC-059: Design — the authored form of a server-seeded async boundary (the result arg), its client adoption and its SSG semantics (ADR 0019, ADR 0021 s4)
   **Area:** design
-  **Context:** REQUIREMENTS §9.2: a target emitter is "a backend of the same IR walk as the
-  SSG render, never a sibling interpretation". ADR 0021 s8 relies on this ("holes render
-  where the client harvests because it is one walk"). TC-021 landed `template/walk.ts` as a
-  sibling of `emit-server.ts` that copies its decisions construct by construct. The two are
-  held in step only by the dump-target byte comparison (owner ruling at TC-021's review,
-  2026-10-11). Working direction (owner, 2026-10-11): **A**. Every hole and condition test carries
-  both its authored node and the walk's portable classification. SSG becomes a JS backend
-  over the operations, and a template target reads only the portable form. The walk
-  extensions (TC-060, TC-061) wait for this task's implementation, so the reactive list and
-  children code moves into the walk once, from `emit-server.ts`, instead of being rewritten
-  beside it. The boundary (TC-059) is a design question of its own, and its result lands in
-  the converged walk.
+  **Context:** ADR 0021 s4 (D-28) maps the async boundary to a three-state **result arg**:
+  `T` → `ok`, `{ error: { code, message } }` → `err`, null → `nil`. It assumes an authored
+  task "whose initial value routes from a server arg". No such form exists. The
+  contributor found this when picking the original implementation task (blocked
+  2026-10-11). The Architect confirmed each point:
 
-  **Design questions** (Architect and owner, before this becomes an implementation task):
+  1. **Authoring.** `createTask(fn, { value: result })` with `result` a server arg fails
+     LTC005, because the generated client does not bind it.
+  2. **Client lowering.** cause-effect's `createTask` rejects a nullish seed
+     (`nodes/task.ts:117`, `NullishSignalValueError`) and has no error seed. So the client
+     cannot start in the `nil` or `err` arm the server rendered: its first `reconcile` would
+     swap arms and break the connect fixed point.
+  3. **SSG semantics.** The server stub (`runtime.ts` `createTask`) turns any seed into a
+     plain cell and always renders `ok`. Byte identity with SSG in all three states (ADR
+     0021 s8) therefore needs SSG itself to apply the three-state test. That changes SSG
+     output in builds with no template target.
+  4. **LTC090 scope.** Once SSG applies the shape test, a result type with its own `error`
+     member misroutes in every build. LTC090 cannot stay target-only.
 
-  - How does SSG carry an expression outside the portable subset? Options: an SSG-only
-    opaque-code operation that no template target accepts, a second expression layer, or
-    SSG keeps its own expression lowering under a shared structural walk.
-  - Generated-code shape: the render module's output must stay byte-identical, since the
-    goldens are unchanged. Does SSG become an ops → JS target, or does the walk call an
-    emitter interface that both implement?
-  - What the walk must learn that only `emit-server.ts` knows today: Simulated and Static
-    skeleton retention (`retainReferenced`), key-alias witness calls, span recording.
-  - Does this amend ADR 0021, or does it only make the code match it?
+  **Owner ruling, 2026-10-11:** design the authored form now. Every planned consumer needs
+  server-seeded async boundaries sooner or later (see `queue/LEDGER.md`, 2026-10-11
+  consumer note). Components that need one may wait, but the general design must be settled
+  before 3.0 is published, so no breaking change follows from a half-designed form.
 
-  **Check (for the implementation task this design produces):** one walk. `emit-server.ts`
-  no longer decides markup structure, goldens are byte-identical, and the dump comparison
-  keeps passing.
+  **Design questions** (Architect and owner):
+
+  - **The authored spelling.** The Architect leans towards a dedicated form on the
+    boundary, for example `<truc:try result={arg}>` and its `.tsrx` twin, over overloading
+    `createTask`'s seed. Reading `{ error }` out of a seed reinterprets user data, which is
+    the ambiguity LTC090 exists to catch. Alternatives: a marked seed, or a three-state seed
+    that the stub learns.
+  - **The client adoption rule.** How does the client start in the server-rendered arm
+    without recomputing? Candidates: lower the task unseeded and adopt the stamped arm on
+    connect; or a runtime rule in `le-truc` (cross-repository, ADR 0027 sequencing).
+    When does the driver first run after adoption?
+  - **SSG semantics.** The walk applies the three-state test once and both backends lower it
+    (TC-062's direction A). What does the plain SSG build render for each state?
+  - **Diagnostics.** LTC090's channel and tier (ADR 0028) once it runs on every build that
+    uses the form. The tier wording follows from that.
+  - **Records.** Does this edit ADR 0019 and ADR 0021 s4 in place, or supersede them
+    (`references/adr.md`)? Do REQUIREMENTS §9.2's required mappings change?
+
+  **Outcome:** rulings and ADR changes, then an implementation task (or tasks: compiler,
+  plus the runtime half in `le-truc` if one is needed) carrying the original TC-059 scope:
+  the boundary operation in the converged walk, the boundary fixture under `examples/`,
+  LTC090, and byte identity in all three arm states × every locale. That task needs TC-065.
+
+  *Split from TC-021 (Le Truc LT-527) at iteration-3 planning; turned into a design task at
+  the 2026-10-11 blocker.*
 
 - [ ] TC-063: Portable-subset and escaping edges before Twig — optional chaining, and the URL context's allowlist (ADR 0021 s1, s3)
   **Area:** design

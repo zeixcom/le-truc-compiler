@@ -8,7 +8,7 @@ through the test-only dump target, with no public surface yet. Twig (TC-022) and
 its PHP CI job (TC-023) follow in iteration 4. Two small tracks ride along: the
 contributor half of CI (TC-025), which TC-023 needs, and two gate-hygiene fixes.
 
-**Next free task ID:** TC-065
+**Next free task ID:** TC-066
 
 **Reserved diagnostic codes:** LTC057 and LTC058 are TC-021's; LTC090 is
 TC-059's. The next free code after those is LTC091.
@@ -43,6 +43,12 @@ TC-059's. The next free code after those is LTC091.
   TC-060 and TC-061 need TC-062, whose working direction is A (both backends
   over one walk). TC-062 no longer waits for TC-061. Track 1 stalls until
   TC-062 produces its implementation task. Tracks 2 and 3 stay pickable.
+- 2026-10-11, TC-062 settled (owner): direction A becomes TC-065, one
+  implementation task. It walks once and specializes per locale. Module source
+  may change shape, but rendered results and the content-security footprint
+  may not (REQUIREMENTS §12). TC-060 and TC-061 now need TC-065. TC-059 leaves
+  the chain (an open design task would stall the track) and stays this
+  iteration's design work.
 - 2026-10-10 (carried): Chain positions are first-mention. Only a track's
   pick-order list names positions. A prose citation of another chain task is
   not one, and prerequisites ride the task's `needs:`.
@@ -51,10 +57,12 @@ TC-059's. The next free code after those is LTC091.
 
 - **Track 1 — Template emission: the shared walk.** ADR 0021's operation layer
   and portable-subset walk, proven byte-identical to SSG through the dump
-  target. Then each construct that needs its own operation semantics, in pick
+  target. Then SSG becomes a backend of that one walk, and each construct that
+  needs its own operation semantics becomes projectable. The boundary's
+  authored form is design work outside the chain (see the rulings). In pick
   order:
   1. TC-021 — The operation layer, the portable-subset walk, the census routing and the dump target
-  2. TC-059 — The boundary operation, the boundary fixture, LTC090
+  2. TC-065 — One walk: SSG becomes a backend of the shared walk
   3. TC-060 — Reactive lists and nested loop sources
   4. TC-061 — Children capture and the `owner` arg
 - **Track 2 — CI.** Nothing enforces the gates on a push yet. TC-023's PHP job

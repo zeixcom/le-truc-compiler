@@ -91,3 +91,47 @@ deleted and its durable rulings carried here.
     builder but no site, since the IR carries only static names.
   - In a fresh worktree, run `build:corpus` before the full suite, because
     `tests/tsx/typecheck.test.ts` needs the generated `tsrx-imports.d.ts`.
+
+- [x] TC-062: Converge emit-server.ts onto the shared template walk — SSG as a backend of the walk (ADR 0021, REQUIREMENTS §9.2) — reviewed ✓
+  **Area:** design
+  **Context:** REQUIREMENTS §9.2: a target emitter is "a backend of the same IR walk as the
+  SSG render, never a sibling interpretation". ADR 0021 s8 relies on this ("holes render
+  where the client harvests because it is one walk"). TC-021 landed `template/walk.ts` as a
+  sibling of `emit-server.ts` that copies its decisions construct by construct. The two are
+  held in step only by the dump-target byte comparison (owner ruling at TC-021's review,
+  2026-10-11). Working direction (owner, 2026-10-11): **A**. Every hole and condition test carries
+  both its authored node and the walk's portable classification. SSG becomes a JS backend
+  over the operations, and a template target reads only the portable form. The walk
+  extensions (TC-060, TC-061) wait for this task's implementation, so the reactive list and
+  children code moves into the walk once, from `emit-server.ts`, instead of being rewritten
+  beside it. The boundary (TC-059) is a design question of its own, and its result lands in
+  the converged walk.
+
+  **Design questions** (Architect and owner, before this becomes an implementation task):
+
+  - How does SSG carry an expression outside the portable subset? Options: an SSG-only
+    opaque-code operation that no template target accepts, a second expression layer, or
+    SSG keeps its own expression lowering under a shared structural walk.
+  - Generated-code shape: the render module's output must stay byte-identical, since the
+    goldens are unchanged. Does SSG become an ops → JS target, or does the walk call an
+    emitter interface that both implement?
+  - What the walk must learn that only `emit-server.ts` knows today: Simulated and Static
+    skeleton retention (`retainReferenced`), key-alias witness calls, span recording.
+  - Does this amend ADR 0021, or does it only make the code match it?
+
+  **Check (for the implementation task this design produces):** one walk. `emit-server.ts`
+  no longer decides markup structure, goldens are byte-identical, and the dump comparison
+  keeps passing.
+
+  **Settled 2026-10-11 (owner).** The rulings are carried into TC-065, the implementation:
+
+  1. Direction **A**: one walk producing `TemplateOp<Carrier>` (the authored node plus the
+     walk's portable verdict), a total shared projection for template targets, and SSG as a
+     JS backend over the carriers.
+  2. **Walk once and specialize per locale**, in one shared step, for templates.
+  3. **Module source may change shape**; rendered results and the content-security
+     footprint may not (REQUIREMENTS §12).
+  4. **One implementation task (TC-065)**, no staged dual path.
+
+  ADR 0021 needs no supersede, because the code catches up with it. Any clarification of
+  SSG-only operations is folded in place after TC-065's review.
