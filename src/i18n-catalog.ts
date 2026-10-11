@@ -396,6 +396,32 @@ const compiledCatalog = (
 	return out
 }
 
+/** A component's messages at one locale, resolved as `i18nRecord` resolves them: the locale's override when it is a non-empty pattern that parses, else the source pattern; `literal` is the text of a message without arguments. */
+export const localeMessages = (
+	tag: string,
+	sources: Readonly<Record<string, string>> | null,
+	overrides: Readonly<Record<string, unknown>>,
+): Map<string, { pattern: string; literal: string | null }> => {
+	const resolved = new Map<
+		string,
+		{ pattern: string; literal: string | null }
+	>()
+	for (const [key, source] of Object.entries(sources ?? {})) {
+		const override = overrides[`${tag}.${key}`]
+		const translated =
+			typeof override === 'string' && override !== ''
+				? parseMessage(override)
+				: null
+		const pattern = translated?.ok ? (override as string) : source
+		const parsed = translated?.ok ? translated : parseMessage(source)
+		resolved.set(key, {
+			pattern,
+			literal: parsed.ok ? literalOf(parsed.message) : source,
+		})
+	}
+	return resolved
+}
+
 /** The generated `i18n` module every render boundary imports. */
 const i18nModuleText = (
 	collection: I18nCollection,

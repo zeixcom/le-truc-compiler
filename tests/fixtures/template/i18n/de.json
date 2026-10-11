@@ -1,0 +1,15 @@
+{
+	"tpl-chip.suffix": "Chip",
+	"tpl-showcase.close": "Schliessen",
+	"tpl-showcase.count": "{n, plural, one {# Eintrag} other {# Einträge}}",
+	"tpl-showcase.empty": "Nichts hier",
+	"tpl-showcase.greeting": "Hallo",
+	"tpl-showcase.none": "Keine Notiz",
+	"tpl-showcase.open": "Öffnen",
+	"tpl-showcase-r.close": "Schliessen",
+	"tpl-showcase-r.count": "{n, plural, one {# Eintrag} other {# Einträge}}",
+	"tpl-showcase-r.empty": "Nichts hier",
+	"tpl-showcase-r.greeting": "Hallo",
+	"tpl-showcase-r.none": "Keine Notiz",
+	"tpl-showcase-r.open": "Öffnen"
+}

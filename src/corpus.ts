@@ -1,5 +1,11 @@
 import { dirname, join, relative } from 'node:path'
-import { formatCensus, translationCensus } from './census'
+import {
+	type Census,
+	formatCensus,
+	type TemplateCensusSubject,
+	templateCensus,
+	translationCensus,
+} from './census'
 import {
 	type CorpusConfig,
 	emitPathsFor,
@@ -11,16 +17,27 @@ import {
 	collectCorpusSources,
 	collectSiblingModules,
 } from './corpus-scan'
-import type { CompileDiagnostic } from './diagnostics'
-import { diagnostic, lineOf, wholeFile } from './diagnostics'
+import type { CompileDiagnostic, LocalDiagnostic } from './diagnostics'
+import { diagnostic, lineOf, locate, wholeFile } from './diagnostics'
 import type { EmitPaths } from './emit-paths'
 import { compileComponent } from './frontend/tsrx'
 import { compileComponentTsx } from './frontend/tsx'
 import { removeFile, scanGlobSync, writeTextFile } from './fs'
-import { collectI18n, writeI18nModule, writeI18nReport } from './i18n-catalog'
+import {
+	buildI18n,
+	type Catalogs,
+	collectI18n,
+	localeMessages,
+	readCatalogs,
+	writeI18nModule,
+	writeI18nReport,
+} from './i18n-catalog'
+import type { CompiledComponent } from './pipeline'
 import type { InternalRegistryEntry } from './registry'
 import { internalRegistryJson, registryJson } from './registry'
 import type { SourceSpan } from './spans'
+import type { TemplatePartial, TemplateTarget } from './template/operations'
+import { type TemplateRouting, walkPartial } from './template/walk'
 import type { EvaluationTier } from './tier'
 import { contaminateComposeReads } from './tier'
 import {
@@ -68,12 +85,32 @@ export type CorpusResult = {
 	summary: CorpusSummary
 }
 
+/** Internal options of a corpus run, out of reach of `compileCorpus` and the config file. */
+export type CorpusRunOptions = {
+	/** Runs the shared template walk and hands each partial to this target. */
+	templateTarget?: TemplateTarget
+}
+
+/** One component's partial at one locale, as the target emitted it. */
+export type EmittedPartial = {
+	tag: string
+	locale: string
+	fileName: string
+	tier: 'folded' | 'static'
+	output: string
+}
+
 export type InternalCorpusResult = CorpusResult & {
 	/** Post-contamination entries, one per served tag — the `registry.internal.json` record. */
 	entries: readonly InternalRegistryEntry[]
 	/** Error labels, preformatted for the runner that fails its build on them. */
 	errors: ReadonlyArray<{ file: string; label: string }>
 	spanInfos: readonly CompiledSpanInfo[]
+	/** Present only when a template target is configured. */
+	template?: {
+		census: Census
+		partials: readonly EmittedPartial[]
+	}
 }
 
 /* === Internal Functions === */
@@ -140,14 +177,67 @@ const pruneVariantClients = async (
 	}
 }
 
+type WalkedPartials = {
+	tag: string
+	routing: TemplateRouting[]
+	partials: TemplatePartial[]
+	diagnostics: LocalDiagnostic[]
+}
+
+/** One component walked at every locale; the routing and findings are locale-independent, so the first locale's stand. */
+const walkPartials = (
+	component: CompiledComponent,
+	composeRegistry: ReadonlyMap<string, InternalRegistryEntry>,
+	locales: readonly string[],
+	catalogs: Catalogs,
+): WalkedPartials => {
+	const { entry, ir } = component
+	const build = buildI18n(locales)
+	const runs = locales.map(locale => ({
+		locale,
+		run: walkPartial({
+			component: ir,
+			composeRegistry,
+			locale,
+			pageLocale: build.pageLocale,
+			timeZone: build.timeZone,
+			currency: build.currency,
+			messages: localeMessages(
+				entry.tag,
+				ir.i18nMessages,
+				catalogs.overrides.get(locale) ?? {},
+			),
+			clientMessageKeys: entry.clientMessageKeys ?? [],
+		}),
+	}))
+	return {
+		tag: entry.tag,
+		routing: runs[0]?.run.routing ?? [],
+		diagnostics: runs[0]?.run.diagnostics ?? [],
+		partials: runs.map(({ locale, run }) => ({
+			tag: entry.tag,
+			locale,
+			timeZone: build.timeZone,
+			currency: build.currency,
+			ops: run.ops,
+		})),
+	}
+}
+
 /* === Exported Functions === */
 
 export const compileCorpusFiles = async (
 	files: readonly CorpusFile[],
 	config: CorpusConfig,
+	options: CorpusRunOptions = {},
 ): Promise<InternalCorpusResult> => {
 	const { outDir, root } = config
 	const emitPaths = emitPathsFor(config)
+	const { templateTarget } = options
+	const catalogs: Catalogs | null = templateTarget
+		? await readCatalogs(config.i18nDir)
+		: null
+	const walked: Array<{ rel: string } & WalkedPartials> = []
 
 	const childImports = collectSiblingModules(config)
 	const registry = new Set<string>(childImports.keys())
@@ -300,6 +390,20 @@ export const compileCorpusFiles = async (
 				continue
 			}
 			const { entry } = component
+			if (catalogs) {
+				const run = walkPartials(
+					component,
+					composeRegistry,
+					config.locales,
+					catalogs,
+				)
+				report(
+					rel,
+					run.diagnostics.map(d => locate(d, rel)),
+				)
+				if (run.diagnostics.some(d => d.severity === 'error')) continue
+				walked.push({ rel, ...run })
+			}
 			const clientModulePath = join(outDir, entry.clientModule)
 			const serverModulePath = join(outDir, entry.serverModule)
 			await writeTextFile(serverModulePath, component.serverCode)
@@ -338,6 +442,43 @@ export const compileCorpusFiles = async (
 		if (!classification) continue
 		entry.tier = classification.tier
 		entry.routingSignals = [...classification.signals]
+	}
+
+	let template: InternalCorpusResult['template']
+	if (templateTarget) {
+		const subjects: TemplateCensusSubject[] = []
+		const partials: EmittedPartial[] = []
+		for (const { rel, tag, routing, partials: perLocale } of walked) {
+			const entry = entries.find(e => e.tag === tag)
+			if (!entry) continue
+			const reasons: Array<TemplateCensusSubject['reasons'][number]> =
+				routing.map(({ reason, detail, range }) => ({
+					reason,
+					detail,
+					...(range ? { location: { file: rel, ...range } } : {}),
+				}))
+			if (entry.tier !== 'folded')
+				reasons.push({
+					reason: `${entry.tier} tier`,
+					detail:
+						'a template target runs no realm, so the partial is the Static skeleton',
+				})
+			const tier = reasons.length > 0 ? 'static' : 'folded'
+			subjects.push({ tag, tier, reasons })
+			for (const partial of perLocale)
+				partials.push({
+					tag,
+					locale: partial.locale,
+					fileName: templateTarget.fileName(tag, partial.locale),
+					tier,
+					output: templateTarget.emit(partial),
+				})
+		}
+		const census = templateCensus(templateTarget.name, subjects, file =>
+			contentOf.get(file),
+		)
+		console.log(formatCensus(census))
+		template = { census, partials }
 	}
 
 	await writeTextFile(join(outDir, 'registry.json'), registryJson(entries))
@@ -405,6 +546,7 @@ export const compileCorpusFiles = async (
 		entries,
 		errors: [...errorLabels].map(([file, label]) => ({ file, label })),
 		spanInfos,
+		...(template ? { template } : {}),
 	}
 }
 

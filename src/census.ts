@@ -3,7 +3,7 @@ import type { EvaluationTier, RoutingSignal } from './tier'
 
 /* === Types === */
 
-export type CensusKind = 'tier' | 'translation'
+export type CensusKind = 'tier' | 'translation' | 'template'
 
 export type CensusEntry = {
 	/** What the record is about — the component tag in both planned censuses. */
@@ -26,6 +26,17 @@ export type TierCensusSubject = {
 	tag: string
 	tier: EvaluationTier
 	routingSignals: readonly RoutingSignal[]
+}
+
+/** One component's partial for a template target: its tier there, and why it routes Static. */
+export type TemplateCensusSubject = {
+	tag: string
+	tier: 'folded' | 'static'
+	reasons: ReadonlyArray<{
+		reason: string
+		detail: string
+		location?: { file: string; start: number; end: number }
+	}>
 }
 
 export type TranslationGap = {
@@ -103,6 +114,32 @@ export const tierCensus = (
 				return line === undefined
 					? `${signal.origin}: ${signal.detail}`
 					: `${signal.origin}: ${signal.detail} (line ${line})`
+			}),
+		})),
+})
+
+export const templateCensus = (
+	target: string,
+	subjects: readonly TemplateCensusSubject[],
+	sourceOf: (file: string) => string | undefined = () => undefined,
+): Census => ({
+	kind: 'template',
+	name: `Template census (${target})`,
+	values: ['folded', 'static'],
+	entries: [...subjects]
+		.sort((a, b) => (a.tag < b.tag ? -1 : 1))
+		.map(subject => ({
+			subject: subject.tag,
+			value: subject.tier,
+			reasons: subject.reasons.map(({ reason, detail, location }) => {
+				const source = location && sourceOf(location.file)
+				const line =
+					location && source !== undefined
+						? lineOf(source, location.start)
+						: undefined
+				return line === undefined
+					? `${reason}: ${detail}`
+					: `${reason}: ${detail} (line ${line})`
 			}),
 		})),
 })

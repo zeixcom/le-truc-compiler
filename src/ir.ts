@@ -407,6 +407,10 @@ export type ComponentParam = {
 	/** The annotation is `string` — a raw attribute value may pass for it. */
 	isString: boolean
 	isNumber: boolean
+	/** The local name the pattern binds, when it differs from `name`. */
+	binding?: string
+	/** The pattern's default (`name = expr`), applied when the arg is `undefined`. */
+	defaultValue?: AstNode
 }
 
 /** A complete component extracted from one `.tsrx` source. */

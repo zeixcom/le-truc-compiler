@@ -73,6 +73,8 @@ export type DiagnosticCode =
 	| 'LTC054' // a position the server render evaluates reads page context outside the declared ambient set, or the reserved `i18n` record is destructured for a member outside it — tier 1 Prevented, statically decidable, no runtime half
 	| 'LTC055' // an `export const i18n` source pattern is not a supported ICU MessageFormat 1 pattern, or a `t.<key>` site disagrees with its pattern's arguments: missing/extra/non-literal arguments, an argument message read without a call, an argument-less message called — tier 1 Prevented, statically decidable, no runtime half
 	| 'LTC056' // an authored `<script>` element in a component template, whatever its `type` — the page owns script loading — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC057' // with a template target configured: a hole whose expression is outside the portable subset (arg and loop-item reads through static member paths, literals, `!`, strict equality, numeric comparison, `&&`/`||`/`??`, the ternary, message calls); one face names the ICU-pattern fix for `Intl` formatting — tier 1 Prevented, statically decidable, no runtime half
+	| 'LTC058' // with a template target configured: a hole in a refused position — `<script>`/`<style>` content or a comment, an `on*` or `srcdoc` attribute, an attribute or tag name, a whole-string `style` attribute — tier 1 Prevented, statically decidable, no runtime half
 	| 'LTC059' // a signal seeded from server args renders only as formatted text (`Intl`, `toLocaleString()`/`toLocaleDateString()`/`toLocaleTimeString()`, a message call with a number/date argument) and has no raw value source to harvest from — tier 1 Prevented, statically decidable, no runtime half
 	| 'LTC060' // a fragment root, whatever it wraps — the template's root is the host element — tier 1 Prevented, statically decidable, no runtime half
 	| 'LTC061' // an authored `<template>` element in a component template — the compiler owns template extraction, and the selector proof cannot see inside one — tier 1 Prevented, statically decidable, no runtime half
@@ -191,6 +193,12 @@ const codeList = (items: Iterable<string>): string => {
 	return quoted.length < 2
 		? quoted.join('')
 		: `${quoted.slice(0, -1).join(', ')} and ${quoted.at(-1)}`
+}
+
+/** An expression short enough to quote in copy. */
+const excerpt = (expression: string): string => {
+	const flat = expression.replace(/\s+/g, ' ').trim()
+	return flat.length > 60 ? `${flat.slice(0, 57)}…` : flat
 }
 
 const warning = (
@@ -313,6 +321,55 @@ export const diagnostic = {
 			`${subject} is seeded from server args but renders only as text formatted with ${formatting} — formatted text does not parse back into state, so the client has no value to start from. Render the raw value where the client can read it: a reactive \`<data value={() => …}>\` beside a number, a reactive \`<time datetime={() => …}>\` beside a date, or the arg as an attribute on the host.`,
 			rangeOf(source, at),
 		),
+
+	/** A template hole outside the portable subset (tier 1 Prevented, compiler channel, only with a template target configured; no runtime half). */
+	nonPortableHole: (
+		source: string,
+		at: Site,
+		expression: string,
+		position: string,
+		face: 'subset' | 'intl',
+	) =>
+		error(
+			'LTC057',
+			face === 'intl'
+				? `\`${excerpt(expression)}\` in ${position} formats a value with \`Intl\`, which a template target cannot run — a template formats values only through message calls. Write the format as an ICU pattern in \`export const i18n\`, for example \`{value, number, percent}\` or \`{date, date, medium}\`, and render it with a message call.`
+				: `\`${excerpt(expression)}\` in ${position} is outside the portable subset, so a template target cannot render it — a template hole reads only args and loop items through static member paths, literals, \`!\`, \`===\` and \`!==\`, numeric comparisons, \`&&\`, \`||\`, \`??\`, the ternary and message calls. Rewrite the expression in that subset, or compute the value before the component renders and pass it in as an arg.`,
+			rangeOf(source, at),
+		),
+
+	/** A template hole in a position no escaping makes safe (tier 1 Prevented, compiler channel, only with a template target configured; no runtime half). */
+	refusedHolePosition: (
+		source: string,
+		at: Site,
+		refusal:
+			| { face: 'content'; tag: string }
+			| { face: 'handler'; attribute: string }
+			| { face: 'name'; what: string }
+			| { face: 'style' },
+	) => {
+		const message = {
+			content: (tag: string) =>
+				`A value in \`<${tag}>\` content cannot become a template hole — no escaping makes a value safe inside script, style or comment content. Move the value out of the \`<${tag}>\` element, into a text position or an attribute.`,
+			handler: (attribute: string) =>
+				`The \`${attribute}\` attribute takes a value, which a template target refuses — the browser runs an \`on*\` value as script and a \`srcdoc\` value as a document, so no escaping makes it safe. Bind behavior in the component's setup with \`on()\`, and write \`srcdoc\` content as static markup.`,
+			name: (what: string) =>
+				`A value names ${what}, which a template target refuses — a template escapes values, never names. Choose between static names with a conditional.`,
+			style: () =>
+				'The whole `style` attribute takes a value, which a template target refuses — a template cannot check a whole declaration list. Set each property through a style map: `style={() => ({ property: value })}`.',
+		}
+		return error(
+			'LTC058',
+			refusal.face === 'content'
+				? message.content(refusal.tag)
+				: refusal.face === 'handler'
+					? message.handler(refusal.attribute)
+					: refusal.face === 'name'
+						? message.name(refusal.what)
+						: message.style(),
+			rangeOf(source, at),
+		)
+	},
 
 	misplacedMarker: (source: string, at: Site, marker: MarkerName) => {
 		const copy: Record<MarkerName, { what: string; fix: string }> = {
