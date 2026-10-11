@@ -495,15 +495,19 @@ front-end modules, then the two front ends:
 | `compose-attrs.ts` | Compose-site `class`/`id`/`data-*` post-processing applied to a composed child's rendered root (`composeHostAttrs`); re-exported through `runtime.ts` for generated markup |
 | `emit-server.ts` | `ComponentIR` → server render module |
 | `emit-client.ts` | `ComponentIR` + `ClientPlan` → client factory module |
-| `codegen.ts` | The shared code-generation kit : `jsString`/`jsTemplate` (the only sanctioned way to put an author string into generated source), `HtmlWriter` (one push argument's markup), `CodeBuilder` (lines, depth and span offset of a generated block) |
+| `template/operations.ts` | The template-emission vocabulary (ADR 0021): the `TemplateOp` union (text, hole, segment list, message, conditional, loop, include, arm template, boundary, list template), the eight-member `EscapeContext`, `PortableExpr`, and the internal `TemplateTarget` — syntax only, never IR |
+| `template/portable.ts` | Hole classification into the portable subset (ADR 0021 s1): setup and loop-hoisted consts substitute through to their initializers, arg-independent literals fold at build; optional chaining and computed members stay outside |
+| `template/walk.ts` | `walkPartial`: `ComponentIR` × locale → `TemplateOp[]`, with escaping contexts, refused positions (LTC058), non-portable server holes (LTC057) and the census routing outcomes. A sibling of `emit-server.ts`, not yet its shared backend — see the note below the table |
+| `codegen.ts` | The shared code-generation kit : `jsString`/`jsTemplate` (the only sanctioned way to put an author string into generated source), `HtmlWriter<E>` (one push argument's markup: generated code for `emit-server.ts`, emission operations for `template/walk.ts`), `CodeBuilder` (lines, depth and span offset of a generated block) |
 | `spans.ts` | Generated↔source span recording + lookup |
 | `tier.ts` | The tier classifier (§ 5): routing signals in, the component's tier + recorded reasons out |
 | `css-scope.ts` | Scoped emission of authored `@scope` CSS (ADR 0011): native vs. flat lowering by `cssTargets` (LTC089), the sheet-contract findings (LTC071/087/088), the lightningcss partitioning emission |
 | `css-tree.d.ts` | Ambient types for the pinned `css-tree` (the LTC065 grammar check) |
 | `indent.ts` / `css.ts` | Template-literal-safe line classification and `commonIndent` / the `<style>` parse (lightningcss + the css-tree grammar check: LTC064 no parse, LTC065 declaration warnings) and dedent |
 | `diagnostics.ts` | Diagnostic codes (`LTC###` plus the six `.tsrx`-grammar `TSRX###` codes), message factories |
+| `icu/client-record.ts` | `changedClientForms`: the client message keys whose form at the render locale differs from the source form — shared by `runtime.ts`'s root `i18n` attribute and `template/walk.ts` |
 | `runtime.ts` | Server-evaluation harness — imported **by generated code only**, never by the compiler (also re-exports `compose-attrs.ts`, the compose-site `class`/`id` post-processing used by generated markup, and `icu/evaluate.ts`'s `formatMessage`, which the generated `i18n` module wraps around each argument message) |
-| `census.ts` | The census channel (§ 5.2): `Census` records, `tierCensus`, `translationCensus`, `formatCensus` |
+| `census.ts` | The census channel (§ 5.2): `Census` records, `tierCensus`, `translationCensus`, `templateCensus` (per-target tier and routing reasons, only with a template target configured), `formatCensus` |
 | `build-report.ts` | The build-report channel (§ 5): partitioning, matching, and the tier-2 warning copy |
 | `simulation/` | The simulation **seam** (ADR 0013 s3–s4): `contract.ts` (DOM-free interface + version), `capabilities.ts` (classifier-facing unanswerable table), `resolve.ts` (the resolver) |
 | `sim/` | Server Simulation driver behind the seam (§ 5): `patch-table.ts`, `realm.ts`, `boundary.ts`, `classifications.ts`, `index.ts` |
@@ -532,6 +536,18 @@ stated on each module header — so no cycle resolves at module load.
 `boundary-arms.ts` breaks the analysis→emitter value leak: the arm-root
 vocabulary shared by the pass and the server emitter sits at the root,
 one-way over the two construct predicates it walks with.
+
+**Two walks, one oracle.** ADR 0021 makes SSG a backend of the template
+walk. In the code, `template/walk.ts` is a sibling of `emit-server.ts` that
+copies its decisions construct by construct, so a partial renders byte for
+byte like SSG. The template-emission test holds the two in step by rendering
+every emittable corpus component and fixture through the test-only dump
+target (`tests/targets/dump.ts`) and comparing the result with the SSG render.
+Merging the two is TC-062's design question. It is open because SSG also
+renders expressions outside the portable subset, which no target operation
+carries yet. A template target is internal: an optional `templateTarget` in
+`compileCorpusFiles`'s third argument (`CorpusRunOptions`), out of reach of
+`compileCorpus` and `le-truc.config.json`.
 
 ## 4. Core data model
 
@@ -957,9 +973,9 @@ their first occurrences with the list's keys and throws
 static generation and the realm fail the build there. The witness call
 reads the list, so its declaration rides the server module even when the
 alias is its only reader. A template target (ADR 0021) cannot carry the
-witness: once the target emitter exists ( →), a key-alias harvest is
-a census routing outcome there, not emittable, until a target operation
-carries it. An unseeded sensor, or one whose seed no phase can answer, is
+witness: with a target configured, a key-alias harvest is
+a census routing outcome there (`key-alias harvest`), not emittable,
+until a target operation carries it. An unseeded sensor, or one whose seed no phase can answer, is
 left out of `serverKnown`: every read of it is omitted, and an `LTC013`
 routing signal with resolution `none` records why. A thunk whose closure is not directly server-known gets the
 **host-derived fold**: an expression whose every read has a compiler-known
@@ -1265,6 +1281,16 @@ the six `.tsrx`-grammar `TSRX###` codes) fall into families:
  placement with no unique selector is LTC007; a compose-site handler in a
  server-data loop body, or where no mount binds it (a server-rendered
  branch inside an arm), is LTC005.
+- *Template emission* (ADR 0021): only with a template target configured
+ (compiler channel, tier 1 Prevented). The rules are a server-class hole
+ outside the portable subset (LTC057, whose second face names the ICU-pattern
+ fix for `Intl` formatting) and a hole in a refused position (LTC058:
+ `<script>`/`<style>` content or a comment, `on*`/`srcdoc`, a name, a
+ whole-string `style`). A reactive initial value outside the subset is not
+ a diagnostic. It routes the partial Static as a census row, as do the
+ synchronous `try` and a key-alias harvest. An async boundary, a reactive
+ list and children passed at a compose site route as `not yet emittable`
+ until TC-059, TC-060 and TC-061 land.
 - *The children contract* (ADR 0026 s2, `HOST_PROFILE.md`'s
  *Element references*): a `first`/`all` selector that matches nothing
  in the component's own template, in a component whose template inserts

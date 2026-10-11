@@ -129,6 +129,10 @@ check runs in the shared post-lowering pass, on both surfaces.
 its `type` — the page owns script loading; rider) follows. It is
 `LTC`, not `TSRX`: the refusal is raised in `lowerElement` (shared), on
 both surfaces.
+`LTC057` (a template hole outside the portable subset) and `LTC058` (a
+template hole in a refused position) land with TC-021, only with a template
+target configured (ADR 0021 s2–s3). `LTC090` (a boundary result type with
+its own `error` member) is reserved for TC-059.
 `LTC059` (a signal seeded from server args renders only as formatted
 text and has no raw value source to harvest — the raw-source rule, §5.1) was reserved
 with `LTC057`/`LTC058` and lands after `LTC060`–`LTC071`. It is
