@@ -86,15 +86,18 @@ and its PHP CI job (TC-023, after TC-025) follow.
 
 - [ ] TC-062: Converge emit-server.ts onto the shared template walk — SSG as a backend of the walk (ADR 0021, REQUIREMENTS §9.2)
   **Area:** design
-  **Needs:** TC-061
   **Context:** REQUIREMENTS §9.2: a target emitter is "a backend of the same IR walk as the
   SSG render, never a sibling interpretation". ADR 0021 s8 relies on this ("holes render
   where the client harvests because it is one walk"). TC-021 landed `template/walk.ts` as a
   sibling of `emit-server.ts` that copies its decisions construct by construct. The two are
   held in step only by the dump-target byte comparison (owner ruling at TC-021's review,
-  2026-10-11). TC-059–TC-061 add the boundary, lists and children to the walk, so after
-  TC-061 the operation set is complete and the convergence can be designed against all of
-  it.
+  2026-10-11). Working direction (owner, 2026-10-11): **A**. Every hole and condition test carries
+  both its authored node and the walk's portable classification. SSG becomes a JS backend
+  over the operations, and a template target reads only the portable form. The walk
+  extensions (TC-060, TC-061) wait for this task's implementation, so the reactive list and
+  children code moves into the walk once, from `emit-server.ts`, instead of being rewritten
+  beside it. The boundary (TC-059) is a design question of its own, and its result lands in
+  the converged walk.
 
   **Design questions** (Architect and owner, before this becomes an implementation task):
 
@@ -830,6 +833,32 @@ freely pickable and safe to interleave with any band: TC-031, TC-032, TC-033.
   fail with TS2578. Revert.
 
   *Adopted from Le Truc LT-365, 2026-10-11; fixture paths adapted.*
+
+- [ ] TC-064: composeHostAttrs corrupts the child root when it already carries a class
+  **Area:** compiler
+  **Gates:** typecheck, test
+  **Context:** Found during the TC-062 design survey (2026-10-11) and confirmed by the
+  Architect. `mergeClassToken` in `src/compose-attrs.ts` keeps the opening up to the end of
+  ` class="`, then appends `attr('class', merged)`, so the attribute name is written twice:
+
+  `composeHostAttrs('<x-a class="one">hi</x-a>', 'x-a', { class: 'two' })` returns
+  `<x-a class=" class="one two">hi</x-a>`.
+
+  Generated server modules call it for every compose site that passes `class`, and so does
+  the template dump target. That is why the TC-021 byte comparison cannot catch it: both
+  sides share the defect.
+
+  **Do:** slice the opening up to `start` (the marker's position), not `valueStart`. Add a
+  unit test covering a child root with an existing class, one without, and one whose class
+  holds an escaped character. Add a corpus-level test that renders a compose site passing
+  `class` to a child whose root has a static class. If no corpus component covers that
+  case, add a fixture under `tests/fixtures/`.
+
+  **Channel/tier:** none. This is a defect fix, not a new check.
+
+  **Check:** the merged output is `<x-a class="one two">`. Render goldens stay unchanged
+  unless a corpus site hits the bug; if one does, the changed golden is the fix, and the
+  contributor names it.
 ## P4 — Migration guards for 2.x authors
 
 Guards for hand-written 2.x components migrating to 3.0: TC-034 (flag a non-void

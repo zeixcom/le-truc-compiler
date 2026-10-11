@@ -30,6 +30,18 @@ deleted and its durable rulings carried here.
   test (nothing in `bun test tests` runs it — demo type drift is caught
   only when a contributor runs the demo gates), and whether `AGENTS.md`'s
   board paragraph cites it.
+- 2026-10-11 — Planned consumers (owner), the context for template-target and
+  boundary decisions. Each one needs server-seeded async boundaries sooner or
+  later. Components that need one may wait for the design, but the general
+  form is settled before 3.0 is published (no breaking change from a
+  half-designed form).
+  1. An SSG site whose client calls a PHP-based API. This is the first
+     confirmed consumer.
+  2. A Craft CMS project with Twig templates.
+  3. A future AEM backend with HTL templates, whose client-side apps are Vue
+     components today.
+  4. A site that is SSG with Handlebars templates today, ported by hand to AEM
+     with HTL templates.
 
 - [x] TC-021: Template emission — the operation layer, the portable-subset walk, the census routing and the test-only dump target (ADR 0021) — reviewed ✓
   **Area:** compiler

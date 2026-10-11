@@ -8,7 +8,7 @@ through the test-only dump target, with no public surface yet. Twig (TC-022) and
 its PHP CI job (TC-023) follow in iteration 4. Two small tracks ride along: the
 contributor half of CI (TC-025), which TC-023 needs, and two gate-hygiene fixes.
 
-**Next free task ID:** TC-064
+**Next free task ID:** TC-065
 
 **Reserved diagnostic codes:** LTC057 and LTC058 are TC-021's; LTC090 is
 TC-059's. The next free code after those is LTC091.
@@ -37,6 +37,12 @@ TC-059's. The next free code after those is LTC091.
   in the subset and on the URL context's allowlist. TC-022 needs both, so
   neither blocks Track 1. Each of TC-059–TC-061 keeps the dump byte
   comparison exhaustive over the constructs it adds.
+- 2026-10-11, TC-059 blocker (owner): TC-059 becomes a design task. ADR 0021
+  s4 assumes a result-arg authored form that does not exist, and the general
+  design must be settled before 3.0 is published. The walk extensions pause:
+  TC-060 and TC-061 need TC-062, whose working direction is A (both backends
+  over one walk). TC-062 no longer waits for TC-061. Track 1 stalls until
+  TC-062 produces its implementation task. Tracks 2 and 3 stay pickable.
 - 2026-10-10 (carried): Chain positions are first-mention. Only a track's
   pick-order list names positions. A prose citation of another chain task is
   not one, and prerequisites ride the task's `needs:`.
