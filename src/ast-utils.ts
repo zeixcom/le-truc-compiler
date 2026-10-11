@@ -1,19 +1,13 @@
-/**
- * Shared AST predicates, the one child-enumeration every estree walk runs
- * on (`forEachChild`), the scope-aware free-identifier walk, and
- * text-extraction helpers for the TSRX compiler front ends
- * (`frontend/tsrx/compiler.ts`, `frontend/tsx/compiler-tsx.ts`) and their
- * lowering/classification/type-inference siblings. The recognized-name
- * tables these walks consult live in `vocabulary.ts`.
- *
- * This module holds no `@tsrx/core` VALUE import (only the `AstNode` type,
- * erased at compile time) — `compiler.ts` remains the ONE module importing
- * `@tsrx/core` for parsing (ADR 0005 sub-design 2). Its one value import,
- * `eslint-visitor-keys`, is pure data.
- */
-
 import { KEYS } from 'eslint-visitor-keys'
-import type { AstNode } from './ast-node'
+
+/* === Types === */
+
+export type AstNode = {
+	type: string
+	start?: number
+	end?: number
+	[key: string]: unknown
+}
 
 /* === AST predicates === */
 
@@ -31,23 +25,8 @@ export const nodeType = (node: unknown): string | null =>
 
 /* === Child enumeration === */
 
-/**
- * Whether a walk descends into TypeScript type positions. `'skip'` is the
- * default: types are erased, so a name in one is never a runtime read.
- * `'descend'` is for the one site where a type use still matters — an
- * authored import check, where `typeof createState` needs the import as
- * much as a value read does.
- */
 export type TypePositions = 'skip' | 'descend'
 
-/**
- * The keys a TS-aware parser hangs type positions on (a declaration's
- * annotation, a function's return type and generics, a call's or a class
- * heritage's type arguments). `eslint-visitor-keys` lists none of them on
- * the estree node types it knows; on the TS node types it does not know
- * (`TSAsExpression`, …) the fallback enumeration below drops them under
- * `'skip'`.
- */
 const TYPE_POSITION_KEYS: ReadonlySet<string> = new Set([
 	'typeAnnotation',
 	'returnType',
@@ -70,16 +49,6 @@ const NON_CHILD_KEYS: ReadonlySet<string> = new Set([
 	'innerComments',
 ])
 
-/**
- * Call `visit` on each direct child node of `node`, in the node's own key
- * order (the parser's, so "first found" results stay stable). Which keys
- * hold children is borrowed from `eslint-visitor-keys`, maintained against
- * every estree and JSX node type — the skip policy hand-rolled walks used to
- * re-answer, one list each (). Node types it doesn't know — TS nodes,
- * the TSRX directives (`JSXCodeBlock`, `JSXIfExpression`, …), the scoped
- * stylesheet's CSS nodes — fall back to every key that isn't bookkeeping.
- * Type-position keys follow `types` on both paths.
- */
 export const forEachChild = (
 	node: AstNode,
 	visit: (child: AstNode) => void,
@@ -102,10 +71,6 @@ export const forEachChild = (
 	}
 }
 
-/**
- * Call `visit` on `node` and every node below it, parent before children.
- * Returning `false` from `visit` skips that node's subtree.
- */
 export const walkNodes = (
 	node: unknown,
 	visit: (node: AstNode) => boolean | undefined | void,
@@ -120,13 +85,6 @@ export const walkNodes = (
 	} else if (isNode(node)) step(node)
 }
 
-/**
- * `() => host.<prop>` — the host-prop mirror pattern. Returns the property
- * name, or null when the thunk isn't a non-computed `host.<prop>` member
- * read. Shared by the analyzer (dispatch decision: `bindProperty`, not
- * `bindAttribute`) and the server emitter (render from the parser-exposed
- * prop's root attribute).
- */
 export const hostPropOf = (thunk: AstNode): string | null => {
 	const body = thunk.body
 	if (!isNode(body) || body.type !== 'MemberExpression' || body.computed)
@@ -139,15 +97,6 @@ export const hostPropOf = (thunk: AstNode): string | null => {
 	return String(prop.name)
 }
 
-/**
- * Property names of an object literal. String-literal keys are accepted
- * alongside identifiers: CSS-y class/style tokens (`'has-error'`,
- * `'--gauge-color'`) are not valid JS identifiers and can ONLY be written
- * quoted. LT-221: the old "class maps never use string keys" assumption
- * silently dropped every quoted class key — the server rendered the
- * initial class and the client was emitted `bindClass(el, [])`, never
- * toggling it, with no diagnostic.
- */
 export const objectKeys = (object: AstNode): string[] => {
 	const keys: string[] = []
 	if (nodeType(object) !== 'ObjectExpression') return keys
@@ -179,10 +128,6 @@ export const jsxName = (node: unknown): string | null =>
 		? node.name
 		: null
 
-/**
- * `<object>.get` — a non-computed member read of `get` (LT-231: the one
- * spelling of the getter shape; `x[get]` is a computed read, not it).
- */
 export const isGetterMember = (node: unknown): boolean =>
 	isNode(node) &&
 	node.type === 'MemberExpression' &&
@@ -193,35 +138,11 @@ export const isGetterMember = (node: unknown): boolean =>
 export const getterObjectName = (node: unknown): string | null =>
 	isGetterMember(node) ? identifierName((node as AstNode).object) : null
 
-/**
- * `sig.get()` — the signal read the analysis tracks: a call of `.get` on a
- * bare identifier. Returns the identifier's name, else null. Whether that
- * name IS a signal is the caller's question (it holds the signal list).
- */
 export const signalGetCallName = (node: unknown): string | null =>
 	isNode(node) && node.type === 'CallExpression'
 		? getterObjectName(node.callee)
 		: null
 
-/**
- * Call `onFree` on every `Identifier` node a node reads that is NOT bound
- * within it — its free variable reads, in walk order. Scope-aware for
- * the bindings JS has: function params (their defaults and computed keys
- * ARE reads), a named function expression's own name, local declarators,
- * loop and catch bindings, class names; property, method and class-member
- * keys, labels and non-computed member properties never count as reads;
- * statements in a block (or a `.tsrx` `@{ }` code block) bind their
- * declarations for the statements that follow, and function declarations
- * hoist to the whole block (). Import
- * declarations introduce names rather than read them, so they are skipped
- * — and bind nothing, which is what lets the authored-import check see an
- * unimported read.
- *
- * The one scope walk both `freeIdentifiers` and the authored-import check
- * (`reportLeTrucImportMismatch`) run on — the latter used to carry its own
- * copy, which never grew the loop/catch cases or the `@{ }` render slot
- * ().
- */
 export const forEachFreeIdentifier = (
 	node: unknown,
 	onFree: (identifier: AstNode) => void,
@@ -297,8 +218,8 @@ export const forEachFreeIdentifier = (
 				// declarator's own (self-only) re-visit `VariableDeclarator`
 				// gives it. Without this case the loop variable falls through to
 				// the generic `default` walk, unbound in every other clause —
-				// found migrating `form-colorgraph.tsrx` (), a canvas-draw
-				// `for (let x = 0; x < n; x++)` reported `x` itself as free.
+				// a canvas-draw `for (let x = 0; x < n; x++)` reported `x`
+				// itself as free.
 				const inner = new Set(bound)
 				if (
 					isNode(current.init) &&
@@ -378,10 +299,9 @@ export const forEachFreeIdentifier = (
 						// runs, the const is long since assigned — bind the
 						// name before visiting a single declarator's own
 						// function/arrow initializer so this resolves instead
-						// of reporting the const's own name as free. Found
-						// migrating `form-colorgraph.tsrx` (): a
+						// of reporting the const's own name as free (a
 						// pointerdown handler's own `handleUp` unregisters
-						// itself by reference.
+						// itself by reference).
 						const declarations = asArray(stmt.declarations)
 						const selfNames = new Set<string>()
 						for (const decl of declarations) {
@@ -427,7 +347,7 @@ export const forEachFreeIdentifier = (
  * variables (`forEachFreeIdentifier`, type positions skipped). A type name
  * (`x as Foo[]`, an annotation, a return type) is never a VALUE read;
  * counting one would wrongly fail the harvest/thunk free-name gates for any
- * initializer that happens to carry a type annotation or cast ().
+ * initializer that happens to carry a type annotation or cast.
  */
 export const freeIdentifiers = (node: AstNode): Set<string> => {
 	const free = new Set<string>()
@@ -506,7 +426,7 @@ export const attrName = (attr: AstNode): string => {
 	// `truc:pass` parses as a JSXNamespacedName (namespace + name), which
 	// `jsxName` deliberately does not flatten — it is also used for element
 	// tags, where a namespace would mean something else. Host-owned
-	// attributes are namespaced () to stay collision-proof against a
+	// attributes are namespaced to stay collision-proof against a
 	// user prop legitimately called `pass`.
 	const name = attr.name
 	if (isNode(name) && name.type === 'JSXNamespacedName') {
@@ -523,5 +443,5 @@ export const eventNameFromAttr = (name: string): string => {
 	return rest.charAt(0).toLowerCase() + rest.slice(1)
 }
 
-/** An arg named `on` plus a capital letter is a handler arg (LT-461). */
+/** An arg named `on` plus a capital letter is a handler arg. */
 export const isHandlerArgName = (name: string): boolean => /^on[A-Z]/.test(name)

@@ -1,19 +1,4 @@
-/**
- * The Children Region (ADR 0026 s1): content a parent passes as
- * `children` is the parent's markup. The server marks the child's element
- * enclosing `{children}` with `data-children="<owner-tag>"`, and the
- * structural verifier counts the region as the parent's, so a parent's
- * `first()` into its own content resolves — on both surfaces — through a
- * query that excludes the child's own markup and re-includes the region.
- * Since  the exclusion needs no `data-children` marker where the
- * child's own markup cannot match: the reference ships as authored.
- * A `truc:html` attribute on a content element is the parent's own
- * sanitized binding (): the data-reference form splices
- * server-side, the reactive thunk plans as a host watch against the
- * region — and only where the host walk reaches the site. A `first()`
- * reference into content at a site the walk cannot reach is refused for
- * the same reason (): the declaration would never ship.
- */
+/** Content a parent passes as `children` is the parent's markup: the server marks the child's element enclosing `{children}` with `data-children="<owner-tag>"` and the structural verifier counts the region as the parent's, so a parent's `first()` into its own content resolves on both surfaces. The exclusion ships as authored where the child's own markup cannot match; a `truc:html` binding in content splices server-side and plans a host watch; a `first()` into content at a site the walk cannot reach is refused. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import createDOMPurify, { type WindowLike } from 'dompurify'
 import { JSDOM } from 'jsdom'
@@ -25,8 +10,6 @@ import { createGeneratedDir } from './helpers/generated-corpus'
 
 const generated = createGeneratedDir('children-region')
 afterAll(() => generated.cleanup())
-
-/* === Helpers === */
 
 type Compiled = ReturnType<typeof compileComponent>
 
@@ -163,8 +146,6 @@ const REGION = (owner: string, ...children: string[]) => {
 	return `:not(:is(${at('')}):not(:is(${region} *):not(:is(${at(`${region} `)}))))`
 }
 
-/* === The region marker and the parent's reference === */
-
 describe('a parent reference into its own children (ADR 0026 s1)', () => {
 	for (const surface of SURFACES)
 		test(`${surface}: a reference into content whose child cannot match ships the authored selector, and the server marks the region (LT-512)`, async () => {
@@ -190,11 +171,10 @@ describe('a parent reference into its own children (ADR 0026 s1)', () => {
 				'examples/parent/basic-parent',
 				registryOf(child.entry),
 			)
-			// LTC026 no longer fires: the content is the parent's markup.
+			// The content is the parent's markup, so LTC026 does not fire.
 			expect(compiled.diagnostics).toEqual([])
 			const parent = mustCompile(compiled, 'basic-parent')
-			// child-pre renders only `child-pre`, `pre` and `code` — no clash
-			// for `span.x`, so the query ships as authored, no marker needed.
+			// child-pre renders only `child-pre`, `pre` and `code` — no clash for `span.x`, so the query ships as authored, no marker needed.
 			expect(parent.clientCode).toContain(`first('span.x', 'the marked span')`)
 			expect(parent.serverCode).toContain(
 				'renderChildPre({ children: __children1.join(\'\') }, "basic-parent")',
@@ -210,7 +190,6 @@ describe('a parent reference into its own children (ADR 0026 s1)', () => {
 			expect(html).toContain(
 				'<child-pre><pre><code data-children="basic-parent"><span class="x">hi</span></code></pre></child-pre>',
 			)
-			// The shipped query reaches exactly the passed content.
 			const host = new JSDOM(html).window.document.querySelector(
 				'basic-parent',
 			) as Element
@@ -231,8 +210,7 @@ describe('a parent reference into its own children (ADR 0026 s1)', () => {
 	})
 
 	test("a candidate the child's own markup in the region could match is dropped", () => {
-		// The child's root encloses the insertion, so its own <p> shares the
-		// parent's region: a bare `p` would re-include it.
+		// The child's root encloses the insertion, so its own <p> shares the parent's region: a bare `p` would re-include it.
 		const note = mustCompile(
 			compile(
 				'tsrx',
@@ -269,10 +247,7 @@ describe('a parent reference into its own children (ADR 0026 s1)', () => {
 	})
 
 	test(`a reference whose child's own markup can match keeps the region-aware exclusion`, async () => {
-		// ChildSplit's own `<p class="intro">` can match a bare `p`, so the
-		// query must exclude the child's template and re-include the region
-		// (: the element case is unchanged) — the content `p` still
-		// resolves, the intro `p` stays out.
+		// ChildSplit's own `<p class="intro">` can match a bare `p`, so the query must exclude the child's template and re-include the region — the content `p` still resolves, the intro `p` stays out.
 		for (const surface of SURFACES) {
 			const split = mustCompile(
 				compile(
@@ -324,17 +299,10 @@ describe('a parent reference into its own children (ADR 0026 s1)', () => {
 	})
 })
 
-/* === The template proper beside compose content === */
-
 describe('a reference in the template proper beside compose content (LT-512)', () => {
 	for (const surface of SURFACES)
 		test(`${surface}: the child's exclusion is kept even where its own markup cannot match`, async () => {
-			// The plain probe never sees compose content, so the `children`
-			// shape keeps child-pre excluded even though its own markup
-			// (`child-pre`, `pre`, `code`) cannot match the selector: an
-			// element the parent passes that DID match would otherwise bind
-			// first (the client's querySelector takes the first match in
-			// document order).
+			// The plain probe never sees compose content, so the `children` shape keeps child-pre excluded even though its own markup cannot match the selector: a passed element that did match would otherwise bind first (document order).
 			const child = childPre(surface)
 			const parentSource = (surface === 'tsrx' ? tsrx : tsx)(
 				IMPORT(surface, 'ChildPre', 'child/child-pre'),
@@ -376,8 +344,6 @@ describe('a reference in the template proper beside compose content (LT-512)', (
 		})
 })
 
-/* === Forwarding === */
-
 describe('forwarded children keep their owner (ADR 0026 s1)', () => {
 	test('straight through, the original owner rides along; wrapped first, the regions nest', async () => {
 		const child = childPre('tsrx')
@@ -411,8 +377,7 @@ describe('forwarded children keep their owner (ADR 0026 s1)', () => {
 			),
 			'fwd-wrap',
 		)
-		// The forwarder passes its own owner on; the wrapper owns the
-		// child's region and marks its `div` with the original owner.
+		// The forwarder passes its own owner on; the wrapper owns the child's region and marks its `div` with the original owner.
 		expect(bare.serverCode).toContain(
 			"renderChildPre({ children: __children1.join('') }, __owner)",
 		)
@@ -440,9 +405,7 @@ describe('forwarded children keep their owner (ADR 0026 s1)', () => {
 		)
 		expect(compiled.diagnostics).toEqual([])
 		const parent = mustCompile(compiled, 'basic-parent')
-		// No shape of either forwarder's own markup matches a `span.*`, so
-		// both queries ship as authored () — the marker never enters
-		// the client.
+		// No shape of either forwarder's own markup matches a `span.*`, so both queries ship as authored — the marker never enters the client.
 		expect(parent.clientCode).toContain(`first('span.a', 'the forwarded span')`)
 		expect(parent.clientCode).toContain(`first('span.b', 'the wrapped span')`)
 		const html = await render(
@@ -461,8 +424,6 @@ describe('forwarded children keep their owner (ADR 0026 s1)', () => {
 		expect(html).toContain(
 			'<fwd-wrap><child-pre><pre><code data-children="fwd-wrap"><div data-children="basic-parent" class="frame"><span class="b">b</span></div></code></pre></child-pre></fwd-wrap>',
 		)
-		// The shipped queries, run against the served DOM, reach exactly the
-		// parent's content — through a forwarder and through a wrapper.
 		const host = new JSDOM(html).window.document.querySelector(
 			'basic-parent',
 		) as Element
@@ -475,8 +436,6 @@ describe('forwarded children keep their owner (ADR 0026 s1)', () => {
 		}
 	})
 })
-
-/* === Extracted templates === */
 
 describe('extracted arm and list templates carry the marker (ADR 0026 s1)', () => {
 	test('an arm-held compose site: the live arm and its template', async () => {
@@ -556,12 +515,8 @@ describe('extracted arm and list templates carry the marker (ADR 0026 s1)', () =
 	})
 })
 
-/* === The parent's own sanitized binding (ADR 0026 s1, LT-492) === */
-
 describe('a `truc:html` attribute in the content (LT-492)', () => {
-	// `configureHtmlSanitizer` is process-wide and shared with the library's
-	// client half (): a test that configures one restores the
-	// fail-closed default (escape everything) before the next.
+	// `configureHtmlSanitizer` is process-wide: a test that configures one restores the fail-closed default (escape everything) before the next.
 	const purify = createDOMPurify(new JSDOM('').window as unknown as WindowLike)
 	const stripDangerousMarkup = (html: string): string => purify.sanitize(html)
 
@@ -592,8 +547,7 @@ describe('a `truc:html` attribute in the content (LT-492)', () => {
 				'BasicParent',
 				{ start: '<p>Rich <em>content</em></p>' },
 			)
-			// Unconfigured, the sanitizer's fail-closed default escapes the
-			// markup — the same single channel the template proper uses.
+			// Unconfigured, the sanitizer's fail-closed default escapes the markup — the same single channel the template proper uses.
 			expect(html).toContain(
 				'<code data-children="basic-parent"><div>&lt;p&gt;Rich &lt;em&gt;content&lt;/em&gt;&lt;/p&gt;</div></code>',
 			)
@@ -656,14 +610,11 @@ describe('a `truc:html` attribute in the content (LT-492)', () => {
 			)
 			expect(compiled.diagnostics).toEqual([])
 			const parent = mustCompile(compiled, 'basic-parent')
-			// The watch addresses the content element through the same
-			// sanitized sink the template proper uses (), under the
-			// tag-derived query name an unreferenced element gets.
+			// The watch addresses the content element through the same sanitized sink the template proper uses, under the tag-derived query name an unreferenced element gets.
 			expect(parent.clientCode).toContain(
 				'watch(() => body.get(), dangerouslyBindInnerHTML(article, { sanitize: sanitizeHtml }))',
 			)
-			// The value harness renders the seed server-side, escaped — both
-			// halves share one sanitizer configuration ().
+			// The value harness renders the seed server-side, escaped — both halves share one sanitizer configuration.
 			const html = await render(
 				[
 					['child-pre', child.serverCode],
@@ -678,9 +629,7 @@ describe('a `truc:html` attribute in the content (LT-492)', () => {
 		})
 
 	test('the static arg stays legal in scopes the host walk does not reach', async () => {
-		// The data-reference form needs no client half, so a server-rendered
-		// branch folds it like any server expression — only the REACTIVE
-		// thunk is scope-refused below.
+		// The data-reference form needs no client half, so a server-rendered branch folds it like any server expression — only the reactive thunk is scope-refused below.
 		const child = childPre('tsrx')
 		const compiled = compile(
 			'tsrx',
@@ -711,10 +660,7 @@ describe('a `truc:html` attribute in the content (LT-492)', () => {
 		expect(html).toContain('<div>&lt;p&gt;Rich&lt;/p&gt;</div>')
 	})
 
-	// The host walk plans content constructs only at a host-direct compose
-	// site; anywhere else the reactive thunk would be a silently inert watch,
-	// so the whole-template placement check refuses it. Shared walk code —
-	// the `.tsrx` spelling carries the matrix.
+	// The host walk plans content constructs only at a host-direct compose site; elsewhere the reactive thunk would be a silently inert watch, so the whole-template placement check refuses it. Shared walk code — the `.tsrx` spelling carries the matrix.
 	for (const [, setup, body, params, enclosure] of [
 		[
 			'an arm',
@@ -789,20 +735,12 @@ describe('a `truc:html` attribute in the content (LT-492)', () => {
 		})
 })
 
-/* === The parent's `first()` reference into content at a scoped site (LT-519) === */
-
 describe('a `first()` reference in the content (LT-519)', () => {
 	const SETUP = `const mark = first('span.x', 'the marked span')
 		expose({})
 		watch(() => true, () => { mark.title = 'marked' })`
 
-	// A content reference plans through the same host walk as the LT-492
-	// binding, so the shared walk argument carries the same enclosures. The
-	// arm and the branch pin on both surfaces; the loop body and the try
-	// body ride the tsrx leg (the `.tsx` server-only `try` is the same
-	// shared walk). The arm's refusal is the raw resolution's — the authored
-	// `first()` is rejected before the ref attribute exists — so its pin
-	// asserts that face; the loop and branch pins assert the checkpoint's.
+	// A content reference plans through the same host walk as the `truc:html` binding, so the shared walk argument carries the same enclosures. The arm and the branch pin on both surfaces; the loop body and the try body ride the tsrx leg. The arm's refusal happens at raw resolution — the authored `first()` is rejected before the ref attribute exists — so its pin asserts that face; the loop and branch pins assert the checkpoint's.
 	for (const [surface, enclosure, imports, setup, body, params, expected] of [
 		[
 			'tsrx',
@@ -910,8 +848,6 @@ describe('a `first()` reference in the content (LT-519)', () => {
 			expect(hit).toBeDefined()
 		})
 })
-
-/* === The args annotation's type import (LT-479) === */
 
 describe('a `Children<…>` args annotation re-imports its type (LT-479)', () => {
 	for (const surface of SURFACES)

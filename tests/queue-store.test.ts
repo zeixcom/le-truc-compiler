@@ -1,8 +1,4 @@
-/**
- * The queue store contract (scripts/lib/queue-store.ts): parsing, the chain,
- * the lane rulings (owner ruling 2026-10-10), readiness, and the write
- * operations — against scratch stores under a temp dir.
- */
+/** The queue store contract (scripts/lib/queue-store.ts): parsing, the chain, the lane rulings, readiness, and the write operations — against scratch stores under a temp dir. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -52,9 +48,8 @@ const ITERATION = `# Iteration — test
 - **Second track** TC-104
 `
 
-// The double-card bug's shape (owner ruling 2026-10-10): the second track
-// cites TC-101 in prose — a citation is not a position, TC-104's is the only
-// one the track names.
+// The double-card bug's shape: the second track cites TC-101 in prose —
+// a citation is not a position; TC-104's is the only one the track names.
 const CITED_ITERATION = `# Iteration — test
 
 **Next free task ID:** TC-900

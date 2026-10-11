@@ -1,27 +1,10 @@
-/**
- * The parsed stylesheet (ADR 0011 s9): the model the IR carries
- * (`ComponentIR.sheet`), and the LTC064 spec-grammar faces the parse
- * reports. The emission stays verbatim — `component.css` is asserted
- * byte-identical with the authored dedent on every compiled fixture, and
- * the corpus sweep pins both facts across every compiled source.
- *
- * The grammar arbitration is css-tree's (`lexer.matchDeclaration`, the
- * per-declaration entry), reached through css-tree's own pre-nesting
- * parse: nested rules fold into positioned Raw nodes whose brace regions
- * the parse recurses into. lightningcss collects the sheet READ-ONLY —
- * returning parsed nodes into the parser crashes on `var()` inside
- * nested rules at 1.33 (the write path is the's) — so every assertion
- * below reads the model after the parse has returned. A grammar error
- * points at the declaration it sits on (the property's own offset).
- */
+/** The parsed stylesheet: the model the IR carries (`ComponentIR.sheet`) and the LTC064/LTC065 grammar faces the parse reports. lightningcss collects the sheet read-only — returning parsed nodes into the parser crashes on `var()` inside nested rules — so every assertion reads the model after the parse has returned. */
 import { describe, expect, test } from 'bun:test'
 import { parseComponentSheet } from '../src/css'
 import { compileSource } from '../src/frontend/tsrx/compiler'
 import { compileSourceTsx } from '../src/frontend/tsx/compiler-tsx'
 import { compileCorpusSource, loadCorpus } from './corpus-fixture'
 import { lineAt, textAt } from './located'
-
-/* === Sources === */
 
 const SHEET = `c-el {
 	display: flex;
@@ -66,8 +49,6 @@ const lineOf = (source: string, fragment: string): number | undefined => {
 	const offset = source.indexOf(fragment)
 	return offset === -1 ? undefined : source.slice(0, offset).split('\n').length
 }
-
-/* === parseComponentSheet === */
 
 describe('parseComponentSheet — the model', () => {
 	test('reaches rules, nested rules, at-rules and declarations', () => {
@@ -175,8 +156,7 @@ describe('parseComponentSheet — the LTC064/LTC065 faces', () => {
 		expect(errors).toEqual([])
 	})
 
-	//: a conditional group nested in a rule holds properties, so its
-	// declarations are checked like the rule's own.
+	// A conditional group nested in a rule holds properties, so its declarations are checked like the rule's own.
 	test('a conditional group nested in a rule is checked', () => {
 		const css =
 			'c-el {\n\t@media (width > 1px) {\n\t\twidht: 1px\n\t}\n\t@supports (display: grid) {\n\t\twidth: 10pxx\n\t}\n}'
@@ -194,15 +174,12 @@ describe('parseComponentSheet — the LTC064/LTC065 faces', () => {
 		expect(errors).toHaveLength(1)
 		expect(errors[0]?.face).toBe('syntax')
 		expect(errors[0]?.detail).toBe('Invalid dangling combinator in selector')
-		// lightningcss reports the offending column; the offset lands on
-		// the combinator it names.
+		// lightningcss reports the offending column; the offset lands on the combinator it names.
 		const combinator = css.indexOf('>>')
 		expect(errors[0]?.offset).toBeGreaterThanOrEqual(combinator)
 		expect(errors[0]?.offset).toBeLessThanOrEqual(combinator + 1)
 	})
 })
-
-/* === The sheet on the IR === */
 
 describe('the IR carries the parsed sheet', () => {
 	test('.tsrx: sheet reachable, css stays the verbatim dedent', () => {
@@ -240,14 +217,12 @@ describe('the IR carries the parsed sheet', () => {
 			['LTC065', 'warning'],
 		])
 		expect(lineAt(source, diagnostics[0])).toBe(lineOf(source, 'width: 10pxx'))
-		//: the range covers the declaration (css-tree's own span).
+		// The range covers the declaration (css-tree's own span).
 		expect(textAt(source, diagnostics[0])).toBe('width: 10pxx')
 		expect(diagnostics[0]?.message).toContain('`width`')
 		expect(diagnostics[0]?.message).toContain('10pxx')
 	})
 })
-
-/* === The corpus === */
 
 describe('the corpus parses clean', () => {
 	test('no corpus component reports LTC064/LTC065, and CSS-bearing ones carry the sheet', async () => {
@@ -265,8 +240,6 @@ describe('the corpus parses clean', () => {
 		expect(failures).toEqual([])
 	})
 })
-
-/* === The tier split (LT-394) === */
 
 describe('the tier split: a parse failure errors, grammar findings warn', () => {
 	const severities = (sheet: string) =>

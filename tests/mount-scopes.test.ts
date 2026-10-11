@@ -1,30 +1,4 @@
-/**
- * Mount Scopes nest (ADR 0024 s1–s2), end to end on both surfaces:
- *
- * - a reactive list inside a reactive conditional's arm, an arm set inside a
- *   list item, and a list inside a list item each compile clean on both
- *   surfaces, to byte-identical modules;
- * - the server renders a nested construct live inside a live scope and
- *   inert inside a template; every list template is hoisted to the host's
- *   end, one copy per instance at any depth, rendered with every enclosing
- *   scope unbound, so a list container may be a Mount Scope root (ADR 0024
- *   s2) — arm templates stay beside their arm;
- * - the generated client adopts the server's markup at both levels without
- *   touching it, then clones at both levels as signals change;
- * - a selector bound in a scope matches nothing in a nested scope's
- *   content: proved by the probe, or synthesized as a `:scope >` child path,
- *   or refused (LTC007, fixed by a unique class);
- * - a server-data loop inside a scope lowers to a static query against the
- *   scope root, never `all()`;
- * - the `@empty` arm binds its reactive attributes in the scope that holds
- *   its list;
- * - an async boundary in a list item refuses setup-const reads in its arm
- *   mounts, like every other list-body position (LTC005), while a
- *   host-level boundary still admits them.
- *
- * The remaining refusals and the lifted ones are pinned for parity in
- * `tsx/diagnostic-parity.test.ts`.
- */
+/** Mount Scopes nest end to end on both surfaces: compile parity, hoisted list templates, adoption and cloning at depth, scoped-selector matching, server-data loops, and async boundaries. The remaining refusals and the lifted ones are pinned for parity in `tsx/diagnostic-parity.test.ts`. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import { pathToFileURL } from 'node:url'
 import { compileComponent } from '../src/frontend/tsrx'
@@ -212,7 +186,7 @@ describe('a reactive list inside an arm', async () => {
 		expect(live).toContain('<li data-key="a">')
 		expect(armTemplate).not.toContain('data-key="a"')
 		// The list template is not copied into the live arm or the arm
-		// template: one copy, the host's last child (ADR 0024 s2).
+		// template: one copy, the host's last child.
 		expect(markup.split('<template data-list="0">').length - 1).toBe(1)
 		expect(markup).toMatch(
 			/<template data-list="0">[\s\S]*<\/template><\/c-el>$/,
@@ -336,7 +310,7 @@ describe('an arm set inside a list item', async () => {
 		const template = markup.slice(markup.indexOf('<template data-list="0">'))
 		expect(template).not.toContain('data-key="then" type')
 		// The arm templates stay beside their arm, inside the item template;
-		// the item template itself is the host's last child (ADR 0024 s2).
+		// the item template itself is the host's last child.
 		expect(template).toContain(
 			'<template data-arms="0" data-key="then"><button type="button" class="undo">',
 		)
@@ -570,7 +544,7 @@ describe('a list inside a list item', async () => {
 
 	test('each template renders once, at the host end, with every enclosing scope unbound', () => {
 		// One copy per instance — none in the live items, none inside the
-		// outer template (ADR 0024 s2) — in document order of N.
+		// outer template — in document order of N.
 		expect(markup.split('<template data-list="1">').length - 1).toBe(1)
 		const templates = markup.slice(markup.indexOf('<template data-list="0">'))
 		expect(templates).toMatch(
@@ -643,7 +617,7 @@ describe('a list inside a list item', async () => {
 	})
 })
 
-/* === A list whose container is the item root (LT-454) === */
+/* === A list whose container is the item root === */
 
 const ROWS_IN_TBODY = {
 	tsrx: tsrx(
@@ -772,7 +746,7 @@ describe('a list whose container is the item root', async () => {
 	})
 })
 
-/* === A list in a server branch of an item (LT-454, LT-455) === */
+/* === A list in a server branch of an item === */
 
 const LIST_IN_BRANCH = {
 	tsrx: tsrx(
@@ -901,7 +875,7 @@ describe('a list in a server branch of an item', async () => {
 		})
 })
 
-/* === A construct in a server branch of an item (LT-468) === */
+/* === A construct in a server branch of an item === */
 
 const CONSTRUCT_IN_BRANCH = (onContainer: boolean) => ({
 	tsrx: tsrx(
@@ -966,7 +940,7 @@ describe('a construct in a server branch of an item is refused (LT-468)', () => 
 				expect(d.message).toContain('make the condition reactive')
 			// The construct is not emitted (no client module at all when the
 			// compile fails); the nested list's guarded mount itself is
-			// proven by the  suite above.
+			// proven by the suite above.
 			expect(component?.clientCode ?? '').not.toContain(
 				"addEventListener('click'",
 			)
@@ -974,7 +948,7 @@ describe('a construct in a server branch of an item is refused (LT-468)', () => 
 	})
 })
 
-/* === A `truc:pass` compose in a server branch (LT-470) === */
+/* === A `truc:pass` compose in a server branch === */
 
 const PASS_CHILD_TSRX = `export function BasicChild({ label }: { label: string })
 	@{
@@ -1188,7 +1162,7 @@ describe('a `truc:pass` compose in a server branch is refused (LT-470)', () => {
 		expect(fromTsx.diagnostics).toEqual([])
 		for (const { component } of [fromTsrx, fromTsx]) {
 			// One site in the item needs no discriminator: the local is named
-			// after the child tag (the ticket's fallback) and binds the pass.
+			// after the child tag and binds the pass.
 			expect(component?.clientCode).toContain(
 				"first('basic-child', 'c-el: basic-child missing')",
 			)
@@ -1259,7 +1233,7 @@ export function OuterChild({ label, children }: {
 				</OuterChild>`
 		// The bare nesting, and the same nesting inside a server-rendered
 		// branch: the flag must not survive the compose hop, so the
-		// wrong-enclosure LTC005 never joins the nesting refusal (review 2).
+		// wrong-enclosure LTC005 never joins the nesting refusal.
 		const nested = {
 			tsrx: tsrx(
 				"import { BasicChild } from '../child/basic-child.tsrx'\nimport { OuterChild } from '../outer/outer-child.tsrx'",
@@ -1324,14 +1298,12 @@ export function OuterChild({ label, children }: {
 	})
 })
 
-/* === A `truc:pass` compose in a server-only `try` (LT-482) === */
+/* === A `truc:pass` compose in a server-only `try` === */
 
 // A `try` with no `@pending` is not an arm set: the server folds it once per
-// render into its body or catch arm, so both are server-rendered branches
-// like a server conditional's. The host walk's server-branch flag now covers
-// them, and the  refusal fires for a pass-carrying compose in either
-// arm — one node kind over from `@if`, where  closed the same silent
-// drop. A pass-less compose stays legal server markup.
+// render into its body or catch arm, both server-rendered branches like a
+// server conditional's. A pass-carrying compose is refused in either arm; a
+// pass-less compose stays legal server markup.
 
 const COMPOSE_IN_HOST_TRY = (passOnBody: boolean) => ({
 	tsrx: tsrx(
@@ -1356,7 +1328,7 @@ const COMPOSE_IN_HOST_TRY = (passOnBody: boolean) => ({
 })
 
 describe('a `truc:pass` compose in a server-only `try` is refused (LT-482)', () => {
-	//  worded the refusal's fix per enclosure; a `try` has no
+	// The refusal's fix is worded per enclosure; a `try` has no
 	// condition, so the conditional remedy must not leak into either arm.
 	const expectRefused = (
 		diagnostics: readonly { code: string; message: string }[],
@@ -1441,7 +1413,7 @@ describe('a `truc:pass` compose in a server-only `try` is refused (LT-482)', () 
 	})
 })
 
-/* === A list whose container is the arm root (LT-454) === */
+/* === A list whose container is the arm root === */
 
 const LIST_AS_ARM = {
 	tsrx: tsrx(
@@ -1650,15 +1622,10 @@ describe('an async boundary inside a list item', () => {
 })
 
 describe('an item-nested boundary refuses setup-const reads in its arm mounts (LT-483)', () => {
-	// `handleAsyncBoundary` checked its client positions against
-	// `badFreeNames`, the host-level rule, where every other arm-set handler
-	// reads `fx.scopeBadNames` — inside a reactive-list item, the
-	// `badListBodyNames` rule refusing the setup consts and authored imports
-	// a list body cannot read (LTC005's server-only face). The probes (task
-	// entry) compiled clean BEFORE the alignment: the client-need walk does
-	// reach these positions and emitted the const, so the defect was
-	// consistency, not a latent ReferenceError — the same read was LTC005 on
-	// a plain item element and silently admitted inside a boundary arm.
+	// Inside a reactive-list item, boundary arm mounts validate against
+	// `badListBodyNames` — what a list body cannot read (LTC005's
+	// server-only face) — not the host-level `badFreeNames`. The same read
+	// is LTC005 on a plain item element.
 	const pre = "import { createList, deriveCell } from '@zeix/le-truc'"
 	const setup = `const items = createList<string>(['a'], { keyConfig: s => s })
 		const data = deriveCell(async () => 'ok')

@@ -1,11 +1,4 @@
-/**
- * An imported function is a client-known name in a client-only setup side
- * effect (ADR 0024 s5; admitted since ): a shared helper
- * module called from setup with `host` and a declared list compiles on both
- * surfaces, the statement stays client-only, and the import is placed into
- * the client module only (ADR 0005 s14). A compose import is not a helper:
- * calling it from setup stays the unsupported-statement error.
- */
+/** An imported function is a client-known name in a client-only setup side effect: a shared helper module called from setup with `host` and a declared list compiles on both surfaces, the statement stays client-only, and the import is placed into the client module only. A compose import is not a helper — calling it from setup stays the unsupported-statement error. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 import { compileComponentTsx } from '../src/frontend/tsx'

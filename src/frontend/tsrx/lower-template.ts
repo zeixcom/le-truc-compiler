@@ -1,17 +1,5 @@
-/**
- * Template lowering for `.tsrx` sources: `@if`/`@switch`/`@try`/`@for` →
- * `TemplateNode` IR. The surface-independent core — condition validation,
- * element/compose lowering, the expression-child lift rule, positional
- * reactivity — lives in `lower-shared.ts` (ADR 0010 sub-design 6's
- * anti-drift contract); this module owns the grammar's control-flow
- * DIRECTIVES and their dispatch. Mutually recursive by nature (an element's
- * children may themselves be control-flow directives or nested elements),
- * so `compiler.ts`'s `compileSource` calls in at `lowerChildren` for the
- * component's root template.
- */
-
-import type { AstNode } from '../../ast-node'
 import {
+	type AstNode,
 	asArray,
 	collapseJsxText,
 	freeIdentifiers,
@@ -43,13 +31,6 @@ import type { IfNode, SwitchNode } from '../../walk'
 
 /* === Condition validation === */
 
-/**
- * Lower an `@if` directive: a server-known condition (args, setup names,
- * globals) picks its branch at render time; one that reads a signal or
- * `host` switches template-cloned branches on the client (ADR 0015).
- * Branch bodies lower like any children; the analysis decides how the
- * client addresses them.
- */
 export const lowerIf = (
 	ctx: ExtractContext,
 	node: AstNode,
@@ -77,10 +58,6 @@ export const lowerIf = (
 	)
 }
 
-/**
- * Lower an `@switch` directive (`@case expr: { … }` / `@default: { … }`
- * arms) — the multi-branch sibling of `@if`.
- */
 export const lowerSwitch = (
 	ctx: ExtractContext,
 	node: AstNode,
@@ -108,14 +85,7 @@ export const lowerSwitch = (
 	return finishSwitch(ctx, node, discriminant, cases, mode)
 }
 
-/**
- * Lower a control-flow branch body (a statement list): elements, text,
- * fragments, and NESTED control-flow directives — a branch body is a
- * complete output context with the same contract as `lowerChildren`;
- * anything unsupported reports a diagnostic instead of being silently
- * dropped. (Branch bodies are a statement list only in the `.tsrx` grammar —
- * `.tsx` arms are JSX-valued expressions, dispatched in `lower-tsx.ts`.)
- */
+/** Lower a control-flow branch body (a statement list): elements, text, fragments, and nested control-flow directives; anything unsupported reports a diagnostic. */
 const lowerBodyStatements = (
 	ctx: ExtractContext,
 	statements: unknown,
@@ -177,11 +147,7 @@ const lowerBodyStatements = (
 			continue
 		}
 		if (stmt.type === 'ExpressionStatement' && isNode(stmt.expression)) {
-			// A bare client-only side effect beside conditionally rendered
-			// markup (`internals?.states.add('clearable')` next to the
-			// button it describes) — same free-name contract as a top-level
-			// clientSetup statement (host/internals/signals/globals only).
-			// analyze.ts decides whether the enclosing branch can guard it.
+			// A bare client-only side effect beside conditionally rendered markup — same free-name contract as a top-level clientSetup statement (host/internals/signals/globals only).
 			const free = freeIdentifiers(stmt.expression)
 			const bad = [...free].filter(
 				name =>
@@ -210,26 +176,6 @@ const lowerBodyStatements = (
 	return out
 }
 
-/**
- * Lower an `@try { … } @catch (e) { … }` error boundary, in one of two
- * distinct modes:
- *
- * - No `@pending` arm: a render-time error boundary — the server renders the
- *   body inside a real try/catch, so a throwing server expression falls back
- *   to the catch arm; mutually exclusive, like `@switch`.
- * - A `@pending` arm present: an ASYNC BOUNDARY (ADR 0005 sub-design 13,
- *   ) — `@try`/`@pending`/`@catch` route on `isPending(signal)` against
- *   the ONE async-derived signal (`deriveCell(async …)`) the body renders.
- *   The arm that won at render time renders live and every arm ships as an
- *   inert template (each needs exactly one root element); the client
- *   switches arms as the task settles (ADR 0015 s4).
- *
- * `@finally` is gated outright in both modes. The grammar has no stale arm
- * and never will — the four-arm `.tsx` spelling that briefly added one was
- * withdrawn by the owner (): a re-fetching state has no arm, only the
- * reactive `isPending` idiom beside the boundary. Both surfaces now lower
- * the same three-arm shape.
- */
 export const lowerTry = (
 	ctx: ExtractContext,
 	node: AstNode,
@@ -287,12 +233,6 @@ export const lowerTry = (
 	})
 }
 
-/**
- * Lower template children into IR. `&{expr}` arrives from the parser as a
- * `JSXText("&")` node immediately preceding a `JSXExpressionContainer` —
- * the sigil is detected by that adjacency. A plain `{expr}` child lifts to
- * reactive by analysis instead (`reactivity.ts`).
- */
 export const lowerChildren = (
 	ctx: ExtractContext,
 	parent: AstNode,
@@ -301,14 +241,7 @@ export const lowerChildren = (
 ): TemplateNode[] =>
 	lowerChildrenSkeleton(ctx, parent, signals, fors, TSRX_LOWERING, {
 		onText: (ctx, child, next) => {
-			// The retired `&{expr}` lazy child (). `&{`/`&[` are TSRX's
-			// lazy DESTRUCTURING introducers and live in binding position;
-			// there is no `&{}` template-child form. The compiler never got a
-			// lazy node from the parser for this — it matched a `JSXText`
-			// ending in '&' beside an expression container, which also meant
-			// `<span>Q&{a}</span>` silently swallowed the '&'. Reactivity is
-			// decided by `reactivity.ts` now, so the sigil is redundant as
-			// well as wrong: diagnose it rather than keep parsing it.
+			// The retired `&{expr}` lazy child — `&{`/`&[` are lazy destructuring introducers in binding position; diagnose the sigil rather than keep parsing it.
 			if (
 				next?.type === 'JSXExpressionContainer' &&
 				String(child.value ?? '').endsWith('&')
@@ -392,10 +325,7 @@ export const lowerComposeElement = (
 ): (TemplateNode & { kind: 'compose' }) | null =>
 	lowerComposeElementShared(ctx, element, tag, signals, fors, TSRX_LOWERING)
 
-/**
- * Lower a `@for`'s `@empty { … }` arm (): `null` when the loop has
- * none, `false` when the arm was diagnosed (the loop is dropped).
- */
+/** Lower a `@for`'s `@empty { … }` arm: `null` when the loop has none, `false` when the arm was diagnosed (the loop is dropped). */
 const lowerEmptyArm = (
 	ctx: ExtractContext,
 	node: AstNode,
@@ -409,19 +339,6 @@ const lowerEmptyArm = (
 	return validateEmptyArm(ctx, arm, kind, fors, node.empty) ?? false
 }
 
-/**
- * Lower a `@for` loop: parse the directive's header — the `const` binding,
- * `index`, `key`, and the body's statements, whose output is its element —
- * into a `LoopSource`; `lowerLoop` (shared) routes and validates the rest.
- *
- * An `@try` statement in the body is the `.tsrx` twin of `.tsx`'s
- * `<truc:try>` map-body guard (LTC053): the loop body's root is
- * what the client addresses each item through, so a boundary there is
- * refused by name rather than left to the generic "statement other than
- * the output element" rule, whose fix is wrong for a boundary. An `@try`
- * can never be a `@for` body's output (`outputOf` accepts JSXElement
- * only), so every body-level `@try` takes this rule.
- */
 export const lowerFor = (
 	ctx: ExtractContext,
 	node: AstNode,

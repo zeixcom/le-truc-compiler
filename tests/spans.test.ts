@@ -1,10 +1,4 @@
-/**
- * Unit tests for the  span table (ADR 0005 sub-design 6 amendment,
- * stage 1): `appendWithSpans` records generated-file ↔ source-file offsets
- * for verbatim slices (setup statements, thunks, handlers), and
- * `check:corpus` uses `fileLineColToOffset`/`fileOffsetToLineCol`/
- * `findSpanForGeneratedOffset` to remap a tsc diagnostic through them.
- */
+/** Unit tests for the span table: `appendWithSpans` records generated-file ↔ source-file offsets for verbatim slices (setup statements, thunks, handlers), and `check:corpus` uses `fileLineColToOffset`/`fileOffsetToLineCol`/`findSpanForGeneratedOffset` to remap a tsc diagnostic through them. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 import {

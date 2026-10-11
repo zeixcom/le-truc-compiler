@@ -1,23 +1,4 @@
-/**
- * The ICU MessageFormat 1 evaluator (ADR 0009 s4) — ONE
- * implementation, ours, for both sides of a message.
- *
- * The server fold calls it through the generated `i18n` module's `t`, and
- *  inlines a narrowed copy of it into the client preamble. Owning it
- * is the point: a server-rendered string and the client's recomputation run
- * the same walk over the same AST, so they cannot disagree.
- * `@messageformat/core` is a test oracle only (`icu.test.ts` differentially
- * checks this walk against it).
- *
- * Constraints, so  can inline it:
- * - **No imports.** Not from the compiler, not from a package. The locale
- *   work is `Intl.PluralRules` / `NumberFormat` / `DateTimeFormat`.
- * - **Emitter-agnostic.** A pure function of `(message, args, env)`; no
- *   caches keyed on module state, no DOM.
- * - **Data, not code.** The AST (`Message`) is JSON: build-time resolution
- *   in `parse.ts` has already turned every skeleton and named style into
- *   plain `Intl` options, so nothing here parses anything.
- */
+/** The ICU MessageFormat 1 evaluator — one implementation for both the server fold and the client's recomputation, so they cannot disagree. */
 
 /* === Types === */
 
@@ -29,27 +10,13 @@ export type MessageNode =
 	| string
 	/** `{name}` — the argument's value, stringified. */
 	| { t: 'arg'; a: string }
-	/**
-	 * `{n, number[, style]}` — `o` is the resolved `Intl.NumberFormat`
-	 * options, `s` a multiplier (`::percent`/`::scale/…` skeletons: ICU
-	 * formats `25` as `25%`, `Intl` wants `0.25`). A `currency` style with no
-	 * explicit code takes the record's `currency`.
-	 */
 	| {
 			t: 'num'
 			a: string
 			o?: Intl.NumberFormatOptions
 			s?: number
 	  }
-	/**
-	 * `{d, date|time[, style]}` — `o` is the resolved `Intl.DateTimeFormat`
-	 * options; the record's `timeZone` applies unless `o` names one.
-	 */
 	| { t: 'date'; a: string; o: Intl.DateTimeFormatOptions }
-	/**
-	 * `{n, plural|selectordinal, …}` — `c` maps each case key (`=0`, `one`,
-	 * `other`, …) to its body; `o` marks ordinal rules, `off` the offset.
-	 */
 	| {
 			t: 'plural'
 			a: string
@@ -59,11 +26,6 @@ export type MessageNode =
 	  }
 	/** `{x, select, …}` — `c` maps each case key to its body. */
 	| { t: 'select'; a: string; c: Record<string, Message> }
-	/**
-	 * `#` inside a plural — the enclosing plural's argument minus its
-	 * offset, locale-formatted. The parser resolves which plural it belongs
-	 * to, so the node carries the argument name and offset itself.
-	 */
 	| { t: '#'; a: string; off?: number }
 
 /** A parsed message: a sequence of nodes. */
@@ -81,10 +43,7 @@ export type MessageEnv = {
 
 /* === Internal Functions === */
 
-/**
- * The case body for `key`, own keys only — a select value of
- * `'constructor'` must fall to `other`, not reach `Object.prototype`.
- */
+/** The case body for `key`, own keys only — a select value of `'constructor'` must fall to `other`, not reach `Object.prototype`. */
 const caseOf = (
 	cases: Record<string, Message>,
 	key: string,
@@ -92,14 +51,6 @@ const caseOf = (
 
 /* === Exported Functions === */
 
-/**
- * Format `message` with `args` under `env`.
- *
- * Plural selection follows ICU: an exact `=N` case wins over the category,
- * the category is chosen after subtracting the offset, and a category the
- * message does not spell falls to `other` (the parser guarantees `other`
- * exists).
- */
 export const formatMessage = (
 	message: Message,
 	args: MessageArgs,
@@ -171,12 +122,6 @@ export const FORMATTING_KINDS: ReadonlySet<string> = new Set([
 	'#',
 ])
 
-/**
- * The node kinds (`arg`, `num`, `plural`, …) `messages` use, case bodies
- * included — what the client channel's inlined evaluator carries ():
- * `emit-client.ts` narrows it to the union over a component's
- * client-referenced source messages.
- */
 export const carriedKinds = (messages: Iterable<Message>): Set<string> => {
 	const kinds = new Set<string>()
 	const collect = (message: Message): void => {
@@ -191,14 +136,6 @@ export const carriedKinds = (messages: Iterable<Message>): Set<string> => {
 	return kinds
 }
 
-/**
- * Whether the client channel renders `source` instead of `translation`
- * (): a translation with arguments where the source has none (the
- * argument-less accessor serves the source), or one using a node kind the
- * narrowed evaluator does not carry. An argument-less translation always
- * renders. Both arguments are compiled catalog entries: literal text or a
- * parsed message.
- */
 export const clientFallsBack = (
 	source: string | Message,
 	translation: string | Message,
@@ -209,15 +146,6 @@ export const clientFallsBack = (
 	return [...carriedKinds([translation])].some(kind => !carried.has(kind))
 }
 
-/**
- * `message` with the record's `timeZone`/`currency` folded into the nodes
- * that read them (). The client channel serializes messages per
- * render call, but the client never sees the record, so the facts the DOM
- * does not carry travel inside the AST. The locale is not among them: it
- * reaches the client through the root `lang` attribute (ADR 0009 s6), and
- * {@link formatMessage} takes it from its caller's `env`, which is all the
- * result still reads.
- */
 export const bakeMessageEnv = (message: Message, env: MessageEnv): Message =>
 	message.map(node => {
 		if (typeof node === 'string') return node

@@ -1,34 +1,4 @@
-/**
- * The serialization boundary (ADR 0006 sub-design 9, amended by
- *  on 2026-09-03).
- *
- *  built this as a STRICTLY SYNCHRONOUS window: any microtask drain
- * between instantiate and serialize threw. Measuring composition against the
- * corpus proved that wrong — `resolveDependencies` (`src/helpers/dom.ts`)
- * defers effect activation by a microtask whenever a component queries a
- * custom child, so a synchronous window drops every composing parent's
- * effects (`form-colorgraph` serialized 2343 chars instead of 3302). The
- * library is not changed: a defined child is not necessarily a connected
- * one, and the deferral is load-bearing in the browser.
- *
- * The window is now HERMETIC QUIESCENCE instead: it performs no driver IO,
- * advances no timer, and drains the realm's microtask queue to a bounded
- * quiescence before serializing. Microtask-only, so jsdom timers never fire.
- * The drain is safe only because the realm is hermetic (`patch-table.ts`'s
- * closed network, `realm.ts`'s never-settling stub) — nothing inside the
- * window can settle a task to override the compiler's arm choice.
- *
- * Two rules survive the amendment, at different layers:
- *
- * 1. The instantiate→PARSE step itself (`assertSynchronousWindow`, below)
- *    still must not itself return a promise or yield before its own
- *    microtask boundary — an `async` upgrade callback is still a bug the
- *    driver refuses, because it would make the FIRST turn's content depend
- *    on unrelated scheduling rather than on the parse pass.
- * 2. Quiescence is bounded (`drainToQuiescence`, below): a reactive loop
- *    that never settles surfaces as a `non-quiescent` build warning
- *    attributed to the component, not a hang.
- */
+/** The serialization boundary: a strictly synchronous instantiate→parse step, followed by a bounded, microtask-only drain of the realm to hermetic quiescence. */
 
 /** Thrown when the instantiate→parse window itself was not synchronous. */
 export class SimulationBoundaryError extends Error {
@@ -45,9 +15,6 @@ const isThenable = (value: unknown): value is PromiseLike<unknown> =>
 
 /**
  * Run the instantiate→parse step and assert it never yielded on its own.
- * This is NOT the whole serialization boundary (see module header) — it
- * guards only the synchronous parse+upgrade pass; quiescence draining
- * happens after, deliberately, via `drainToQuiescence`.
  *
  * @param work - the step: parse markup, replay definitions, let the
  *   upgrade run
@@ -91,16 +58,7 @@ export type QuiescenceResult = {
 }
 
 /**
- * Drain the realm's microtask queue to quiescence, reading `read()` after
- * every turn. Microtask-only (`await Promise.resolve()`), so jsdom timers
- * never fire and the drain cannot itself advance real time. Bounded: a
- * reactive loop that never settles returns `quiescent: false` after
- * `maxTurns` rather than hanging the build — callers turn that into a
- * `non-quiescent` diagnostic, never a throw (ADR 0006 sub-design 9).
- *
- * The realm must stay alive for the caller's lifetime of this call —
- * draining after `dispose()` tears the patch-table globals out from under
- * deferred effects.
+ * Drain the realm's microtask queue to quiescence, reading `read()` after every turn.
  *
  * @param read - reads the current serialized state (e.g. the component's
  *   `outerHTML`); called once per turn, including turn 0 before draining

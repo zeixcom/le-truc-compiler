@@ -1,14 +1,4 @@
-/**
- * The final `ComponentIR` assembly and the module-level facts it consumes —
- * declarations beside the component function (`readModuleDecls`: exported
- * type declarations, `declare global`, `export const config`, `export const
- * i18n`) and the component's leading doc comment — shared by both front
- * ends (ADR 0010 sub-design 6: the anti-drift half of the dual
- * front-end contract). Front-end-neutral like the other front-end stage
- * modules: no parser values, only the loose `AstNode` type.
- */
-
-import type { AstNode } from './ast-node'
+import type { AstNode } from './ast-utils'
 import {
 	asArray,
 	collectBoundNames,
@@ -59,11 +49,6 @@ export type ModuleDecls = {
 	moduleBindings: string[]
 }
 
-/**
- * Module-level declarations beside the component function: type
- * declarations (exported or module-local) and `declare global`, verbatim;
- * `export const config`; `export const i18n` (ADR 0009 sub-design 4).
- */
 export const readModuleDecls = (
 	ctx: ExtractContext,
 	ast: AstNode,
@@ -104,7 +89,7 @@ export const readModuleDecls = (
 		}
 		// Exported or not: a module-local `type`/`interface` is as much a
 		// part of the setup's typing as an exported one, and a generated
-		// module that drops it names a type it never declares ().
+		// module that drops it names a type it never declares.
 		if (
 			valueDecl.type === 'TSTypeAliasDeclaration' ||
 			valueDecl.type === 'TSInterfaceDeclaration'
@@ -128,14 +113,6 @@ export const readModuleDecls = (
 	}
 }
 
-/**
- * The doc comment immediately preceding a declaration, sliced verbatim.
- * The whitespace-only guard between comment close and declaration keeps a
- * module-level doc from being mistaken for the component's own when other
- * statements (type declarations, `declare global`) sit in between. Carried
- * above the generated `export default defineComponent(` so CEM extraction
- * (ADR 0005) reads the authored description and tags.
- */
 const leadingDocComment = (source: string, before: number): string | null => {
 	const head = source.slice(0, before)
 	const close = head.lastIndexOf('*/')
@@ -146,15 +123,6 @@ const leadingDocComment = (source: string, before: number): string | null => {
 	return source.slice(open, close + 2)
 }
 
-/**
- * Per-parameter pattern facts for the page-occurrence renderer ():
- * `emit-server.ts`'s `argsFromAttrs` emission decides, from these, whether
- * an authored occurrence's attribute can source each server arg — a raw
- * string only passes for a `string`-annotated non-Parser arg, and an absent
- * attribute only omits the key when the pattern marks the arg optional or
- * defaulted. Everything else leaves the occurrence unrenderable rather than
- * silently re-typed.
- */
 const paramPropsOf = (
 	ctx: ExtractContext,
 	paramsNode: AstNode | null,
@@ -188,13 +156,6 @@ const paramPropsOf = (
 	return props
 }
 
-/**
- * The final `ComponentIR` assembly, shared by both front ends. `gated`
- * (the reactive-@for milestone gate) skips the whole file: rendering the
- * remaining markup without the gated construct would be silently wrong.
- * Returns null when the file is gated — the diagnostics are already on the
- * context.
- */
 export const assembleComponentIR = (
 	ctx: ExtractContext,
 	{
@@ -221,10 +182,6 @@ export const assembleComponentIR = (
 		leTrucImports: LeTrucImport[]
 	},
 ): ComponentIR | null => {
-	// The annotation-surface check (LTC050) — `config` is what the
-	// extract-time vocabulary check could not see. Runs before the gate so
-	// the diagnostic lands even on gated files (the LTC014 posture). The
-	// report covers the written type ().
 	if (contextParam?.annotationName) {
 		const formAssociated = !!decls.config?.form
 		if (formAssociated && contextParam.annotationName === 'FactoryContext')
@@ -247,24 +204,11 @@ export const assembleComponentIR = (
 				),
 			)
 	}
-	// The same set `seedExtractionContext` built into `ctx.serverKnown`
-	// (args + `isPending` + signals + setup consts) — reused, not recomputed:
-	// a second construction could drift from the first and make lowering and
-	// downstream analysis silently disagree (). `isPending` itself is
-	// server-known (): the harness always provides it, so a reactive
-	// thunk reading `isPending(knownSignal)` folds server-side. This does
-	// NOT reopen @if over signals — `validateCondition` diagnoses signal
-	// reads first.
 	const serverKnown = ctx.serverKnown
-	// Every reactive-list item's setup (ADR 0024 s5): the usage walks below
-	// place the imports it reads, like component setup's.
 	const itemSetup = [...resolved.fors.values()].flatMap(loop =>
 		loop.kind === 'reconcile' ? loop.setup : [],
 	)
 
-	// Placements run BEFORE the milestone-gate check: an unused-import
-	// warning (LTC014) belongs in the report even when the file is gated
-	// (diagnostic-order parity with the pre-extraction pipeline).
 	const listItemTypeTexts = extraction.signals.flatMap(signal =>
 		signal.family === 'declared' && signal.listItem?.typeText
 			? [signal.listItem.typeText]
@@ -283,9 +227,6 @@ export const assembleComponentIR = (
 		},
 		plainImports,
 		{
-			// The setup statements are verbatim in both modules, and a
-			// per-field list harvest annotates each rebuilt item with the item
-			// type (ADR 0024 s7): a type import they name is a use.
 			server: [
 				...decls.typeDecls,
 				paramsNode ? text(ctx.source, paramsNode) : '',
@@ -312,9 +253,6 @@ export const assembleComponentIR = (
 		},
 		leTrucImports,
 		{
-			// The verbatim texts both modules re-emit: the type declarations
-			// and the setup statements, whose type positions a usage walk
-			// never sees (the params slice is value vocabulary).
 			server: [
 				...decls.typeDecls,
 				...extraction.setup.map(stmt => stmt.text),
@@ -340,8 +278,6 @@ export const assembleComponentIR = (
 		plainLocalNames: new Set(plainImports.flatMap(i => i.localNames)),
 	}
 
-	// A milestone gate (reactive @for) skips the whole file: rendering the
-	// remaining markup without the gated construct would be silently wrong.
 	const gated = ctx.diagnostics.some(d => d.code === 'LTC001')
 	if (gated) return null
 
@@ -386,23 +322,10 @@ export const assembleComponentIR = (
 		imports,
 	}
 	routeHostSeededSignals(ctx, component)
-	// The one IR fact that needs the whole component: each conditional's
-	// initial winner reads the root's attributes and every signal.
 	resolveInitialWinners(component)
 	return component
 }
 
-/**
- * A signal declaration reading `host` () — `createList(host.seed, …)`
- * over a Parser-backed prop — is server-known only when every read folds
- * through `hostSeedExpr` (the emitter splices them, `emit-server.ts`). One
- * that reads a prop with no server truth routes per ADR 0008 s5, as an
- * unseeded sensor does: it leaves `serverKnown`, so each site reading it is
- * omitted, and the realm — which runs `expose()` — answers it. Decided here
- * because the fold needs the root's attributes and the placed imports.
- * A derived callback reading `host` never reaches `signals` (LTC013 at
- * extraction), and a sensor's server value is its `{ value }` seed.
- */
 const routeHostSeededSignals = (
 	ctx: ExtractContext,
 	component: ComponentIR,

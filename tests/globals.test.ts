@@ -1,17 +1,4 @@
-/**
- * Coverage tests for the .tsrx ambient globals (ADR 0005 sub-design 6):
- *
- * 1. Parity — every identifier the compiler recognizes as an ambient (signal
- *    constructors, context names, parser factories, `expose`, `defineMethod`,
- *    `FormAssociatedElement`) is declared in src/frontend/tsrx/globals.d.ts, and
- *    the file declares nothing outside that vocabulary.
- * 2. Barrel parity — every recognized-name set that names `@zeix/le-truc`
- *    value exports is pinned against the package barrel (): subsets
- *    type-level and at runtime, `REAL_EXPORT_NAMES` exactly.
- * 3. Typecheck — a probe using the full ambient vocabulary (including
- *    `FormAssociatedElement` referenced without import in a `declare global`)
- *    compiles against the globals file alone.
- */
+/** Coverage tests for the `.tsrx` ambient globals: parity (every ambient the compiler recognizes is declared in `globals.d.ts`, and nothing outside that vocabulary), barrel parity (recognized-name sets that name `@zeix/le-truc` value exports are pinned against the package barrel, `REAL_EXPORT_NAMES` exactly), and a typecheck probe over the full ambient vocabulary including `FormAssociatedElement` without import. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
@@ -38,8 +25,7 @@ const GLOBALS = fs.readFileSync(
 	'utf8',
 )
 
-// The probe is emitted into a per-run directory, not the build pipeline's
-// own output ().
+// The probe is emitted into a per-run directory, not the build pipeline's own output.
 const generated = createGeneratedDir('globals')
 afterAll(() => generated.cleanup())
 
@@ -52,10 +38,7 @@ const declaredTypes = [...GLOBALS.matchAll(/^type (\w+)/gm)].map(
 
 describe('globals.d.ts — ambient vocabulary parity with the compiler', () => {
 	test('every recognized ambient is declared', () => {
-		// Sub-design 16: the ambient vocabulary is exactly the
-		// FactoryContext members plus the context names — real package
-		// exports (signal constructors, parsers, defineMethod) are NOT
-		// ambient anymore; authored sources import them explicitly.
+		// The ambient vocabulary is exactly the FactoryContext members plus the context names — real package exports (signal constructors, parsers, defineMethod) are not ambient anymore; authored sources import them explicitly.
 		const required = [...FACTORY_CONTEXT_MEMBER_NAMES, ...CONTEXT_NAMES]
 		for (const name of required) expect(declaredConsts).toContain(name)
 		expect(declaredTypes).toContain('FormAssociatedElement')
@@ -71,10 +54,7 @@ describe('globals.d.ts — ambient vocabulary parity with the compiler', () => {
 	})
 
 	test('FACTORY_CONTEXT_MEMBERS are real FactoryContext members and never module imports', () => {
-		// Type-level subset assertion: compiles only while every listed
-		// member is a key of the REAL FactoryContext — a rename/removal in
-		// @zeix/le-truc fails the standing tsc gate instead of silently
-		// mis-splitting the generated client's context vs import lists.
+		// Type-level subset assertion: compiles only while every listed member is a key of the real FactoryContext — a rename/removal in @zeix/le-truc fails the standing tsc gate instead of silently mis-splitting the generated client's context vs import lists.
 		type IsSubset = [(typeof FACTORY_CONTEXT_MEMBER_NAMES)[number]] extends [
 			keyof FactoryContext<ComponentProps>,
 		]
@@ -82,15 +62,12 @@ describe('globals.d.ts — ambient vocabulary parity with the compiler', () => {
 			: false
 		const assertSubset: IsSubset = true
 		expect(assertSubset).toBe(true)
-		// Channel split: a destructured context member is never a signal
-		// constructor or parser factory (those import from '@zeix/le-truc').
+		// Channel split: a destructured context member is never a signal constructor or parser factory (those import from '@zeix/le-truc').
 		const mischanneled = [...FACTORY_CONTEXT_MEMBERS].filter(
 			m => SIGNAL_CONSTRUCTORS.has(m) || PARSER_FACTORIES.has(m),
 		)
 		expect(mischanneled).toEqual([])
-		// The one deliberate overlap with the ambient vocabulary: `expose` is
-		// both a declared ambient (raw sources call it unqualified) and a
-		// destructured context member in the generated client.
+		// The one deliberate overlap with the ambient vocabulary: `expose` is both a declared ambient (raw sources call it unqualified) and a destructured context member in the generated client.
 		expect(FACTORY_CONTEXT_MEMBERS.has('expose')).toBe(true)
 		expect(declaredConsts).toContain('expose')
 	})
@@ -98,11 +75,7 @@ describe('globals.d.ts — ambient vocabulary parity with the compiler', () => {
 
 describe('vocabulary — the JS_GLOBALS set (LT-469)', () => {
 	test('every DOM element type a corpus client references by name is recognized', () => {
-		// section-menu's outside-click close checks
-		// `el instanceof HTMLAnchorElement` in a document-level descriptor —
-		// a name the set's own docblock scope ("DOM globals (generated
-		// handlers reference element types)") covers. Its absence was a false
-		// unknown-name LTC005; the entry is pinned so the set stays complete.
+		// section-menu's outside-click close checks `el instanceof HTMLAnchorElement` in a document-level descriptor; its absence was a false unknown-name LTC005, so the entry is pinned to keep the set complete.
 		expect(JS_GLOBALS.has('HTMLAnchorElement')).toBe(true)
 	})
 })
@@ -140,8 +113,7 @@ describe('vocabulary — name-set parity with the @zeix/le-truc barrel (LT-232)'
 	})
 
 	test('the ambient vocabulary is disjoint from the real exports', () => {
-		// Sub-design 16: FactoryContext members and context names are never
-		// module imports, so no barrel export may share a name with them.
+		// FactoryContext members and context names are never module imports, so no barrel export may share a name with them.
 		const overlap = [...FACTORY_CONTEXT_MEMBERS, ...CONTEXT_NAMES].filter(
 			name => REAL_EXPORT_NAMES.has(name),
 		)
@@ -154,7 +126,7 @@ describe('globals.d.ts — probe typechecks against the ambients alone', () => {
 		const probePath = generated.emit(
 			'globals-probe.ts',
 			[
-				// Sub-design 16: real exports are imported explicitly…
+				// Real exports are imported explicitly…
 				"import { asBoolean, asEnum, asInteger, asJSON, asNumber, asString, createCell, createContext, defineMethod } from '@zeix/le-truc'",
 				'const count = createCell(0)',
 				"const theme = requestContext(createContext<() => string>('theme'), 'light')",

@@ -1,8 +1,4 @@
-/**
- * Diagnostics tests: the compiler's rewrite rules are the product (ADR
- * 0023) — each rule that cannot be applied must report its diagnostic, and
- * milestone gates must skip files without failing the build.
- */
+/** Diagnostics tests: each rewrite rule that cannot be applied must report its diagnostic, and milestone gates must skip files without failing the build. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
@@ -269,9 +265,7 @@ import { createCell } from '@zeix/le-truc'`
 		)
 		expect(diagnostics).toEqual([])
 		expect(component).not.toBeNull()
-		// Indistinguishable roots (no distinguishing static attribute) keep
-		// the error — per-branch guards could not tell the branches apart,
-		// and both guards would bind the one rendered element.
+		// Indistinguishable roots (no distinguishing static attribute) keep the error — per-branch guards could not tell the branches apart, and both guards would bind the one rendered element.
 		const indistinguishable = `export function C({ big }: { big?: boolean })
 	@{
 		expose({})
@@ -793,9 +787,7 @@ export function C({}: {})
 		expect(component).not.toBeNull()
 	})
 
-	// ADR 0024 s1: the item is a Mount Scope — a reactive attribute over the
-	// item lowers into `bindItem` like any arm content, the arrow over the
-	// item signal.
+	// The item is a mount scope: a reactive attribute over the item lowers into `bindItem` like any arm content, the arrow over the item signal.
 	test('a reactive attribute over the item lowers into bindItem (LT-423)', () => {
 		const { component, diagnostics } = compileComponent(
 			listSource('<li class={() => item.get()}>no</li>'),
@@ -806,12 +798,7 @@ export function C({}: {})
 		expect(component?.clientCode).toContain("bindAttribute(li, 'class')")
 	})
 
-	// Since  a bare `{item}` IS the slot fill — the item binding is
-	// reactive by position, marked in `lowerListFor`. Since  the old
-	// "must be lazy" gate is split: a non-item expression is ADMITTED when
-	// it classifies server-static (a build-time value baked into the
-	// extracted template), still rejected when it reads names outside
-	// `serverKnown` — the slot fill has no channel for those.
+	// A bare `{item}` IS the slot fill, reactive by position. A non-item expression is admitted when it classifies server-static (a build-time value baked into the extracted template), still rejected when it reads names outside `serverKnown` — the slot fill has no channel for those.
 	test('a bare {item} is the slot fill, not an error', () => {
 		const { diagnostics } = compileComponent(
 			listSource('<li>{item}</li>'),
@@ -821,10 +808,7 @@ export function C({}: {})
 		expect(diagnostics.filter(d => d.severity === 'error')).toEqual([])
 	})
 
-	// The slot-fill exceptions retired (ADR 0024 s1): the shared
-	// lazy-text gate owns the shape now — `bindText()` replaces the
-	// element's whole `textContent`, so a lazy child beside other content
-	// would erase it on the first write.
+	// The shared lazy-text gate owns the shape: `bindText()` replaces the element's whole `textContent`, so a lazy child beside other content would erase it on the first write.
 	test('a lazy child beside other content is the shared gate', () => {
 		const { diagnostics } = compileComponent(
 			listSource('<li>{item} static</li>'),
@@ -900,14 +884,11 @@ export function C({ label }: { label: string })
 			new Set(),
 		)
 		expect(separated.diagnostics).toEqual([])
-		// Server-known text bakes into the extracted template at render
-		// time, so every clone carries the folded value.
+		// Server-known text bakes into the extracted template at render time, so every clone carries the folded value.
 		expect(separated.component?.serverCode).toContain('text(label)')
 	})
 
-	// The one-hole rule retired (ADR 0024 s1): a body that renders the item
-	// nowhere compiles when the seed is a literal — only the ARG-seeded
-	// harvest needs a rendered item value (the test after this one).
+	// A body that renders the item nowhere compiles when the seed is a literal — only the arg-seeded harvest needs a rendered item value (the test after this one).
 	test('a body rendering the item nowhere compiles with a literal seed (LT-423)', () => {
 		const { component, diagnostics } = compileComponent(
 			listSource('<li>static</li>'),
@@ -948,8 +929,7 @@ export function C({ initial }: { initial?: string[] })
 		).toBe(true)
 	})
 
-	// The `listItemHandlerFix` refusal retired (ADR 0024 s1): a handler may
-	// read the item signal — `bindItem` scopes it, so `item` IS in scope.
+	// A handler may read the item signal — `bindItem` scopes it, so `item` IS in scope.
 	test('a handler reading the loop item compiles (LT-423)', () => {
 		const { component, diagnostics } = compileComponent(
 			listSource(
@@ -1040,12 +1020,7 @@ describe('rewrite-rule enforcement', () => {
 	})
 
 	test('signal never rendered is a routing signal, not a diagnostic (LT-165 step 5)', () => {
-		// ADR 0008 s5: LTC004 left the channel — "no harvestable site" is a
-		// statement about the harness, and the tier machinery now routes on it.
-		// The component still compiles, classifies Simulated (a literal
-		// initializer is realm-answerable), and the generated client declares
-		// the signal from its own initializer — the realm replays that module,
-		// so the declaration is what makes the shape actually work.
+		// LTC004 left the diagnostic channel: "no harvestable site" is a statement about the harness, and the tier machinery routes on it. The component compiles, classifies Simulated (a literal initializer is realm-answerable), and the generated client declares the signal from its own initializer — the realm replays that module, so the declaration is what makes the shape work.
 		const source = `export function C({}: {})
 	@{
 		const ghost = createCell(1)
@@ -1089,8 +1064,7 @@ import { createCell } from '@zeix/le-truc'`
 }
 import { createCell } from '@zeix/le-truc'`
 		const { component } = compileComponent(source, 'c.tsrx', new Set())
-		// Not a direct site, so no DOM read-back: both halves reuse the
-		// identical initializer, like a derived callback.
+		// Not a direct site, so no DOM read-back: both halves reuse the identical initializer, like a derived callback.
 		expect(component?.clientCode).toContain("createCell('a')")
 	})
 
@@ -1228,8 +1202,7 @@ import { createCell } from '@zeix/le-truc'`
 	}
 import { deriveCell, createCell } from '@zeix/le-truc'`
 		const { diagnostics } = compileComponent(source, 'c.tsrx', new Set())
-		// Own code since the ticket's split: a format rule (ADR 0005 s12), not a
-		// server-evaluation guard, so it stays an error under tiering.
+		// A format rule, not a server-evaluation guard, so it stays an error under tiering.
 		const hit = diagnostics.find(d => d.code === 'LTC044')
 		expect(hit).toBeDefined()
 		expect(hit?.message).toContain('`n`')
@@ -1237,15 +1210,7 @@ import { deriveCell, createCell } from '@zeix/le-truc'`
 	})
 
 	test('a plain setup const calling a client-only primitive routes, not errors (LT-165 step 5)', () => {
-		// `first()` is deliberately excluded from this example since:
-		// a two-string-literal-argument `first()` call is now the sanctioned
-		// `ref={}` replacement (see the "first() element references" describe
-		// block below), not a generic client-only primitive.
-		//
-		// ADR 0008 s5: the shape the value harness cannot run is a Simulated-
-		// tier routing signal. The const lands in plainSetup, so the client
-		// module still declares it (`all` resolves in the factory) and the
-		// tier-aware server emit drops it.
+		// `first()` is deliberately excluded from this example: a two-string-literal-argument call is the sanctioned ref replacement (see the first() describe block below), not a generic client-only primitive. The shape the value harness cannot run is a Simulated-tier routing signal — the const lands in plainSetup, so the client module still declares it (`all` resolves in the factory) and the tier-aware server emit drops it.
 		const source = `export function C({}: {})
 	@{
 		const n = createCell(1)
@@ -1272,9 +1237,7 @@ import { createCell } from '@zeix/le-truc'`
 		expect(hit?.detail).toContain('all')
 		expect(hit?.resolution).toEqual({ by: 'realm' })
 		expect(component?.entry.tier).toBe('simulated')
-		// The const is referenced by nothing else in the fixture, so it is
-		// dead code and the tier-aware server emit drops it rather than
-		// re-declaring a call the render function cannot run.
+		// The const is referenced by nothing else in the fixture, so it is dead code the tier-aware server emit drops rather than re-declaring a call the render function cannot run.
 		expect(component?.serverCode).not.toContain("all('.foo')")
 	})
 })
@@ -1565,8 +1528,7 @@ describe('first(selector, required) element references', () => {
 	})
 
 	test('a malformed first() call (wrong arg count/shape) is LTC025', () => {
-		// One literal is the OPTIONAL form since  — malformed
-		// now means neither one nor two string literals.
+		// One literal is the optional form — malformed means neither one nor two string literals.
 		const source = el("const input = first('input', 'a', 'b')", '<input />')
 		const { diagnostics } = compileComponent(source, 'c.tsrx', new Set())
 		const hit = diagnostics.find(d => d.code === 'LTC025')
@@ -1661,9 +1623,7 @@ export function BasicParent({ title }: { title: string })
 		)
 		expect(diagnostics).toEqual([])
 		expect(component).not.toBeNull()
-		// The selector the client queries is the compiler's own synthesis
-		// from the registry tag, not the author's text — the same contract
-		// raw-element `first()` has always had.
+		// The selector the client queries is the compiler's own synthesis from the registry tag, not the author's text — the same contract raw-element `first()` has always had.
 		expect(component?.clientCode).toContain(
 			"first('basic-child', 'the composed child')",
 		)
@@ -1689,9 +1649,7 @@ export function BasicParent({ title }: { title: string })
 			'c.tsrx',
 			new Set(),
 		)
-		// Before  this compiled silently: `b` never became a query,
-		// and the generated client referenced an undeclared const — a tsc
-		// error on GENERATED code with nothing pointing at this line.
+		// Without the check the generated client references an undeclared const — a tsc error on generated code pointing at nothing.
 		const dup = diagnostics.filter(d => d.code === 'LTC041')
 		expect(dup).toHaveLength(1)
 		expect(dup[0]?.message).toContain('`a`')
@@ -1739,7 +1697,6 @@ export function BasicParent({ title }: { title: string })
 			undefined,
 			new Map([[child.entry.source, child.entry]]),
 		)
-		// `ref={}` made this shape unwritable; `first()` does not.
 		expect(diagnostics.filter(d => d.code === 'LTC041')).toHaveLength(1)
 	})
 
@@ -1757,8 +1714,7 @@ export function BasicParent({ title }: { title: string })
 }</style>
 			</c-el>
 	}`
-		// `compileSource` alone cannot decide this — the tag could belong to
-		// a composed child — so the deferral must not swallow the error.
+		// `compileSource` alone cannot decide this — the tag could belong to a composed child — so the deferral must not swallow the error.
 		const { diagnostics } = compileComponent(
 			source,
 			'c.tsrx',
@@ -2030,18 +1986,13 @@ describe('asymmetric @if branch client constructs (per-branch addressing since L
 		)
 		expect(diagnostics).toEqual([])
 		expect(component).not.toBeNull()
-		// The constructed @else root is addressed with its own non-throwing
-		// query inside an existence guard; the static @if root is not
-		// addressed at all.
+		// The constructed @else root is addressed with its own non-throwing query inside an existence guard; the static @if root is not addressed at all.
 		expect(component?.clientCode).toContain("const button = first('button')")
 		expect(component?.clientCode).toContain('if (button) {')
 	})
 
 	test('a construct unique to one INDISTINGUISHABLE branch root stays an error (was LTC031)', () => {
-		// Both roots are bare <strong> — union addressing cannot carry the
-		// asymmetric construct, and per-branch guards over one selector
-		// would both bind the rendered element. LTC007 keeps the hazard an
-		// error, naming the fix.
+		// Both roots are bare <strong> — union addressing cannot carry the asymmetric construct, and per-branch guards over one selector would both bind the rendered element. LTC007 keeps the hazard an error, naming the fix.
 		const source = `export function C({ big }: { big?: boolean })
 	@{
 		expose({})
@@ -2305,10 +2256,7 @@ export function C({}: {}) {
 	})
 
 	test('a reactive attribute reading Date is omitted silently — unresolvability, not a warning (LT-165 step 5)', () => {
-		// ADR 0008 s1 limb b / s5: the expression has no server answer in ANY
-		// tier, so it is omitted and the client's first binding pass corrects
-		// it — no diagnostic, and (this site is not semantically loaded) no
-		// routing signal either: impure-ambient is not what routes a component.
+		// The expression has no server answer in any tier, so it is omitted and the client's first binding pass corrects it — no diagnostic, and (the site is not semantically loaded) no routing signal either: impure-ambient is not what routes a component.
 		const source = `export function C({}: {})
 	@{
 		const length = createCell(0)
@@ -2333,8 +2281,7 @@ import { createCell } from '@zeix/le-truc'`
 		expect(diagnostics.some(d => d.severity === 'warning')).toBe(false)
 		expect(component).not.toBeNull()
 		expect(component?.serverCode).not.toContain('Date.now')
-		// Not a routing signal: the component stays Folded — the omission is
-		// per-expression, and nothing else failed phase 1.
+		// Not a routing signal: the component stays folded — the omission is per-expression, and nothing else failed phase 1.
 		expect(component?.entry.tier).toBe('folded')
 		expect(component?.entry.routingSignals).toHaveLength(0)
 	})
@@ -2362,14 +2309,7 @@ import { createCell } from '@zeix/le-truc'`
 
 describe('semantically-loaded attribute with no server default (CHECKLIST §5, LTC034 — routing signal + severe-on-Static after LT-165 step 5)', () => {
 	test('hidden bound to a comparison over a host prop the root does NOT render is a routing signal, not a warning (LT-165 step 5)', () => {
-		// `count` is Parser-exposed but never seeded onto <c-el> as a server
-		// attribute — the ticket's derived-fold widening can't substitute it (no
-		// root expression to splice in), so this stays genuinely unfoldable,
-		// unlike the identical-shaped `host.count !== 0` comparison in the
-		// `c-plural` fixture (fixtures/plural/, the retired basic-pluralize),
-		// which DOES render `count` on its root.
-		// ADR 0008 s5: unfoldable ≠ author error — the site routes Simulated
-		// (the realm reads `host.count` for real) and the channel stays quiet.
+		// `count` is Parser-exposed but never seeded onto <c-el>, so the derived-fold cannot substitute it (no root expression to splice in) — genuinely unfoldable, unlike the same-shaped comparison in the `c-plural` fixture, which renders `count` on its root. Unfoldable is not an author error: the site routes Simulated (the realm reads `host.count` for real) and the channel stays quiet.
 		const source = `export function C({ count }: { count: number })
 	@{
 		expose({ count: asInteger() })
@@ -2415,19 +2355,14 @@ import { asInteger } from '@zeix/le-truc'`
 			new Set(),
 		)
 		expect(diagnostics.some(d => d.code === 'LTC034')).toBe(false)
-		// The seed is the parser applied to the attribute's serialized value
-		//  — the same evaluation the client's connect-time parse is.
+		// The seed is the parser applied to the attribute's serialized value — the same evaluation the client's connect-time parse is.
 		expect(component?.serverCode).toContain(
 			"attr('hidden', (() => (asInteger()(attrValue(count))) !== 0)())",
 		)
 	})
 
 	test('disabled bound to a derived-but-unrenderable comparison over two host props routes instead of warning', () => {
-		// Both `min`/`max` are Parser-exposed and rendered — but `value` is
-		// not rendered on the root, so the whole expression can't fold
-		// (all-or-nothing: one unfoldable `host.<prop>` read disqualifies it).
-		// No formAssociated → not the severe form → routing signal only, and
-		// the realm answers the host reads, so the tier lands Simulated.
+		// `min`/`max` are rendered but `value` is not, so the whole expression cannot fold (all-or-nothing: one unfoldable `host.<prop>` read disqualifies it). Not the severe form — routing signal only, and the realm answers the host reads, so the tier lands Simulated.
 		const source = `export function C({ value, min, max }: { value: number; min: number; max: number })
 	@{
 		expose({ value: asInteger(), min: asInteger(), max: asInteger() })
@@ -2454,10 +2389,7 @@ import { asInteger } from '@zeix/le-truc'`
 	})
 
 	test('disabled on a real submittable form control inside a form-associated component stays an error on the Static tier', () => {
-		// The RNG makes the site unresolvable — the realm could not answer it
-		// either, so the conjunction lands Static and the severe diagnostic
-		// survives: nothing will ever render `disabled`, and "enabled and
-		// submittable" regardless of intent is a correctness bug.
+		// The RNG makes the site unresolvable in every tier, so the severe diagnostic survives: nothing will ever render `disabled`, and "enabled and submittable" regardless of intent is a correctness bug.
 		const source = `export const config = { formAssociated: true }
 export function C({}: {})
 	@{
@@ -2488,13 +2420,7 @@ import { createCell, asString } from '@zeix/le-truc'`
 	})
 
 	test('a severe site the realm cannot answer fires even on a Simulated-tier component (LT-184)', () => {
-		// The edge the per-component scoping missed: the `disabled` thunk is
-		// unresolvable in EVERY tier (a time-window lockout reading the
-		// viewing moment), but another site (`hidden` over `host.busy`) is
-		// realm-answerable, so the component routes Simulated. The value is
-		// still omitted, shipping "enabled and submittable" on a submittable
-		// control — the diagnostic must fire on the SITE's resolution, not
-		// the component's tier.
+		// The `disabled` thunk is unresolvable in every tier (a time-window lockout reading the viewing moment), but another site is realm-answerable so the component routes Simulated — yet the value is still omitted, shipping "enabled and submittable" on a submittable control. The diagnostic fires on the site's resolution, not the component's tier.
 		const source = `export const config = { formAssociated: true }
 export function C({ busy }: { busy: boolean })
 	@{
@@ -2519,9 +2445,7 @@ import { asString, asBoolean } from '@zeix/le-truc'`
 		const hit = diagnostics.find(d => d.code === 'LTC034')
 		expect(hit?.severity).toBe('error')
 		expect(hit?.message).toContain('in any tier')
-		// The premise, pinned separately because the erroring compile returns
-		// no component to read a tier off: the very same markup without
-		// `formAssociated` (so nothing is severe) really does route Simulated.
+		// The premise, pinned separately because the erroring compile returns no component to read a tier off: the same markup without `formAssociated` (so nothing is severe) really does route Simulated.
 		const notSevere = compileComponent(
 			source.replace('export const config = { formAssociated: true }\n', ''),
 			'c.tsrx',
@@ -2531,11 +2455,7 @@ import { asString, asBoolean } from '@zeix/le-truc'`
 	})
 
 	test('the same severe site is silenced on the Simulated tier (ADR 0008 s5: the realm renders the value)', () => {
-		// Same submittable control, but the thunk is realm-answerable
-		// (`host.busy` — no stub, no impurity), so no error: the realm
-		// renders the value, so the diagnostic would be noise. The other
-		// direction of the  pin above — assert the component really
-		// did route Simulated, or the silence is vacuous.
+		// The thunk is realm-answerable (`host.busy` — no stub, no impurity), so no error: the realm renders the value and the diagnostic would be noise. The reverse pin of the test above: assert the component really routed Simulated, or the silence is vacuous.
 		const source = `export const config = { formAssociated: true }
 export function C({ busy }: { busy: boolean })
 	@{
@@ -2561,9 +2481,7 @@ import { asString, asBoolean } from '@zeix/le-truc'`
 	})
 
 	test('disabled on the same unfoldable thunk without formAssociated routes Static with no diagnostic', () => {
-		// Not formAssociated → not the severe form → the site is a routing
-		// signal only. Its RNG read is unresolvable, so the component itself
-		// lands Static — the census record the warning used to fake.
+		// Not formAssociated → not the severe form → routing signal only. The RNG read is unresolvable, so the component itself lands Static.
 		const source = `export function C({}: {})
 	@{
 		const busy = createCell(false)
@@ -2591,8 +2509,7 @@ import { createCell } from '@zeix/le-truc'`
 	})
 
 	test('disabled on a non-form-control element inside a form-associated component routes with no diagnostic', () => {
-		// A fieldset is not a submittable control, so the site is not severe:
-		// routing signal only (resolution none — the RNG), component Static.
+		// A fieldset is not a submittable control, so the site is not severe: routing signal only (resolution none — the RNG), component Static.
 		const source = `export const config = { formAssociated: true }
 export function C({}: {})
 	@{
@@ -2719,12 +2636,7 @@ describe('duplicate id across @try/@catch arms (LTC035 retired, LT-275)', () => 
 			</c-el>
 	}`
 
-	// Template-cloned arms (ADR 0015 s4) keep every non-winning arm out of
-	// the document, so a literal id repeated across arms no longer collides.
-	// The rule retired with the toggled boundary that needed it, and its
-	// code left the DiagnosticCode union; what remains is LTC042, the
-	// per-instance static-id warning, which is about placing the component
-	// twice and says nothing about the arms colliding.
+	// Template-cloned arms keep every non-winning arm out of the document, so a literal id repeated across arms does not collide; what remains is LTC042, the per-instance static-id warning about placing the component twice.
 	test('the same literal id across arms raises no error, only LTC042', () => {
 		const source = wrapTry(`@try {
 			<p id="msg">{status.length}</p>
@@ -2766,8 +2678,7 @@ describe('static ids in a template (LTC042, LT-131)', () => {
 		expect(warn[0]?.severity).toBe('warning')
 		// The fix-it names a concrete arg, not just the problem.
 		expect(warn[0]?.message).toContain("cLabelId = 'c-label'")
-		// A warning, not an error: one instance on a page is legitimate,
-		// and the compiler cannot know how many a page will place.
+		// A warning, not an error: one instance on a page is legitimate, and the compiler cannot know how many a page will place.
 		expect(component).not.toBeNull()
 	})
 
@@ -2805,15 +2716,7 @@ describe('static ids in a template (LTC042, LT-131)', () => {
 })
 
 describe('setup const reading a first()-bound ref (LTC043 routing / LTC046 rendered, LT-165 step 5)', () => {
-	//  historically. Every non-`first()` setup const lands in
-	// `component.setup`, which the FOLDED emit re-declares VERBATIM into the
-	// render function — so a const whose initializer reads a `first()`-bound
-	// ref would evaluate at server-render time, where no DOM exists. ADR 0008
-	// s5: that is a fact about the harness, not an author error — an
-	// UNrendered const is a routing signal and the component routes Simulated.
-	// The retired error survives, precisely scoped (LTC046), for the one case
-	// where the const's VALUE is rendered into the markup: a static splice no
-	// tier can produce and no client binding ever corrects.
+	// Every non-`first()` setup const is re-declared verbatim into the folded render function, so a const whose initializer reads a `first()`-bound ref would evaluate at server-render time, where no DOM exists. That is a fact about the harness, not an author error: an unrendered const is a routing signal and the component routes Simulated. The scoped error (LTC046) survives for the one case where the const's value is rendered into the markup — a static splice no tier can produce and no client binding corrects.
 	const refConst = (extra: string, setup: string, child: string): string =>
 		`import { asString } from '@zeix/le-truc'
 export function C({}: {})
@@ -2844,8 +2747,7 @@ export function C({}: {})
 		expect(hit?.detail).toContain('ref(s) input')
 		expect(hit?.resolution).toEqual({ by: 'realm' })
 		expect(component?.entry.tier).toBe('simulated')
-		// The server module must not evaluate the ref read it cannot run: the
-		// tier-aware emit drops the const instead.
+		// The server module must not evaluate the ref read it cannot run: the tier-aware emit drops the const instead.
 		expect(component?.serverCode).not.toContain('input.value')
 	})
 
@@ -2864,9 +2766,7 @@ export function C({}: {})
 	})
 
 	test('a ref also named inside expose() records the same single routing signal when unrendered', () => {
-		// Pre-step-5 this was the SILENT variant: the ref got a `refStub` any-
-		// stub and the module compiled clean, rendering an empty site. Under
-		// tiering both spellings are the same routing fact.
+		// Both spellings are the same routing fact: without it, the ref got an any-stub and the module compiled clean rendering an empty site.
 		const { component } = compileComponent(
 			refConst(
 				' value: asString(input.value),',
@@ -2883,9 +2783,7 @@ export function C({}: {})
 	})
 
 	test('a ref read inside a FUNCTION body does NOT fire', () => {
-		// form-spinbutton's `commit`/`typed`/`stepBy` shape: a setup helper is
-		// dead code server-side (defined, never called), so its ref reads never
-		// evaluate. Firing here would reject the corpus.
+		// form-spinbutton's `commit`/`typed`/`stepBy` shape: a setup helper is dead code server-side (defined, never called), so its ref reads never evaluate — firing here would reject the corpus.
 		const source = `export function C({}: {})
 @{
 	const input = first('input', 'the control')
@@ -2904,8 +2802,7 @@ export function C({}: {})
 			'c.tsrx',
 			new Set(['c-el']),
 		)
-		// LTC043 is retired onto RoutingSignalOrigin ; the pin is
-		// now the absence of ANY diagnostic.
+		// The pin is the absence of any diagnostic.
 		expect(diagnostics).toEqual([])
 	})
 
@@ -2928,17 +2825,13 @@ export function C({}: {})
 			'c.tsrx',
 			new Set(['c-el']),
 		)
-		// LTC043 is retired onto RoutingSignalOrigin ; the pin is
-		// now the absence of ANY diagnostic.
+		// The pin is the absence of any diagnostic.
 		expect(diagnostics).toEqual([])
 	})
 })
 
 describe('LTC039 and the sanctioned override shape (LT-129)', () => {
-	// The criterion (owner, 2026-08-30): warn only when the two channels carry
-	// the SAME value by INDEPENDENT routes. A Parser whose fallback expression
-	// reads the very site the arg renders into is bullet 2's declared
-	// precedence — host attribute wins over the harvested value — not a copy.
+	// Warn only when the two channels carry the same value by independent routes. A Parser whose fallback expression reads the very site the arg renders into is the declared precedence — host attribute wins over the harvested value — not a copy.
 	const overrideSource = (attrs: string, extra = ''): string =>
 		`import { asNumber } from '@zeix/le-truc'
 export function C({ step = 1 }: { step?: number })
@@ -2965,9 +2858,7 @@ export function C({ step = 1 }: { step?: number })
 	})
 
 	test('a Parser whose fallback reads NOTHING still warns', () => {
-		// The independent-copies shape: `step`'s seeding channel is the host
-		// attribute alone, so rendering the arg into an owned site is a second
-		// copy — form-textbox's `value` and form-tokenbox's `description`.
+		// The independent-copies shape: `step`'s seeding channel is the host attribute alone, so rendering the arg into an owned site is a second copy — form-textbox's `value` and form-tokenbox's `description`.
 		const source = `import { asNumber } from '@zeix/le-truc'
 export function C({ step = 1 }: { step?: number })
 @{
@@ -2989,9 +2880,7 @@ export function C({ step = 1 }: { step?: number })
 	})
 
 	test('the exclusion is per-SITE — a DIFFERENT element still warns', () => {
-		// `input`'s fallback sanctions the override on the input itself. The
-		// same arg rendered onto a second, unrelated element is still one value
-		// through two independent channels, and must keep warning.
+		// `input`'s fallback sanctions the override on the input itself; the same arg rendered onto a second, unrelated element is still one value through two independent channels, and must keep warning.
 		const source = `import { asNumber } from '@zeix/le-truc'
 export function C({ step = 1 }: { step?: number })
 @{
@@ -3017,10 +2906,7 @@ export function C({ step = 1 }: { step?: number })
 })
 
 describe('LTC039 override exclusion reaches TEXT CHILDREN too (LT-139)', () => {
-	//  excluded the sanctioned override on ATTRIBUTE sites only. The same
-	// relationship spelled as a text child is bullet 4's canonical harvest site
-	// (`<span class="label">{label}</span>`) with bullet 2's host-attribute
-	// override added — two shapes the profile endorses, combined.
+	// The sanctioned override extends to the canonical text-child harvest site (`<span class="label">{label}</span>`) combined with the host-attribute override — two endorsed shapes together.
 	test('fallback reads the span it renders into — no warning', () => {
 		const source = `import { asString } from '@zeix/le-truc'
 export function C({ label = '' }: { label?: string })
@@ -3044,8 +2930,7 @@ export function C({ label = '' }: { label?: string })
 	})
 
 	test('per-SITE still holds — a text child in a DIFFERENT element warns', () => {
-		// `labelSpan`'s fallback sanctions the override on that span alone. The
-		// same arg rendered as a second element's text is an independent copy.
+		// `labelSpan`'s fallback sanctions the override on that span alone; the same arg rendered as a second element's text is an independent copy.
 		const source = `import { asString } from '@zeix/le-truc'
 export function C({ label = '' }: { label?: string })
 @{
@@ -3092,11 +2977,7 @@ export function C({ label = '' }: { label?: string })
 })
 
 describe('LTC039 exempts a formAssociated() reset baseline (LT-141)', () => {
-	// form-textbox's real shape: `value` is Parser-exposed, rendered into an
-	// owned text child (`<textarea>{value}</textarea>`), AND rendered onto
-	// the root as the host attribute (`<form-textbox {value}>`) — which is
-	// the RESET BASELINE `formResetCallback` reads (defaultValue), not an
-	// independent second copy of the current value.
+	// form-textbox's real shape: `value` is Parser-exposed, rendered into an owned text child (`<textarea>{value}</textarea>`), and rendered onto the root as the host attribute (`<form-textbox {value}>`) — the reset baseline `formResetCallback` reads (defaultValue), not an independent second copy of the current value.
 	test('formAssociated() root carrying the value attribute — no warning', () => {
 		const source = `import { asString } from '@zeix/le-truc'
 export const config = { formAssociated: true }
@@ -3142,11 +3023,7 @@ export function C({ checked = false }: { checked?: boolean })
 	})
 
 	test('formAssociated() root WITHOUT the value attribute still warns, with the baseline fix-it', () => {
-		// No baseline attribute means no reset baseline — the original
-		// duplication hazard (fallback-wins-on-first-bind) is real, but the
-		// ordinary "drop the attribute" advice would tell the author to
-		// delete the very thing formResetCallback needs, so the message must
-		// say to ADD the attribute instead.
+		// No baseline attribute means the duplication hazard is real, but "drop the attribute" would delete the very thing formResetCallback needs — the message says to ADD the attribute instead.
 		const source = `import { asString } from '@zeix/le-truc'
 export const config = { formAssociated: true }
 export function C({ value = '' }: { value?: string })
@@ -3173,9 +3050,7 @@ export function C({ value = '' }: { value?: string })
 	})
 
 	test('a non-form-associated component exposing `value` still warns', () => {
-		// Same site shape as form-textbox, minus formAssociated() — nothing
-		// reserves `value` as a reset baseline here, so it is a plain
-		// duplicate and the ordinary fix-it applies.
+		// Same site shape as form-textbox, minus formAssociated() — nothing reserves `value` as a reset baseline here, so it is a plain duplicate and the ordinary fix-it applies.
 		const source = `import { asString } from '@zeix/le-truc'
 export function C({ value = '' }: { value?: string })
 @{
@@ -3213,9 +3088,7 @@ describe('LTC033 covers static/server-rendered attributes', () => {
 }`
 
 	test('a server-rendered attribute reading Date is a hard error', () => {
-		// Same hazard as the static-CHILD form already caught: the attribute
-		// renders once, server-side, forever — there is no watch() to correct
-		// the build machine's clock reading.
+		// Same hazard as the static-child form already caught: the attribute renders once, server-side, forever — there is no watch() to correct the build machine's clock reading.
 		const { diagnostics } = compileComponent(
 			withAttrs('<div title={Date.now()}></div>'),
 			'c.tsrx',
@@ -3239,10 +3112,7 @@ describe('LTC033 covers static/server-rendered attributes', () => {
 	})
 
 	test('a REACTIVE thunk over the same ambient is omitted silently (LT-165 step 5)', () => {
-		// The client's first binding pass corrects an omitted fold, so the
-		// reactive form is unresolvability (ADR 0008 s1 limb b), not an author
-		// error — no diagnostic, no routing signal (impure-ambient does not
-		// route; the `title` site is not semantically loaded either).
+		// The client's first binding pass corrects an omitted fold, so the reactive form is unresolvability, not an author error — no diagnostic, no routing signal (impure-ambient does not route; the `title` site is not semantically loaded either).
 		const { component, diagnostics } = compileComponent(
 			withAttrs('<div title={() => String(Date.now())}></div>'),
 			'c.tsrx',
@@ -3263,14 +3133,8 @@ describe('LTC033 covers static/server-rendered attributes', () => {
 	})
 })
 
-/* === ADR 0007's owed rules (LT-157) === */
-
 /**
- * ADR 0007 sub-design 5 makes the compiler the primary channel and the
- * runtime a backstop.  contained the runtime half, so a condition with
- * no rule here is a condition the author now learns about from a console
- * line on a page that already degraded — these four rules are what buys
- * containment back.
+ * The compiler is the primary channel and the runtime a backstop; these rules catch conditions the author would otherwise learn about from a console line on a page that already degraded.
  */
 describe('reserved expose() key (LTC028, LT-157a)', () => {
 	const exposing = (props: string): string =>
@@ -3300,9 +3164,7 @@ describe('reserved expose() key (LTC028, LT-157a)', () => {
 	})
 
 	test('every RESERVED_WORDS_LIST entry is covered, not just the obvious ones', () => {
-		// The list is duplicated in `vocabulary.ts` (the compiler does not
-		// import the runtime library), so a drift between the two is exactly
-		// the failure this rule exists to prevent.
+		// The list is duplicated in `vocabulary.ts` (the compiler does not import the runtime library), so a drift between the two is exactly the failure this rule exists to prevent.
 		for (const word of [
 			'constructor',
 			'prototype',
@@ -3328,8 +3190,7 @@ describe('reserved expose() key (LTC028, LT-157a)', () => {
 	})
 
 	test('the check is ungated — it does not need config.formAssociated', () => {
-		// LTC028's other builder only fires for a form-associated
-		// component; this one has nothing to do with form participation.
+		// LTC028's other builder only fires for a form-associated component; this one has nothing to do with form participation.
 		const { diagnostics } = compileComponent(
 			exposing(`valueOf: 1`),
 			'c.tsrx',
@@ -3391,8 +3252,7 @@ describe('malformed selector (LTC026, LT-157b)', () => {
 	})
 
 	test('the scan reaches a call nested in a handler or a defineMethod body', () => {
-		// The rule's whole point: form-listbox calls `all()` from both, and
-		// neither goes through setup extraction.
+		// The rule's whole point: form-listbox calls `all()` from both, and neither goes through setup extraction.
 		const { diagnostics } = compileComponent(
 			withSetup(
 				`const focusFirst = () => { document.querySelector('x') }
@@ -3409,9 +3269,7 @@ describe('malformed selector (LTC026, LT-157b)', () => {
 	})
 
 	test('a selector this compiler cannot structurally verify is NOT malformed', () => {
-		// `:not(…)` is outside `first-refs.ts`'s structural subset but is
-		// perfectly valid CSS. Conflating "cannot verify" with "malformed"
-		// would fail builds over working markup — see selector-syntax.ts.
+		// `:not(…)` is outside `first-refs.ts`'s structural subset but valid CSS — conflating "cannot verify" with "malformed" would fail builds over working markup.
 		const { diagnostics } = compileComponent(
 			withSetup(`const opts = all('button[role="option"]:not([hidden])')`),
 			'c.tsrx',
@@ -3465,8 +3323,7 @@ describe('deferred collector call (LTC045, LT-157d)', () => {
 	})
 
 	test('a top-level client-only setup statement is untouched', () => {
-		// The ticket's sanctioned escape hatch — the collector IS active
-		// there, which is the whole distinction this rule draws.
+		// The sanctioned escape hatch — the collector IS active there, the whole distinction this rule draws.
 		const { diagnostics } = compileComponent(
 			withSetup(`on('click', () => {})`),
 			'c.tsrx',
@@ -3514,11 +3371,7 @@ describe('deferred collector call (LTC045, LT-157d)', () => {
 })
 
 describe('reactive-list body impure-ambient diagnostic (LT-221 §1.1, retired LT-423)', () => {
-	// `Date` is a JS global, so `dependenciesOf` strips it and the offender
-	// list is EMPTY. The slot-fill refusal that carried the  §1.1
-	// message retired with the slot fill (ADR 0024 s1): the shape now hits
-	// the shared lazy-text gate instead — `{Date.now()}` classifies server,
-	// so the lazy `{item}` child stands beside other content.
+	// `Date` is a JS global, so `dependenciesOf` strips it and the offender list is empty. The shape hits the shared lazy-text gate instead: `{Date.now()}` classifies server, so the lazy `{item}` child stands beside other content.
 	const mapBody = '{items.map(item => <li>{item} {Date.now()}</li>)}'
 
 	test('.tsx — the retired impure-ambient refusal is the shared gate now', () => {
@@ -3876,8 +3729,7 @@ export function C({ children = '' }: { children?: ${childrenType} }, { first }: 
 		)
 		expect(reachIns({ diagnostics })).toHaveLength(0)
 		expect(diagnostics).toHaveLength(0)
-		// The role-addressed ref queries the authored selector from the host;
-		// the region re-include resolves it inside the content (ADR 0026 s1).
+		// The role-addressed ref queries the authored selector from the host; the region re-include resolves it inside the content.
 		expect(component?.clientCode).toContain("'.icon'")
 	})
 
@@ -4122,10 +3974,7 @@ export function C({ children = '' }: { children?: MyChildren })
 	})
 
 	test('a required role ref without a {children} insertion stays LTC026 (.tsrx)', () => {
-		// Without an insertion the content can never arrive — statically
-		// decidable, so the compiler owns it (review 2): the role bypass
-		// does not apply and the required reference falls through to
-		// LTC026.
+		// Without an insertion the content can never arrive — statically decidable, so the role bypass does not apply and the required reference falls through to LTC026.
 		const source = `export function C({ children = '' }: { children?: Children<{ icon: 'span' }> })
 @{
 	const icon = first('.icon', 'the icon')
@@ -4184,7 +4033,7 @@ export function C({ children = '' }: { children?: Children<{ icon: 'span' }> }, 
 	})
 
 	test('a required deferred role ref without a {children} insertion stays LTC026 too', () => {
-		// The compose-registry leg carries the same insertion gate (review 2).
+		// The compose-registry leg carries the same insertion gate.
 		const source = `export function C({ children = '' }: { children?: Children<{ box: 'form-textbox' }> })
 @{
 	const box = first('.box', 'the box')
@@ -4298,11 +4147,7 @@ export function FormRow({}: {}, {}) {
 	})
 
 	test('markup a component passes at its own compose site counts toward its flag', () => {
-		// FormRow renders <FormCheck><button>x</button></FormCheck>: the
-		// button is FormRow's own markup (ADR 0026 s1), rendered in its
-		// output, so FormRow's entry is interactive — while the receiving
-		// child's flag is untouched, the button never being part of its
-		// template. (The child declares no model, so the site compiles.)
+		// The button is FormRow's own markup, rendered in its output, so FormRow's entry is interactive — the receiving child's flag is untouched, the button never being part of its template. (The child declares no model, so the site compiles.)
 		const child = compileChildTsrx('string')
 		const { component, diagnostics } = compileComponent(
 			parentTsrx('<button type="button">x</button>'),
@@ -4740,8 +4585,7 @@ export function TabsDemo({}: {}, { first, watch }: any) {
 		expect(hits[0]?.message).toContain('`<my-tabs>`')
 		expect(hits[0]?.message).toContain('`.tab`')
 		expect(hits[0]?.message).toContain('`aria-selected`')
-		// The report sits at the parent's binding (ADR 0022): the authored
-		// text under the range is the binding helper call itself.
+		// The report sits at the parent's binding: the authored text under the range is the binding helper call itself.
 		const parentSource = parentTsrx(`bindProperty(tab, 'aria-selected')`)
 		expect(textAt(parentSource, hits[0])).toBe(
 			`bindProperty(tab, 'aria-selected')`,
@@ -4902,8 +4746,7 @@ export function MyTabs({ children = '' }: { children?: Children<{ tab: 'button' 
 	})
 
 	test('a multi-word ARIA name meets its lowercase attribute (.tsrx)', () => {
-		// ARIA attribute names carry no inner capitals: `ariaValueNow`
-		// reflects `aria-valuenow`, not `aria-value-now` ( review 1).
+		// ARIA attribute names carry no inner capitals: `ariaValueNow` reflects `aria-valuenow`, not `aria-value-now`.
 		const child = compileChildTsrx(
 			childBind(`bindAria(tab, 'ariaValueNow')`, 'bindAria'),
 		)
@@ -4925,8 +4768,7 @@ export function MyTabs({ children = '' }: { children?: Children<{ tab: 'button' 
 	})
 
 	test('an IDL property meets its attribute spelling (.tsrx)', () => {
-		// `bindProperty(el, 'tabIndex')` and `bindAttribute(el, 'tabindex')`
-		// write the same state under different spellings ( review 2).
+		// `bindProperty(el, 'tabIndex')` and `bindAttribute(el, 'tabindex')` write the same state under different spellings.
 		const child = compileChildTsrx(
 			childBind(`bindProperty(tab, 'tabIndex')`, 'bindProperty'),
 		)
@@ -4946,8 +4788,7 @@ export function MyTabs({ children = '' }: { children?: Children<{ tab: 'button' 
 	})
 
 	test('a whole class write conflicts with a bound token, both directions (.tsrx)', () => {
-		// Replacing the whole `class` attribute erases the child's token
-		// ( review 3) — the parent's whole write first.
+		// Replacing the whole `class` attribute erases the child's token — the parent's whole write first.
 		const child = compileChildTsrx(
 			childBind(`bindClass(tab, 'active')`, 'bindClass'),
 		)
@@ -5129,10 +4970,7 @@ export function C({ children = '' }: { children?: Children<{ icon: 'span' }> }, 
 
 	test('the required ref throws the authored reason when the content lacks the element', async () => {
 		expect(required.diagnostics).toEqual([])
-		// The parent passes content without the role's class: the query
-		// finds nothing and the runtime's existing required-ref check
-		// throws; the containment reports it and the component keeps its
-		// server-rendered markup (ADR 0007 tier 2 reporting a tier 3 error).
+		// The parent passes content without the role's class: the query finds nothing, the runtime's required-ref check throws, and the containment reports it while the component keeps its server-rendered markup.
 		const { diagnostics } = await realm.render({
 			markup: renderC({ children: '<p>nothing</p>' }),
 			component: 'c-el',

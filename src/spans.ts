@@ -1,17 +1,3 @@
-/**
- * Generated-file ↔ source-file span mapping (ADR 0005 sub-design 6
- * amendment). `createVolarMappingsResult` demands a source map that covers
- * every source-AST token — an invariant only Ripple's own esrap-shaped
- * transforms satisfy (see the  probe). Our split compiler instead
- * records a SPARSE table: one entry per verbatim slice actually copied from
- * `.tsrx` source into a generated module. That is sufficient because TS
- * diagnostics only ever arise in CODE positions — setup statements,
- * reactive thunks, event handlers — and every code position lowers into
- * the generated module verbatim (never rewritten character-for-character,
- * only reindented). Template markup lowers into the SERVER half and never
- * produces a TS diagnostic, so it needs no coverage here.
- */
-
 import { commonIndent, lineStartsInTemplate } from './indent'
 
 /* === Types === */
@@ -56,17 +42,6 @@ const offsetToLineCol = (
 
 /* === Exported Functions === */
 
-/**
- * Re-indent a verbatim slice for generated code (moved from
- * emit-server.ts so the reindentation family lives in one module): strip
- * the source's common indentation, apply `level` tabs (first line
- * included). Lines inside a multi-line template literal pass through
- * byte-identical — their leading whitespace is string content, not
- * indentation (). Unlike `appendWithSpans` below — which never
- * strips the first line (callers pass it already positioned) and whose
- * common-indent computation skips it — this variant computes `common` over
- * ALL significant lines and strips it from every line that starts with it.
- */
 export const reindent = (slice: string, level: number): string => {
 	const lines = slice.split('\n')
 	const mask = lineStartsInTemplate(lines)
@@ -83,22 +58,6 @@ export const reindent = (slice: string, level: number): string => {
 		.join('\n')
 }
 
-/**
- * Append `text` (already assembled, with any verbatim `slices` interpolated
- * into it) to `lines`, applying the module's reindent rule (see `reindent`
- * above for the precise difference: the FIRST line here is prefixed but
- * never stripped, and excluded from the common-indent computation — callers
- * pass it already positioned mid-line): continuation lines drop their
- * common leading indentation and gain `depth` tabs; lines that start inside
- * an open template literal pass through byte-identical (). While doing
- * so, record one `SourceSpan` per generated LINE each slice touches — a
- * slice's own internal reindent-induced offset shift is per-line, so a
- * single [start, start, length] tuple would be wrong across a line boundary.
- *
- * `cursor.offset` tracks the running character offset of `lines.join('\n')`;
- * callers add the module's fixed header length once after assembly (spans
- * are computed relative to the function/factory body, not the whole file).
- */
 export const appendWithSpans = (
 	lines: string[],
 	text: string,
@@ -205,11 +164,6 @@ export const fileLineColToOffset = (
 	return lineStart + (col - 1)
 }
 
-/**
- * The span covering `offset`, or the nearest one starting before it (a
- * diagnostic can point just past a verbatim slice — a missing closing
- * paren reads as an error at the position right after the thunk).
- */
 export const findSpanForGeneratedOffset = (
 	spans: readonly SourceSpan[],
 	offset: number,

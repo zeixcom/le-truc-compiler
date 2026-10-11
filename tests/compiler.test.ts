@@ -1,7 +1,4 @@
-/**
- * Unit tests for the TSRX compiler front end (server/compiler/frontend/tsrx/compiler.ts):
- * JSX text collapsing, free-identifier scoping, and template classification.
- */
+/** Unit tests for the TSRX compiler front end: JSX text collapsing, free-identifier scoping, and template classification. */
 import { describe, expect, test } from 'bun:test'
 import { collapseJsxText, freeIdentifiers } from '../src/ast-utils'
 import { compileComponent } from '../src/frontend/tsrx'
@@ -18,9 +15,7 @@ const firstElementChild = (
 }
 
 describe('attribute shorthand `{name}`', () => {
-	// @tsrx/core parses `<c-el {name}>` to the same JSXAttribute shape as
-	// `name={name}`, so the whole pipeline treats them identically. This test
-	// pins that equivalence — a parser pin upgrade must not silently drop it.
+	// @tsrx/core parses `<c-el {name}>` to the same JSXAttribute shape as `name={name}`; a parser pin upgrade must not silently drop that equivalence.
 	const compile = (attr: string) => {
 		const source = `export function C({ name }: { name?: string })
 	@{
@@ -116,8 +111,7 @@ import { createCell } from '@zeix/le-truc'`,
 		const onClick = component?.root.attrs.find(a => a.kind === 'event')
 		if (onClick?.kind !== 'event') throw new Error('expected event attr')
 		const free = freeIdentifiers(onClick.handler)
-		// `String` is a JS global — freeIdentifiers reports it raw; global
-		// filtering is the analyzer's dependency-provability concern.
+		// `String` is a JS global — freeIdentifiers reports it raw; global filtering is the analyzer's dependency-provability concern.
 		expect([...free].sort()).toEqual(['String', 'selected'])
 	})
 
@@ -195,10 +189,7 @@ describe('reactive attribute thunks may reference a plain setup const', () => {
 		expect(component?.clientCode).toContain('fmt(1)')
 	})
 
-	//: LTC005 names server bindings only. An undeclared name is no
-	// binding at all — a typo or a missing import that tsc reports on the
-	// authored `.tsx` and on the generated module, with the right message.
-	// Before  the allowlist called it "server-only".
+	// LTC005 names server bindings only; an undeclared name is no binding at all — a typo or a missing import that tsc reports on the authored `.tsx` and on the generated module.
 	test('a reactive attribute referencing a genuinely undeclared name is left to tsc', () => {
 		const { diagnostics } = compileComponent(
 			`export function C({}: {})
@@ -439,8 +430,7 @@ export function C({ value = '' }: { value?: string })
 import { asString, asInteger, defineMethod } from '@zeix/le-truc'`,
 			'c.tsrx',
 		)
-		// `fallbackNode` () carries the fallback's AST beside its text, so
-		// match on the recorded fields rather than the whole entry.
+		// The recorded parser entry carries the fallback's AST beside its text; match on the recorded fields rather than the whole entry.
 		expect(component?.exposeProps.get('value')?.parser).toMatchObject({
 			parser: 'asString',
 			fallbackText: "'x'",
@@ -611,8 +601,7 @@ import { Widget } from './widget.tsrx'`,
 	})
 
 	test('managed lazy child requires form config to be more than text', () => {
-		// Without config.form, `{host.validationMessage}` is an ordinary
-		// string-literal child — the managed-prop lowering never applies.
+		// Without config.form, `{host.validationMessage}` is an ordinary string-literal child — the managed-prop lowering never applies.
 		const { component } = compileSource(
 			`export function C({}: {})
 			@{

@@ -1,13 +1,5 @@
-/**
- * JSXAttribute → `AttributeIR`/`ComposeAttrIR` classification (ADR 0005 sub-
- * design 10). One parser (`classifyPassEntries`) shared by both element
- * kinds — raw dashed tags (`classifyAttribute`) and composed PascalCase
- * elements (`classifyComposeAttribute`) — so `pass={{ … }}` has exactly one
- * dispatch path, not two.
- */
-
-import type { AstNode } from './ast-node'
 import {
+	type AstNode,
 	asArray,
 	attrName,
 	eventNameFromAttr,
@@ -16,17 +8,10 @@ import {
 	isNode,
 	text,
 } from './ast-utils'
-import { diagnostic } from './diagnostics'
 import type { ExtractContext } from './extract-context'
 import type { AttributeIR, ComposeAttrIR, PassEntryIR } from './ir'
 import { bindsExposedArg, dependencyClosure } from './reactivity'
 
-/**
- * Parse `pass={{ prop: thunk, … }}` entries — shared by raw dashed tags and
- * composed elements (ADR 0005 sub-design 10: one dispatch path, not two). A
- * `{ get, set }` descriptor entry lowers to a two-way `pass()` accessor
- * (ADR 0003); anything else is an outright invalid entry.
- */
 export const classifyPassEntries = (
 	ctx: ExtractContext,
 	attr: AstNode,
@@ -109,32 +94,19 @@ const LEGACY_PASS_ATTR = 'pass'
 const renamedPassReason =
 	'`pass={{ … }}` is now `truc:pass={{ … }}` — host-owned attributes are namespaced so they cannot collide with a user prop called `pass`.'
 
-/** The host-owned dynamic-rendering attribute, and its pre-LT-137 name. */
+/** The host-owned dynamic-rendering attribute, and its retired bare name. */
 const HTML_ATTR = 'truc:html'
 const LEGACY_HTML_ATTR = 'html'
 
 const renamedHtmlReason =
 	'`html={…}` is now `truc:html={…}` — host-owned attributes are namespaced so they cannot collide with a user prop called `html` (LT-128). Core TSRX defines no `{html expr}` keyword in any published release; it delegates raw markup to the host, and Le Truc owns this one because it routes the value through `sanitizeHtml` rather than assigning it raw.'
 
-/**
- * The rest of the host-owned `truc:` namespace (). Only the names
- * above carry meaning; any other `truc:*` name used to fall through to the
- * ordinary attribute arms and render into the markup verbatim, where the
- * browser ignores it — silently wrong, the  failure for `class:`.
- * `truc:case`/`truc:case-type` were the pre-ICU plural spellings, retired
- * by ADR 0009 s4 (the variance lives in the message pattern now).
- */
 const TRUC_NAMESPACE = 'truc:'
 const RETIRED_TRUC_ATTRS: ReadonlySet<string> = new Set([
 	'truc:case',
 	'truc:case-type',
 ])
 
-/**
- * The LTC006 reason for an unrecognized `truc:*` name, or `null` when the
- * name is outside the namespace. `known` is the vocabulary the element kind
- * accepts, named in the message so a typo has its fix in sight.
- */
 const unknownTrucAttrReason = (
 	name: string,
 	known: readonly string[],
@@ -146,28 +118,15 @@ const unknownTrucAttrReason = (
 	return `\`${name}\` is not a Le Truc attribute — the \`truc:\` namespace is host-owned, so an unrecognized name would pass through as an ordinary attribute that nothing reads. Use ${names}, or drop the \`truc:\` prefix for an ordinary attribute.`
 }
 
-/**
- * React's DOM-property attribute names (). Rendered verbatim they are
- * not real HTML attributes — the browser ignores `className`/`htmlFor`
- * entirely, so the near-miss is silently broken rather than merely
- * non-idiomatic. TSRX has no JSX-to-DOM-property translation layer; `class`/
- * `for` are the real HTML attribute names.
- */
 const REACT_ATTR_RENAMES: ReadonlyMap<string, string> = new Map([
 	['className', 'class'],
 	['htmlFor', 'for'],
 ])
 
-/**
- * Classify one JSXAttribute into the attribute IR. The variant chosen is the
- * value's reactivity class (ADR 0005 s4: a function-valued attribute is
- * reactive), and every value-bearing variant records its dependency closure
- * (ADR 0018 s7) — decided here, once.
- */
 export const classifyAttribute = (
 	ctx: ExtractContext,
 	attr: AstNode,
-	/** Declared signal names — LT-122's exclusion (see `bindsExposedArg`). */
+	/** Declared signal names (see `bindsExposedArg`). */
 	signals: { has(name: string): boolean },
 ): AttributeIR | { kind: 'invalid'; reason: string } => {
 	const name = attrName(attr)
@@ -179,27 +138,14 @@ export const classifyAttribute = (
 		if ('reason' in entries) return entries
 		return { kind: 'pass', entries }
 	}
-	// The pre- spelling. Caught explicitly rather than left to fall
-	// through: `pass={{ … }}` would classify as a server attribute and render
-	// `pass="[object Object]"` into the markup — silently wrong output, the
-	// worst failure mode this compiler has. Every spelling is rejected, not
-	// just the expression form: `pass` is not an HTML attribute, so there is
-	// no legitimate author use to preserve.
 	if (name === LEGACY_PASS_ATTR)
 		return { kind: 'invalid', reason: renamedPassReason }
-	// React's DOM-property attribute names (): not real HTML attributes,
-	// so passed through verbatim they render into markup the browser ignores.
 	const reactRename = REACT_ATTR_RENAMES.get(name)
 	if (reactRename)
 		return {
 			kind: 'invalid',
 			reason: `\`${name}\` is a React DOM-property name, not an HTML attribute — TSRX has no JSX-to-DOM-property translation, so this would render into the markup verbatim and the browser would ignore it. Use \`${reactRename}\` instead.`,
 		}
-	// The pre- spelling: `ref={}` is retired outright, no deprecation
-	// cycle (the compiler has never shipped). `first(selector, required)` in
-	// setup replaces it — resolved structurally at compile time instead of
-	// via magic attribute placement (see `first-refs.ts`), and works on both
-	// raw and composed elements without a separate `ComposeAttrIR` variant.
 	if (name === 'ref')
 		return {
 			kind: 'invalid',
@@ -211,15 +157,8 @@ export const classifyAttribute = (
 			isNode(value) && value.type === 'JSXExpressionContainer'
 				? value.expression
 				: value
-		// A bare identifier (`{onInput}`, i.e. `onInput={onInput}`) resolves
-		// against a hoisted setup const — the handler is exactly its
-		// initializer, so two `@if` branches sharing the identifier get
-		// identical handler text automatically (union addressing requires
-		// this, ADR 0005 ).
 		const resolvedName =
 			isNode(raw) && raw.type === 'Identifier' ? identifierName(raw) : null
-		// A handler arg placed on this element (): the composing parent
-		// binds its own handler here, so the component emits nothing for it.
 		const handlerArg = resolvedName ? ctx.handlerArgs.get(resolvedName) : null
 		if (handlerArg && isNode(raw)) {
 			ctx.handlerArgRefs.add(raw)
@@ -246,17 +185,6 @@ export const classifyAttribute = (
 			handlerText: text(ctx.source, expr),
 		}
 	}
-	// Dynamic rendering: truc:html={dataRef} (). Host-owned and
-	// namespaced: core TSRX defines no `{html expr}` keyword in any published
-	// release — it delegates raw markup to the host, and the reference host
-	// answers with a literal `innerHTML` attribute. Le Truc does not borrow
-	// that name because it sanitizes rather than assigning raw ().
-	// Only data references are accepted; the emitters route the value through
-	// the runtime's sanitizeHtml before it reaches the output.
-	// The bare spelling must NOT fall through to the ordinary-attribute path
-	// below: `html` is not a real HTML attribute, so a silent reclassification
-	// would render a dead `html="…"` and drop the sanitize/bind behaviour
-	// entirely ().
 	if (name === LEGACY_HTML_ATTR)
 		return { kind: 'invalid', reason: renamedHtmlReason }
 	if (name === HTML_ATTR) {
@@ -265,10 +193,6 @@ export const classifyAttribute = (
 				? value.expression
 				: value
 		if (isNode(expr) && expr.type === 'ArrowFunctionExpression') {
-			// truc:html={() => …} (): a reactive thunk, lowered client-side to
-			// dangerouslyBindInnerHTML — exprText/node stay the BODY expression
-			// so server rendering (isServerEvaluable gating) is identical to the
-			// non-reactive bare-reference form below.
 			const body = expr.body
 			if (!isNode(body))
 				return {
@@ -299,18 +223,8 @@ export const classifyAttribute = (
 			reactive: false,
 		}
 	}
-	// Any other `truc:*` name (): the namespace is host-owned, so an
-	// unrecognized one is a typo or a retired spelling, never an attribute.
 	const trucReason = unknownTrucAttrReason(name, [PASS_ATTR, HTML_ATTR])
 	if (trucReason) return { kind: 'invalid', reason: trucReason }
-	// The Svelte-style per-class spelling (): `class:`-prefixed names
-	// used to slip past every check above into the ordinary fallthrough —
-	// the server-evaluable call form rendered a literal `class:token`
-	// attribute the browser ignores, and the thunk form classified reactive
-	// and emitted a watch that read `.token` off the thunk's RESULT (a class
-	// that could never apply). Both silently wrong; rejected outright, since
-	// the class map below is the sanctioned spelling and the corpus never
-	// used the prefix.
 	if (name.startsWith('class:'))
 		return {
 			kind: 'invalid',
@@ -359,11 +273,6 @@ export const classifyAttribute = (
 				kind: 'invalid',
 				reason: `Attribute \`${name}\` uses an unsupported function form; write a thunk (() => value).`,
 			}
-		//: `disabled={disabled}`, where `disabled` is both a
-		// server arg and an exposed prop, still renders from the arg
-		// server-side — and additionally binds `() => host.disabled`
-		// against the same element client-side, so an external prop
-		// write reaches the DOM the component itself rendered.
 		const bindsProp = bindsExposedArg(
 			expr,
 			ctx.argNames,
@@ -386,14 +295,6 @@ export const classifyAttribute = (
 	}
 }
 
-/**
- * Classify one JSXAttribute on a composed (PascalCase) element. `ref` keeps
- * its usual meaning; `pass={{ … }}` is the sole client-prop interop channel
- * (ADR 0005 sub-design 10 — same dispatch as raw dashed tags); everything
- * else is a server arg forwarded verbatim into the child's `render<Name>()`
- * call — no reactive-shape inference (amends sub-design 4's raw-element
- * dispatch).
- */
 export const classifyComposeAttribute = (
 	ctx: ExtractContext,
 	attr: AstNode,
@@ -405,57 +306,28 @@ export const classifyComposeAttribute = (
 		if ('reason' in entries) return entries
 		return { kind: 'pass', entries }
 	}
-	// The pre- spelling. Caught explicitly rather than left to fall
-	// through: `pass={{ … }}` would classify as a server attribute and render
-	// `pass="[object Object]"` into the markup — silently wrong output, the
-	// worst failure mode this compiler has. Every spelling is rejected, not
-	// just the expression form: `pass` is not an HTML attribute, so there is
-	// no legitimate author use to preserve.
 	if (name === LEGACY_PASS_ATTR)
 		return { kind: 'invalid', reason: renamedPassReason }
-	// React's DOM-property attribute names (): not real HTML attributes,
-	// so passed through verbatim they render into markup the browser ignores.
 	const reactRename = REACT_ATTR_RENAMES.get(name)
 	if (reactRename)
 		return {
 			kind: 'invalid',
 			reason: `\`${name}\` is a React DOM-property name, not an HTML attribute — TSRX has no JSX-to-DOM-property translation, so this would render into the markup verbatim and the browser would ignore it. Use \`${reactRename}\` instead.`,
 		}
-	// Any other `truc:*` name (). `truc:pass` is the only host-owned
-	// attribute a compose site accepts; anything else would be forwarded
-	// as a server arg no child declares.
 	const trucReason = unknownTrucAttrReason(name, [PASS_ATTR])
 	if (trucReason) return { kind: 'invalid', reason: trucReason }
-	// `ref={}` is retired on COMPOSED elements too () — one addressing
-	// mechanism for both element kinds. `first()`'s structural resolution
-	// walks `kind: 'element'` nodes only (`first-refs.ts`), so a selector
-	// naming a custom-element tag that matches no raw element is deferred to
-	// the registry-aware second pass and resolved against compose sites
-	// there (`analysis/compose-refs.ts`) — a composed child's eventual DOM
-	// tag lives in another file's registry entry, not visible here inside
-	// single-file `compileSource`.
 	if (name === 'ref')
 		return {
 			kind: 'invalid',
 			reason:
 				"`ref={name}` is retired — use `const name = first(selector, required)` in setup instead. A composed element is addressed by the tag it renders plus its own compose-site class/id, e.g. `const lightness = first('form-spinbutton.lightness', 'required')`.",
 		}
-	// The reserved `i18n` parameter (ADR 0009 sub-design 2): the
-	// compiler supplies it at every render call boundary — a caller-authored
-	// `i18n` attribute here would collide with the compiler's own record
-	// argument in the generated call. Same reserved-name posture as the
-	// markup-between-tags channel for `children`.
 	if (name === 'i18n')
 		return {
 			kind: 'invalid',
 			reason:
 				"`i18n` is a reserved parameter (ADR 0009) — the compiler supplies the locale record; callers never pass it. To set the child's locale, pass `lang` instead.",
 		}
-	// A handler arg (): never a server arg. The parent's client binds
-	// the handler on the element the child places the arg on, so the value
-	// takes an event attribute's forms — a function, or an identifier bound
-	// to one by a hoisted `const` — plus the composing component's own
-	// handler arg, which forwards the placement.
 	if (isHandlerArgName(name)) {
 		const raw =
 			isNode(value) && value.type === 'JSXExpressionContainer'

@@ -1,14 +1,4 @@
-/**
- * Signal value-type inference (`compiler.ts`'s `compileSource` uses this to
- * fill `SignalIR.inferredType`, consumed by parser/harvest-default
- * selection). A small, closed unit: given a signal's initializer expression
- * and the component's params/setup context, infer `string`/`number`/
- * `boolean`/`unknown` by walking literals, template literals, identifier
- * type annotations, and setup helper call/return types.
- */
-
-import type { AstNode } from './ast-node'
-import { asArray, identifierName, isNode } from './ast-utils'
+import { type AstNode, asArray, identifierName, isNode } from './ast-utils'
 
 export type TypeContext = {
 	paramsNode: AstNode | null
@@ -98,13 +88,6 @@ export const typeAnnotationForBinding = (
 	return null
 }
 
-/**
- * Whether a destructured prop's TS type annotation marks it optional
- * (`foo?: string`). Mirrors {@link typeAnnotationForBinding}'s traversal but
- * reads `TSPropertySignature.optional` instead of the annotation itself —
- * used by LTC032 to catch a default value paired with a non-optional type
- * (CHECKLIST §10: the default becomes unreachable for any external caller).
- */
 export const isOptionalBinding = (
 	paramsNode: AstNode | null,
 	bindingName: string,
@@ -120,8 +103,7 @@ export const isOptionalBinding = (
 		if (member.type !== 'TSPropertySignature') continue
 		if (identifierName(member.key) === bindingName) return !!member.optional
 	}
-	// No matching property signature found (e.g. the type is a named alias,
-	// not an inline literal) — nothing to check against, so don't flag.
+	// No matching property signature found (e.g. the type is a named alias) — nothing to check against, so don't flag.
 	return true
 }
 

@@ -1,30 +1,4 @@
-/**
- * The `.tsx` front end's compiler — the surface-specific half (LT-183 spike,
- * productionized by ). Produces the same `ComponentIR` as
- * `src/frontend/tsrx/compiler.ts` (`ComponentIR` is the seam), so `analysis/*`,
- * both emitters, `tier.ts`, and `sim/` are reused unmodified.
- *
- * What is surface-specific here:
- *
- * - Parsing is `@typescript-eslint/typescript-estree`'s own `parse()` in
- *   `to-estree.ts` — no module under `src/` imports the `typescript`
- *   package — and the `@tsrx/core` pin, `core.ts`, `core-shim.d.ts`, and
- *   `newerGrammarHint` have no role on this surface. A TypeScript parse
- *   error is LTC008, as a `@tsrx/core` parse error is on `.tsrx`.
- * - Module shape: one exported component function per file whose body is
- *   statements + a single `return <jsx/>`. Statements before the return are
- *   the setup (the `@{ }` block's replacement); the returned JSX (the bare root
- *   element, the host) is the template (ADR 0010 sub-design 1).
- * - The `.tsrx`-only scans (`reportReactJsxNearMisses` TSRX018/021–024,
- *   `newerGrammarHint`) are absent — the lazy sigil doesn't exist in TS, and
- *   the React idioms are this surface's CORRECT spellings.
- *
- * Everything else — the module scans, the params contract, setup
- * extraction, output resolution, the post-lowering validation tail and IR
- * assembly — is the one shared script in `front-end.ts` (), which
- * this file drives through a `SurfaceAdapter`; diagnostic wording comes
- * from `surface.ts` (ADR 0010 sub-design 6's anti-drift contract).
- */
+/** The `.tsx` front end's compiler — the surface-specific half, producing the same `ComponentIR` as the `.tsrx` front end. */
 
 import { asArray, identifierName, isNode } from '../../ast-utils'
 import { diagnostic, type Site } from '../../diagnostics'
@@ -55,22 +29,7 @@ const isBlankChild = (child: AstNode): boolean =>
 	// `to-estree` maps an empty container's `JSXEmptyExpression` to null.
 	(child.type === 'JSXExpressionContainer' && !isNode(child.expression))
 
-/**
- * Raw CSS text of a `<style>` element. SURFACE SHAPE vs `.tsrx`: JSX text
- * cannot carry raw CSS braces (`{`/`}` are expression delimiters), so the
- * `.tsx` spelling is a template-literal child — `<style>{css`…css…`}</style>`
- * — and the bytes are read from INSIDE the backticks (verbatim, original
- * indentation). The `css` TAG is the default spelling (ADR 0010 surface
- * vocabulary): editors highlight a `css`-tagged template literal as CSS out
- * of the box. The tag is the `css` compile-time marker, recognized by
- * binding (ADR 0012 s1): imported from
- * `@zeix/le-truc-compiler/macros` under any local name, never a bare `css`.
- * A bare template literal (the spike spelling) stays accepted, and so does
- * an empty block; blank text around the child is ignored. Anything else —
- * another tag, a `css` that is not the marker, a `${}` substitution (the
- * sheet is evaluated by nothing), any other expression or text — is a
- * refusal (LTC078), never an empty sheet.
- */
+/** Raw CSS text of a `<style>` element: a `css`-tagged (marker) or bare template-literal child, read verbatim between the backticks; anything else is a refusal. */
 const styleElementStylesheet = (
 	ctx: ExtractContext,
 	node: AstNode,
@@ -138,11 +97,7 @@ const tsxAdapter: SurfaceAdapter = {
 	lowerElement,
 }
 
-/**
- * Where the TS parser located its failure (`TSError.location`, offsets in
- * `source`) — the parse diagnostic's range (ADR 0022 s1); undefined, the
- * whole file, when the error carries none.
- */
+/** Where the TS parser located its failure, as offsets in `source`; undefined (the whole file) when the error carries none. */
 const parseErrorSite = (e: unknown): Site => {
 	const location = (
 		e as {

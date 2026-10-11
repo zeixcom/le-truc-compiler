@@ -1,13 +1,4 @@
-/**
- * Text positions take primitives, through TypeScript (ADR 0024 s6).
- *
- * Every text sink the compiler emits is typed: the server's `text`/`textOf`
- * harness calls take `string | number | null | undefined`, the client's
- * `bindText` takes `string | number`. An object or a boolean reaching a text
- * position is therefore a tsc error in both generated modules, and the span
- * tables locate it at the authored child — the emit-then-check pass
- * `check:corpus` runs, reproduced here per fixture on both surfaces.
- */
+/** Text positions take primitives, through TypeScript: the server's `text`/`textOf` harness calls take `string | number | null | undefined`, the client's `bindText` takes `string | number`. An object or a boolean reaching a text position is a tsc error in both generated modules, and the span tables locate it at the authored child — the emit-then-check pass `check:corpus` runs, reproduced here per fixture on both surfaces. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import * as path from 'node:path'
@@ -156,8 +147,8 @@ const FIXTURES: Record<string, Fixture> = {
 		),
 		child: '{e}',
 	},
-	// A ternary for a boolean — one of the fixes the sink's JSDoc names (a
-	// list item's field waits on ADR 0024 s1) — and a comment child: clean.
+	// A ternary for a boolean — one of the fixes the sink's JSDoc names —
+	// and a comment child: clean.
 	'c-fixed-tsrx': {
 		surface: 'tsrx',
 		source: tsrx(

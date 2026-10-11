@@ -1,13 +1,4 @@
-/**
- * Unit pins for `selector-syntax.ts` (LTC026's parse half; on
- * css-what since , ADR 0023 Decision 5). The contract is asymmetric:
- * a reason for a selector a browser accepts is a build failure over working
- * markup — never acceptable — while passing a browser-invalid string merely
- * leaves the runtime's `InvalidSelectorError` (Tier 2) doing its job. The
- * reason strings here are the ones LTC026 has always produced; the swap
- * re-decides them from a css-what parse plus a small post-check, so each
- * string is pinned to the shape that produces it.
- */
+/** Unit pins for `selector-syntax.ts` (LTC026's parse half). The contract is asymmetric: a reason for a selector a browser accepts is a build failure over working markup — never acceptable — while passing a browser-invalid string merely leaves the runtime's `InvalidSelectorError` (Tier 2) doing its job. Each reason string is pinned to the shape that produces it. */
 import { describe, expect, test } from 'bun:test'
 import * as cssWhat from 'css-what'
 import { malformedSelectorReason } from '../src/selector-syntax'
@@ -88,8 +79,8 @@ describe('selectors CSS accepts are never reported', () => {
 
 describe('css-what throws this module never decided stay undecidable', () => {
 	test('junk characters pass through as null, not a reason', () => {
-		// The hand rules passed these (false negatives); the swap keeps them
-		// null — a new reason string is a copy decision, not an engine one.
+		// Passing these through as null is deliberate — a new reason string
+		// is a copy decision, not an engine one.
 		expect(reasonOf('a{}')).toBeNull()
 		expect(reasonOf('a;')).toBeNull()
 	})

@@ -1,11 +1,4 @@
-/**
- * The Bun implementation of the runtime seam ().
- *
- * Uses Bun's native file, write, spawn and glob machinery. Loadable under
- * any runtime — everything here touches the `Bun` global only inside method
- * bodies, never at module scope — which is what lets `index.ts` import both
- * implementations statically and still run under Node or Deno.
- */
+/** The Bun implementation of the runtime seam: Bun's native file, write, spawn and glob machinery. Loadable under any runtime — everything here touches the `Bun` global only inside method bodies, never at module scope — which is what lets `index.ts` import both implementations statically and still run under Node or Deno. */
 
 import { matchGlob } from './glob'
 import type { GlobScanOptions, RuntimeIO, SpawnOptions } from './types'

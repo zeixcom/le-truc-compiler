@@ -1,11 +1,4 @@
-/**
- * Compile-time markers (ADR 0012 s1): a marker is imported from
- * `@zeix/le-truc-compiler/macros`, recognized by module specifier and
- * imported name — an alias resolves, a same-named local never matches —
- * and its import never reaches either generated module. A `css` that is
- * not the marker is refused (LTC078), not read as an empty sheet.
- * The shipped stub throws when a source reaches it uncompiled.
- */
+/** Compile-time markers: recognized by module specifier and imported name, so an alias resolves and a same-named local never matches; the import reaches neither generated module, a non-marker `css` is refused (LTC078), and the shipped stub throws on uncompiled source. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 import { compileComponentTsx } from '../src/frontend/tsx'

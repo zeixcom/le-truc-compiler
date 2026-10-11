@@ -1,46 +1,4 @@
-/**
- * The CI equivalence audit (ADR 0008 sub-design 7, amended 2026-09-06 —
- *  step 8).
- *
- * Tiering reinstates the hazard ADR 0006 eliminated: TWO mechanisms produce
- * a Folded-tier component's server answer — the value harness
- * (`render<Name>(args)`, phase 1) and the simulation realm (phase 2, the
- * same connect the browser runs). ADR 0008 s7's original rule required the
- * two outputs to be byte-identical. **The audit found that rule structurally
- * void, and it was amended (see ADR 0008 s7, amendment 2026-09-06):** in a
- * Folded-tier component EVERY signal seeds from a DOM harvest (a signal with
- * no harvestable site is a LTC004 routing signal and routes Simulated), so
- * the realm's entire state derives from the phase-1 bytes themselves — the
- * two mechanisms cannot independently disagree on a server value. What the
- * byte comparison actually measures is the hydration boundary: serializer
- * normalization (bare boolean attributes, attribute case), the client's
- * designed connect-time writes (ADR 0001's enhancement posture), and — the
- * dangerous class — any write that OVERWRITES or removes server-rendered
- * state (the form-tokenbox input removal surfaced exactly this on first
- * run; see ).
- *
- * The amended rule, implemented here: **phase 2 runs over every
- * Folded-tier component's phase-1 render, and the connect diff between the
- * two is PINNED per component.** A diff that grows, shrinks, or moves is a
- * snapshot regression and a review trigger — a new enhancement write, a
- * serializer change, or a hydration bug all show up here, named against
- * their component. Scope is the FINAL (post-contamination) tier read from
- * the registry the corpus compile writes — the same source the step-6 census
- * reads — so the audit automatically covers whatever is Folded;
- * `tier-corpus.test.ts`'s hardcoded full-map assertion remains the drift pin
- * for what Folded means, and this file deliberately does not duplicate that
- * list.
- *
- * Inputs are identical on both sides (the audit's validity condition): the
- * same fixture args (`corpus-args.ts`, shared with sim-driver) drive phase
- * 1, the exact markup phase 1 produced is what phase 2 parses, and no
- * locale is set on either side.
- *
- * CI cost is bounded by corpus size, not by the tier split (ADR 0008 s7):
- * one corpus compile, one shared realm, one render per Folded component.
- * The audit is CI-only machinery — nothing here rides the docs build or
- * `check:corpus`.
- */
+/** CI equivalence audit: two mechanisms produce a Folded-tier component's server answer — the value harness (phase 1) and the simulation realm (phase 2). Every signal in a Folded component seeds from a DOM harvest, so the two cannot independently disagree on a server value; the diff measures the hydration boundary — serializer normalization, designed connect-time writes, and any write that overwrites or removes server-rendered state. Phase 2 runs over every Folded component's phase-1 render and the connect diff is pinned per component; a diff that grows, shrinks or moves is a snapshot regression and a review trigger. Inputs are identical on both sides: shared fixture args, phase 1's exact markup, no locale. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import { pathToFileURL } from 'node:url'
 import type { InternalComponentRegistry } from '../src/registry'
@@ -78,15 +36,7 @@ const foldedEntries = Object.values(registry).filter(
 	entry => entry.tier === 'folded',
 )
 
-/**
- * The connect diff between a component's phase-1 render and its phase-2
- * (post-connect) serialization, as a bounded record of difference regions:
- * scan forward to each first difference, then resync on the first common
- * stretch of at least `RESYNC` characters and repeat. This is a REVIEW
- * RECORD, not a semantic diff — its shape is what the snapshot pins, and a
- * change in its shape means something about the component's hydration
- * changed (ADR 0008 s7, amended).
- */
+/** The connect diff between a component's phase-1 render and its phase-2 (post-connect) serialization: scan forward to each first difference, then resync on the first common stretch of at least `RESYNC` characters and repeat. A review record, not a semantic diff — its shape is what the snapshot pins. */
 const WINDOW = 60
 const RESYNC = 32
 const connectDiff = (phase1: string, phase2: string): string => {
@@ -127,9 +77,7 @@ const connectDiff = (phase1: string, phase2: string): string => {
 
 describe('CI equivalence audit (ADR 0008 s7, amended 2026-09-06 — LT-165 step 8)', () => {
 	test('the audit covers every Folded-tier entry the registry carries — none silently skipped', () => {
-		// The vacuous-coverage trap: a Folded registry entry with no matching
-		// compiled info (or vice versa) must fail loudly here, or the audit
-		// below would quietly shrink while staying green.
+		// A Folded registry entry with no matching compiled info (or vice versa) must fail loudly here, or the audit below would quietly shrink while staying green.
 		expect(foldedEntries.length).toBeGreaterThan(0)
 		for (const entry of foldedEntries)
 			expect(
@@ -147,26 +95,17 @@ describe('CI equivalence audit (ADR 0008 s7, amended 2026-09-06 — LT-165 step 
 			)) as Record<string, unknown>
 			const renderFn = mod[renderName(entry.tag)] as (args: unknown) => string
 			const phase1 = renderFn(CORPUS_ARGS[entry.tag] ?? {})
-			// Phase 2 — the realm parses that exact markup and replays the
-			// connect. No locale on either side: identical inputs are the
-			// audit's validity condition.
+			// Phase 2 — the realm parses that exact markup and replays the connect. No locale on either side: identical inputs are the audit's validity condition.
 			const { html: phase2 } = await realm.render({
 				markup: phase1,
 				component: entry.tag,
 			})
-			// The amended rule: the diff is the record. A snapshot regression
-			// here means the component's hydration boundary moved — a new
-			// client write, a serializer change, or a hydration bug — and is a
-			// review trigger, not an automatic failure of the mechanism.
+			// The diff is the record: a snapshot regression here means the hydration boundary moved — a new client write, a serializer change, or a hydration bug — a review trigger, not an automatic failure.
 			expect(connectDiff(phase1, phase2)).toMatchSnapshot()
 		})
 	}
 
-	// The audit's first run surfaced exactly one instance of the dangerous
-	// class — a client write that REMOVES server-rendered state — and the
-	// snapshot above records it only as a shape. This pins the fact itself,
-	// so a regression fails on an assertion that names the symptom rather
-	// than on a diff a reviewer has to interpret ().
+	// The snapshot records the dangerous class only as a shape; this pins the fact itself, so a regression fails on an assertion naming the symptom rather than on a diff a reviewer must interpret.
 	test('form-tokenbox: the authored text input survives hydration (LT-185 regression)', async () => {
 		const info = compiled.find(i => i.tag === 'form-tokenbox')!
 		const mod = (await import(
@@ -181,14 +120,9 @@ describe('CI equivalence audit (ADR 0008 s7, amended 2026-09-06 — LT-165 step 
 			markup: phase1,
 			component: 'form-tokenbox',
 		})
-		// The input is the only place a user can type. `reconcile()` owns
-		// `data-container`'s children and removes every unkeyed one (ADR 0004's
-		// self-cleaning container), so the authored input must carry the
-		// `data-unreconciled` opt-out to survive the first reconcile pass.
+		// `reconcile()` owns `data-container`'s children and removes every unkeyed one, so the authored input must carry the `data-unreconciled` opt-out to survive the first reconcile pass.
 		expect(phase2).toContain('id="tags-input"')
-		// Inside the reconcile container specifically — surviving anywhere in
-		// the document would not mean it survived the pass that removed it.
-		// The container holds only spans, so the first `</div>` closes it.
+		// Inside the reconcile container specifically — surviving anywhere else would not mean it survived the pass that removed it. The container holds only spans, so the first `</div>` closes it.
 		const fromContainer = phase2.slice(phase2.indexOf('<div data-container'))
 		const containerInner = fromContainer.slice(
 			0,
@@ -197,8 +131,6 @@ describe('CI equivalence audit (ADR 0008 s7, amended 2026-09-06 — LT-165 step 
 		expect(containerInner).toContain('id="tags-input"')
 	})
 })
-
-/* === Arm adoption (ADR 0015, LT-390) === */
 
 /** A component's phase-1 render, from the shared fixture args. */
 const renderPhase1 = async (info: CompiledInfo): Promise<string> => {
@@ -209,12 +141,7 @@ const renderPhase1 = async (info: CompiledInfo): Promise<string> => {
 	return renderFn(CORPUS_ARGS[info.tag] ?? {})
 }
 
-/**
- * Every arm set under `root`: the `template[data-arms="N"]` children of one
- * parent, and the live arm — the non-template sibling whose `data-key` names
- * one of those templates. Template content is inert, so a set inside a
- * reactive list's item template is not walked: it has no server winner.
- */
+/** Every arm set under `root`: the `template[data-arms="N"]` children of one parent, and the live arm — the non-template sibling whose `data-key` names one of those templates. A set inside a reactive list's item template is not walked: it has no server winner. */
 const armSets = (root: Element) =>
 	[...root.querySelectorAll('template[data-arms]')]
 		.filter(
@@ -240,26 +167,13 @@ const armSets = (root: Element) =>
 			}
 		})
 
-/**
- * Arm sets whose task settles during the realm's drain, so the live arm
- * flips AFTER adoption — a state change, not a failed adoption. Keyed by
- * tag, one live key per set in document order. The realm's document is
- * `about:blank`, so lazyload's relative `src` fails `isValidURL` and its
- * task rejects: the server's `nil` arm is adopted, then flips to `err`.
- * In a browser the fetch is still in flight at connect and `nil` stays.
- */
+/** Arm sets whose task settles during the realm's drain, so the live arm flips AFTER adoption — a state change, not a failed adoption. The realm's document is `about:blank`, so lazyload's relative `src` fails `isValidURL` and its task rejects: the `nil` arm is adopted, then flips to `err`. In a browser the fetch is still in flight at connect and `nil` stays. */
 const SETTLED_IN_REALM: Record<string, string[]> = {
 	'module-lazyload': ['err'],
 	'module-listnav': ['err'],
 }
 
-// The adoption contract (ADR 0015 s3): the client adopts the server's
-// winning arm by key — it never clones a replacement for it at connect,
-// and it never touches an arm template. The Folded snapshot above records
-// the connect diff only as a shape and covers no Simulated component; this
-// block covers every component whose phase-1 render ships a live arm set,
-// in every tier, and checks node identity, not just bytes (a re-cloned arm
-// whose binding rewrites the same text serializes identically).
+// The adoption contract: the client adopts the server's winning arm by key — never cloning a replacement at connect, never touching an arm template. This block covers every component whose phase-1 render ships a live arm set, in every tier, checking node identity, not just bytes (a re-cloned arm whose binding rewrites the same text serializes identically).
 const armEntries: CompiledInfo[] = []
 {
 	const inert = realm.document.implementation.createHTMLDocument('')
@@ -272,8 +186,7 @@ const armEntries: CompiledInfo[] = []
 describe('arm adoption across the hydration boundary (ADR 0015, LT-390)', () => {
 	test('the corpus consumers of both arm forms are covered — the class is not vacuous', () => {
 		const tags = armEntries.map(info => info.tag)
-		// A reactive `@if` and the async boundary. A new consumer joins the
-		// loop below on its own; losing one of these fails here.
+		// A reactive `@if` and the async boundary. A new consumer joins the loop below on its own; losing one of these fails here.
 		expect(tags).toContain('form-inplace-edit')
 		expect(tags).toContain('module-lazyload')
 		for (const tag of Object.keys(SETTLED_IN_REALM)) expect(tags).toContain(tag)
@@ -289,10 +202,7 @@ describe('arm adoption across the hydration boundary (ADR 0015, LT-390)', () => 
 			for (const set of before) expect(set.live).toHaveLength(1)
 			const serverKeys = new Set(before.map(set => set.live[0]))
 
-			// Every childList mutation below the body during the connect. The
-			// drain delivers records to the callback, so collect them there as
-			// well as from takeRecords(). Body-level records are the previous
-			// render's teardown and this render's parse.
+			// Every childList mutation below the body during the connect: collect from the callback (the drain delivers there) as well as from takeRecords(); body-level records are the previous render's teardown and this render's parse.
 			const records: MutationRecord[] = []
 			const observer = new document.defaultView!.MutationObserver(batch => {
 				records.push(...batch)
@@ -302,8 +212,7 @@ describe('arm adoption across the hydration boundary (ADR 0015, LT-390)', () => 
 			records.push(...observer.takeRecords())
 			observer.disconnect()
 
-			// A re-cloned winner: an arm root carrying a server-live key
-			// inserted beside its templates.
+			// A re-cloned winner: an arm root carrying a server-live key inserted beside its templates.
 			const recloned = records
 				.filter(r => r.target !== document.body)
 				.flatMap(r =>

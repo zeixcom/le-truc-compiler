@@ -1,37 +1,4 @@
-/**
- * The initial winner of every conditional (ADR 0021 s4): which arm
- * a conditional renders at render time, kept on the `conditional` node apart
- * from its client thunk so a template target can emit it as a backend
- * conditional.
- *
- * The test is rewritten into the portable hole grammar (ADR 0021 s1) by
- * substituting each signal read for its initializer and each `host.<prop>`
- * read for the server expression that seeds the prop — the same truths the
- * value harness folds with (`evaluability.ts`). What the rewrite leaves:
- *
- * - no free name at all → `constant`, evaluated here, at compile time
- *   (`createCell(false)`, a `requestContext` fallback literal);
- * - only server args and loop bindings → `select`, the portable `when`
- *   expressions over them;
- * - anything else the harness can still evaluate → `fold`;
- * - nothing any server phase can evaluate (a ref, a client-only primitive)
- *   → `constant: null`: no live arm renders, and the client renders the
- *   arm at connect (ADR 0015 s5 — the compiler does not guess).
- *
- * SSG emission reads the same truths through `emit-server.ts`'s
- * `serverTestExpr`: `emitReactiveConditional` renders `initial.constant`'s
- * arm live and folds a `fold` winner per render — so this module and the
- * server module must agree on what is foldable, and do: both ask
- * `evaluability.ts` (`foldableHostProps` membership, `hostSeedExpr`'s
- * seeds). The one deliberate divergence is representability, not truth:
- * the portable hole grammar (ADR 0021 s1) admits no calls, so a
- * Parser-backed prop's seed — `asInteger()(attrValue(count))` — leaves the
- * rewrite (`winnerOf` answers `fold`) while the server module folds it, the
- * parser factory resolving through the harness import.
- */
-
-import type { AstNode } from './ast-node'
-import { isNode, text } from './ast-utils'
+import { type AstNode, isNode, text } from './ast-utils'
 import {
 	foldableHostProps,
 	foldableRefGuards,
@@ -75,15 +42,7 @@ const TYPE_WRAPPERS = new Set([
 const union = (...sets: ReadonlySet<string>[]): ReadonlySet<string> =>
 	new Set(sets.flatMap(set => [...set]))
 
-/**
- * The server expression seeding `host.<prop>`, as an AST or an arg name —
- * the portable-rewrite twin of `evaluability.ts`'s `hostSeedExpr` (),
- * which owns the same account for the emitted module. A Parser-backed prop
- * refuses: its truth is the parser applied to the attribute's rendered
- * value, a call the portable grammar cannot represent — the conditional
- * folds through the value harness instead, whose spliced seed applies the
- * parser, so the winner is never the raw attribute's.
- */
+/** The server expression seeding `host.<prop>`, as an AST or an arg name — the portable-rewrite twin of `evaluability.ts`'s `hostSeedExpr`; a Parser-backed prop refuses (its truth is the parser applied to the rendered attribute, a call the portable grammar cannot represent). */
 const hostSeed = (
 	scope: PortableScope,
 	prop: string,
@@ -91,26 +50,18 @@ const hostSeed = (
 	if (!scope.hostProps.has(prop)) return null
 	const decl = scope.component.exposeProps.get(prop)
 	if (decl?.parser) return null
-	// A plain-value initializer IS the prop's seed (`#initSignals` evaluates
-	// it once; the attribute never seeds a plain-value prop), so it outranks
-	// the same-named root attribute.
+	// A plain-value initializer IS the prop's seed (`#initSignals` evaluates it once; the attribute never seeds a plain-value prop), so it outranks the same-named root attribute.
 	if (decl?.initNode) return decl.initNode
 	const rootAttr = scope.component.root.attrs.find(
 		(a): a is Extract<AttributeIR, { kind: 'server' }> =>
 			a.kind === 'server' && a.name === prop,
 	)
-	// Root attribute first, as `emit-server`'s host-derived fold splices it;
-	// a harvested prop's truth is the same-named arg that renders its site.
+	// Root attribute first, as `emit-server`'s host-derived fold splices it; a harvested prop's truth is the same-named arg that renders its site.
 	if (rootAttr) return rootAttr.node
 	return scope.component.paramNames.includes(prop) ? prop : null
 }
 
-/**
- * `node` rewritten into the portable subset (ADR 0021 s1), or null when it
- * leaves it: a call other than a signal read, a computed or optional member,
- * an operator outside the subset, a name that is neither a hole nor
- * substitutable.
- */
+/** `node` rewritten into the portable subset, or null when it leaves it: a call other than a signal read, a computed or optional member, an operator outside the subset, or a non-substitutable name. */
 const portable = (scope: PortableScope, node: unknown): Portable | null => {
 	if (!isNode(node)) return null
 	const { component } = scope
@@ -298,12 +249,6 @@ export const initialFold = (
 		new Set([...foldableRenderScope(component), ...scope]),
 	) !== null
 
-/**
- * Resolve `initial` on every conditional in `component` (assembly's last
- * step: the rewrite needs the root's attributes and every signal). Each
- * conditional sees the server args plus the bindings of the server-data
- * loops enclosing it, and folds over the reactive lists' items enclosing it.
- */
 export const resolveInitialWinners = (component: ComponentIR): void => {
 	const hostProps = foldableHostProps(component)
 	const visit = (
@@ -325,12 +270,7 @@ export const resolveInitialWinners = (component: ComponentIR): void => {
 				new Set([...bound, ...loop.hoisted.map(h => h.name)]),
 			)
 		}
-		// A reactive list's item and key (): each live item renders
-		// with them in scope, so a conditional over the item folds per item
-		// in the harness. The item is a signal — `item.get()` is a call the
-		// portable grammar does not admit, so it is no hole.
-		// The item's setup names the server's loop declares (ADR 0024 s5) are
-		// in scope there too.
+		// A reactive list's item and key are in scope per live item (its server-declared setup names too); the item is a signal, so `item.get()` is a call the portable grammar does not admit — not a hole.
 		if (loop?.kind === 'reconcile')
 			innerKnown = union(
 				serverKnown,

@@ -1,17 +1,5 @@
-/**
- * Signal harvest planning (regrouping move M5): Pass 2 (render
- * sites in document order) and Pass 3 (how each signal seeds itself from
- * the server-rendered DOM — ADR 0001: DOM is the truth at load time).
- * Harvest canonical-site rule: direct sites (text child, direct attribute)
- * win, first by document order; the membership form
- * (`String(sig.get() === const)` marking one item among many) is the
- * composite fallback. Also hosts the signal-read AST predicates its site
- * matching runs on, `lazyWatchSource` (shared with the effect pass) and
- * `formattingOf` (shared with the per-field list harvest).
- */
-
-import type { AstNode } from '../ast-node'
 import {
+	type AstNode,
 	forEachChild,
 	hostPropOf,
 	isNode,
@@ -67,11 +55,6 @@ import { reportServerOnlyNames } from './server-only-names'
 export const isSignalGetCall = (node: unknown, signal: string): boolean =>
 	signalGetCallName(node) === signal
 
-/**
- * `sig.get()` read anywhere inside a node : a style-map/class-map
- * object or a computed reactive thunk still renders the signal's value into
- * the DOM, even though no part of it can serve as a splice-harvest site.
- */
 export const containsSignalGet = (node: unknown, signal: string): boolean => {
 	// Type positions are skipped: they hold no `.get()` calls.
 	let found = false
@@ -82,10 +65,6 @@ export const containsSignalGet = (node: unknown, signal: string): boolean => {
 	return found
 }
 
-/**
- * Match the membership mark: `() => String(sig.get() === C)` or
- * `() => sig.get() === C`. Returns the const identifier.
- */
 export const membershipConst = (
 	thunk: AstNode,
 	signal: string,
@@ -151,27 +130,13 @@ export const defaultForType = (type: string): string => {
 
 export const lazyWatchSource = (child: ExprNode): string => {
 	const expr = child.expr
-	//: the site renders a server ARG that is also an exposed
-	// prop. `exprText` is the arg — what the server splices — so the
-	// client source has to be spelled from the prop instead, exactly
-	// as an authored `{host.<prop>}` would have lowered.
 	if (child.bindsProp) return `() => host.${child.bindsProp}`
 	if (nodeType(expr) === 'Identifier') return child.exprText
-	// Anything else (a call/member expression, etc.) isn't one of `watch()`'s
-	// identifier overload — spliced verbatim it would be a
-	// bare expression like `formatHex(host.value)`, which matches none of
-	// `watch()`'s overloads except accidentally the array-source one,
-	// producing a confusing TS2769 instead of running reactively. Thunk-wrap
-	// it so it lowers to the arrow thunk-source overload instead (
-	// found migrating `card-colorscale.tsrx`: `{formatHex(host.value)}`
-	// broke until manually rewritten to `{() => formatHex(host.value)}` —
-	// an already-authored arrow thunk is left as-is, everything else gets
-	// the same wrapping done automatically).
 	if (nodeType(expr) === 'ArrowFunctionExpression') return child.exprText
 	return `() => ${child.exprText}`
 }
 
-/* === Formatted text (D-20) === */
+/* === Formatted text === */
 
 /** Locale-formatting instance methods: their output never parses back. */
 const LOCALE_FORMAT_METHODS: ReadonlySet<string> = new Set([
@@ -183,25 +148,6 @@ const LOCALE_FORMAT_METHODS: ReadonlySet<string> = new Set([
 /** Message argument kinds the evaluator formats (`{n, number}`, `#`, `{d, date}`). */
 const FORMATTED_ARG_KINDS: ReadonlySet<string> = new Set(['number', 'date'])
 
-/**
- * How `node` formats a value for display, or null when it does not (D-20,
- * ). Recognition is syntactic, over the expression and — through
- * their names — the setup consts it reads, transitively (`const fmt = new
- * Intl.NumberFormat(…).format`, read as `fmt(n.get())`):
- *
- * - any `Intl` read (`new Intl.NumberFormat(…)`, `Intl.DateTimeFormat(…)`);
- * - a `toLocaleString()`/`toLocaleDateString()`/`toLocaleTimeString()` call,
- *   whatever the receiver;
- * - a call of a declared message (`t.<key>(…)`, `t['<key>'](…)`) whose
- *   pattern takes a number or date argument (`plural`/`selectordinal`/
- *   `number`/`date`/`time`).
- *
- * A formatter reached through an import (`getNumberFormatter(…)`) is not
- * recognized: the compiler does not read other modules. That costs only the
- * diagnostic's precision — a computed text thunk is never a harvest site,
- * so the signal still fails to seed (LTC005) rather than harvesting
- * formatted text.
- */
 export const formattingOf = (
 	node: AstNode,
 	component: ComponentIR,
@@ -275,11 +221,6 @@ export const formattingOf = (
 
 /* === Render Sites (Pass 2) === */
 
-/**
- * A signal's render site. Direct sites (text child, direct attribute) and
- * membership marks; the canonical harvest site is the first direct site by
- * document order, else the first membership mark.
- */
 type Site =
 	| {
 			kind: 'text' | 'attr'
@@ -297,25 +238,11 @@ type Site =
 			order: number
 	  }
 
-/**
- * Pass 2's production, Pass 3's input . `thunkRendered`: signals
- * whose values reach the DOM only through thunks no site can splice into —
- * style-map/class-map objects, computed (non-`sig.get()`) reactive thunks
- *  — or through a client-only read (LT-119/LT-323): rendered, so not
- * LTC004-dead, but never a harvest site; Pass 3 seeds them by initializer
- * reuse. `renderCredited`/`clientCredited` split that credit by position
- * (LT-323/LT-327).
- */
 type RenderSites = {
 	sites: Site[]
 	thunkRendered: Set<string>
 	renderCredited: Set<string>
 	clientCredited: Set<string>
-	/**
-	 * Per signal, its first reactive text site that formats the value for
-	 * display (`formattingOf`), with the formatting named — LTC059's input
-	 * when the signal also has no raw value source (D-20).
-	 */
 	formattedText: Map<string, { node: AstNode; formatting: string }>
 }
 
@@ -346,9 +273,6 @@ const collectRenderSites = (component: ComponentIR): RenderSites => {
 				continue
 			}
 			if (attr.kind === 'html' && attr.reactive) {
-				// truc:html={() => …} : markup is opaque, unreadable back out
-				// of innerHTML — never a harvest SITE, but rendered ,
-				// same treatment as style-map/class-map.
 				for (const signal of component.signals.map(s => s.name)) {
 					if (containsSignalGet(attr.thunk, signal)) thunkRendered.add(signal)
 				}
@@ -377,9 +301,6 @@ const collectRenderSites = (component: ComponentIR): RenderSites => {
 					})
 					break
 				}
-				// A computed thunk (`() => prefix.get() + '!'`) renders the
-				// signal without being its direct site — same credit as a
-				// map thunk, same initializer-reuse seed in Pass 3.
 				if (containsSignalGet(attr.thunk, signal)) thunkRendered.add(signal)
 			}
 		}
@@ -420,12 +341,6 @@ const collectRenderSites = (component: ComponentIR): RenderSites => {
 	}
 	recordSites(component.root, false)
 
-	// A reactive conditional (ADR 0015) renders its test's signals and its
-	// arms' reactive sites without a harvest site: the arms may not exist at
-	// connect, and the winner's own sites are not the signal's only render.
-	// Same credit as a computed thunk — rendered, seeded by initializer
-	// reuse, which is sound because the server picked and rendered the
-	// winner from that same initializer.
 	const creditSignalReads = (node: AstNode): void => {
 		for (const signal of component.signals)
 			if (
@@ -457,26 +372,6 @@ const collectRenderSites = (component: ComponentIR): RenderSites => {
 				})
 	})
 
-	// A signal consumed only by a CLIENT-ONLY setup statement (:
-	// `watch(() => showPopup.get() && listbox.visibleOptions.length > 0,
-	// bindAttribute(popup, 'hidden'))`) reaches the DOM without a template
-	// render site. It gets the same credit as the ticket's map/computed thunks —
-	// not dead, never a harvest SITE, seeds by initializer reuse — and the
-	// soundness argument is if anything stronger: `clientSetup` statements
-	// exist ONLY in the generated client, so the server rendered nothing
-	// from this signal and there is no server output for the reused
-	// initializer to disagree with. Reaching the DOM this way is the only
-	// route open to a predicate over a COMPOSED CHILD's public prop, which
-	// no server fold can resolve (LTC034) — see the popup gate in
-	// form-combobox.tsrx.
-	//
-	//  (ADR 0008 conformance) widens what counts as a read: a bare
-	// signal reference (`watch(overflowStart, bindState(…))`), a read through
-	// setup consts or derived signals (`const hasOverflow = () =>
-	// overflowStart.get() || …`, consumed by `watch(hasOverflow, …)`), and
-	// the template's other client-only positions — event handlers and
-	// `truc:pass` entries (module-catalog's `total`). None of them reaches
-	// served HTML, so none makes the signal an LTC004 routing signal.
 	const carriers = new Map<string, Set<string>>(
 		component.signals.map(signal => [signal.name, new Set([signal.name])]),
 	)
@@ -497,14 +392,6 @@ const collectRenderSites = (component: ComponentIR): RenderSites => {
 			if (own.size !== before) changed = true
 		}
 	}
-	// Credited by a client-only read, as against a template render thunk:
-	// only these may seed from an initializer over FactoryContext members
-	// (`all()` in catalog's `total`), which the server cannot evaluate.
-	// Render credit runs through the same `carriedBy` closure : a
-	// signal reaching a render position via a setup const (`<p>{() =>
-	// label()}</p>`) is as render-bound as a direct `sig.get()`, and folding
-	// its context-member initializer would leave the server module reading
-	// an undeclared `all` (ADR 0008: any doubt routes downward).
 	const renderCredited = new Set(thunkRendered)
 	const creditRender = (node: AstNode | null | undefined): void => {
 		if (node) for (const signal of carriedBy(node)) renderCredited.add(signal)
@@ -526,7 +413,7 @@ const collectRenderSites = (component: ComponentIR): RenderSites => {
 		} else if (node.kind === 'expr') creditRender(node.expr)
 		else if (node.kind === 'conditional') {
 			creditRender(node.test)
-			// `@case` tests are render positions too .
+			// `@case` tests are render positions too.
 			for (const arm of node.arms) if (arm.test) creditRender(arm.test)
 		} else if (node.kind === 'compose') {
 			for (const attr of node.attrs)
@@ -561,9 +448,6 @@ const collectRenderSites = (component: ComponentIR): RenderSites => {
 		}
 	})
 
-	// Formatted reactive text (D-20): the carriers say which signals a text
-	// site reads, through setup consts included; `formattingOf` says whether
-	// it formats them. First site in document order wins.
 	const formattedText = new Map<string, { node: AstNode; formatting: string }>()
 	for (const child of textChildren) {
 		const carried = [...carriedBy(child.expr)].filter(
@@ -587,24 +471,9 @@ const collectRenderSites = (component: ComponentIR): RenderSites => {
 
 /* === Harvest Plans (Pass 3) === */
 
-/**
- * A signal the client cannot seed from server-rendered DOM. Under ADR
- * 0029 sub-design 5 (LT-165 step 5) this is a ROUTING SIGNAL, not an
- * author error — the realm connects the component for real and serializes
- * whatever the signal actually settles to, which is exactly the initial
- * value the harvest could not find a site for. The generated client
- * declares the signal from its own initializer (`emit-client.ts`), so the
- * shape compiles and works in every tier; what changed is only who
- * produces the served HTML.
- */
 const reportUnharvestable = (
 	shared: PassShared,
 	signal: InitSignalIR,
-	/**
-	 * The initializer's free names the client cannot bind, for a signal
-	 * that IS rendered : the reason is then the initializer, not
-	 * a missing site, and the detail names the free names.
-	 */
 	unportable: readonly string[] = [],
 ): void => {
 	const { component, routingSignals, source } = shared
@@ -622,13 +491,6 @@ const reportUnharvestable = (
 	})
 }
 
-/**
- * An attribute read is a string; a `number`-typed arg converts back
- * with `Number()`, so a raw value source round-trips (D-20, LT-374:
- * `<data value={count}>` seeds `createState(count)` with a number,
- * not its text). The server rendered the attribute as `String(arg)`, which
- * `Number()` inverts for every finite number — no truncation.
- */
 const asParamType = (
 	shared: PassShared,
 	param: string,
@@ -638,11 +500,6 @@ const asParamType = (
 		? `Number${read}`
 		: read
 
-/**
- * Children an arg's DOM site may sit in: server-known `@if` branches only —
- * a reactive conditional's arms may not exist at connect, so nothing inside
- * one is an arg's DOM site.
- */
 const argSiteChildrenOf = (node: TemplateNode): TemplateNode[] =>
 	isIf(node) && node.mode === 'server'
 		? [...thenOf(node), ...elseOf(node)]
@@ -650,11 +507,6 @@ const argSiteChildrenOf = (node: TemplateNode): TemplateNode[] =>
 			? node.children
 			: []
 
-/**
- * The host-prop mirror of `param` (`paramDomRead`'s precedence 2): the
- * first element whose reactive attribute reads `host.<prop>` for a
- * parser-exposed prop the root renders from this arg.
- */
 const findMirror = (
 	component: ComponentIR,
 	param: string,
@@ -702,31 +554,6 @@ const findAttrSite = (
 	return null
 }
 
-/**
- * DOM read expression for a server arg, traced to its rendered site.
- * Precedence :
- * 1. the exposed prop's Slot — when `allowTrackedRead` (a LAZY
- *    constructor: `deriveCell`/`deriveStore`/`createMemo`, whose callback
- *    first runs only after `expose()` has installed the Slot-backed
- *    property) and the root renders a Parser-exposed prop from this arg,
- *    read `host.<prop>`: a TRACKED reactive source, so the derived signal
- *    re-runs on later property writes and `observedAttributes` re-parses
- *    instead of freezing on the untracked `getAttribute` read (NOTES
- *    , the frozen basic-gauge/basic-pluralize `deriveCell`s; pinned
- *    by root-harvest.test.ts and basic-gauge since basic-pluralize's
- *    retirement).
- * 2. a host-prop mirror (`value={() => host.value}` where the root renders
- *    the parser-exposed prop from this arg) — read the target element's
- *    property;
- * 3. a plain (non-root) element attribute rendering the arg bare;
- * 4. the root attribute via `host.getAttribute`.
- * Root sites NEVER become queries: `first()` searches descendants only
- * (`src/helpers/dom.ts`), so a query for the root's own tag throws
- * `MissingElementError` for the component's own root at activation (the
- *  `site.el !== component.root` guard, restored by  after a
- * regrouping-era edit dropped it). Null when the arg renders nowhere (the
- * signal stays unharvestable).
- */
 const paramDomRead = (
 	shared: PassShared,
 	param: string,
@@ -769,10 +596,6 @@ const paramDomRead = (
 		return `${query}.${mirror.attr.name}`
 	}
 	const site = findAttrSite(param, component.root)
-	// the ticket's root guard, restored by: the root's own attributes
-	// are NOT a query site — `first('<own-tag>')` would throw for the
-	// component's own root (descendants-only search). A root match falls
-	// through to the `host.getAttribute` branch below instead.
 	if (site && site.el !== component.root) {
 		const resolved = selectorFor(site.el)
 		if (!resolved.unique) {
@@ -786,11 +609,6 @@ const paramDomRead = (
 			return null
 		}
 		const refAttr = refOf(site.el)
-		// A DOM-read site inside a single-branch @if (no @else) may not
-		// exist at all — address it the same way its own branch-root query
-		// would (non-throwing 'maybe'), and null-guard the read, instead of
-		// a throwing `first()` the substituted expression could crash on
-		// (ADR 0005 sub-design 12).
 		const enclosing = enclosingIfOf(site.el)
 		const optional = !!enclosing && elseOf(enclosing).length === 0
 		const query = addQuery(
@@ -820,23 +638,12 @@ const paramDomRead = (
 	return null
 }
 
-/**
- * The name scope `unportableNames` checks an initializer's free names
- * against: the plain setup consts a name may descend through, the
- * component's signal names, and whether FactoryContext members are
- * admitted .
- */
 type UnportableNamesScope = {
 	plainConsts: ReadonlyMap<string, AstNode>
 	signalNames: ReadonlySet<string>
 	allowContextMembers: boolean
 }
 
-/**
- * One level of `unportableNames`' transitive check: a plain setup const's
- * own free names are checked in turn; anything else outside the portable
- * sets lands in `bad`.
- */
 const visitUnportableName = (
 	shared: PassShared,
 	node: AstNode,
@@ -866,16 +673,6 @@ const visitUnportableName = (
 	}
 }
 
-/**
- * The free names of a signal initializer the client module cannot bind
- * . A plain setup const or an authored import is portable: the
- * signal's declaration is a client-emitted position, so the placement
- * fixpoint (`computeClientNeededNames`) already emits the const — and,
- * through it, the imports and consts it reads — into the client module.
- * The const's own free names are checked the same way, transitively;
- * a server arg is substituted only at the initializer's top level, so
- * one reached through a const is unportable.
- */
 const unportableNames = (
 	shared: PassShared,
 	init: AstNode,
@@ -897,14 +694,6 @@ const unportableNames = (
 	return [...bad]
 }
 
-/**
- * One walker level of `substituteArgExpr`'s rewrite: a param identifier
- * becomes a `[start, end, read]` range in `ranges`. Type positions are
- * skipped: rewriting a name inside one (`typeof label`) into a DOM read
- * would emit invalid TypeScript, and `dependenciesOf` never counted it as
- * a read anyway. Non-computed member properties and object keys are
- * positions, not reads — same scoping as freeIdentifiers.
- */
 const collectArgReadRanges = (
 	current: AstNode,
 	reads: ReadonlyMap<string, string>,
@@ -933,52 +722,11 @@ const collectArgReadRanges = (
 	forEachChild(current, child => collectArgReadRanges(child, reads, ranges))
 }
 
-/**
- * Rewrite a pure-arg initializer by replacing each param identifier with
- * its DOM read (`value.length` → `input.value.length`), right-to-left by
- * source range so surrounding text is untouched. Free names that are
- * already client-known by another route (another signal declared earlier
- * in the factory, a ref, a context member) pass through unrewritten — only
- * server args need a DOM substitution (ADR 0005 sub-design 12: a `deriveCell`
- * callback may read both a param, needing substitution, and a sibling
- * signal, needing none).
- */
 const substituteArgExpr = (
 	shared: PassShared,
 	init: AstNode,
-	/**
-	 * Allow a no-params-to-substitute initializer to pass through
-	 * verbatim (ADR 0005 sub-design 13): sound for `deriveCell`/
-	 * `deriveStore` signals, which are FORCED through this path
-	 * unconditionally (no direct-site harvest is even attempted for
-	 * them), and since  also for any signal credited in
-	 * `thunkRendered` — its value flows into the DOM through a
-	 * style-map/class-map object or a computed reactive thunk, so it is
-	 * provably not dead, and the server rendered that output from this
-	 * same initializer (DOM agrees by construction) — and since LT-451
-	 * for a seed reading `host` the server folds (`hostSeeded`). A `createCell`/
-	 * `createState` signal with a literal initializer and NO rendered
-	 * site at all must still fail (LTC004): those DO have a direct-site
-	 * harvest route, and a silently-never-rendered signal is exactly
-	 * the drift ADR 0001 exists to catch.
-	 */
 	allowVerbatim: boolean,
-	/**
-	 * The initializer is LAZY — its body first runs only after `expose()`
-	 * has installed the Slot-backed properties, so arg reads may route
-	 * through `host.<prop>` (the exposed prop's Slot, a tracked reactive
-	 * source; see `paramDomRead`'s precedence 1). Always true for
-	 * `deriveCell`/`deriveStore`/`createMemo`; NEVER for the eager
-	 * constructors, whose initializer executes at declaration — before
-	 * `expose()` — where a `host.<prop>` read would be `undefined`.
-	 */
 	allowTrackedRead: boolean,
-	/**
-	 * Admit FactoryContext members (`all`, `first`, …) as client-known
-	 * . Only for a signal read exclusively in client-only
-	 * positions: the client destructures them, and no served HTML
-	 * depends on the value the server could not compute.
-	 */
 	allowContextMembers = false,
 ): string | null => {
 	const { component, source } = shared
@@ -987,11 +735,6 @@ const substituteArgExpr = (
 	const params = [...free].filter(n => component.paramNames.includes(n))
 	if (typeof init.start !== 'number' || typeof init.end !== 'number')
 		return null
-	// Nothing to substitute: the initializer has no server-arg dependency
-	// at all (e.g. a niladic async compute), so it is already portable,
-	// identical JS on both sides — reuse it verbatim, exactly like a pure
-	// literal list seed (ADR 0005 sub-design 13). Only sound for signals
-	// with no direct-site harvest route at all (see `allowVerbatim`'s doc).
 	if (params.length === 0)
 		return allowVerbatim ? source.slice(init.start, init.end) : null
 	const reads = new Map<string, string>()
@@ -1030,14 +773,6 @@ const authoredParserOf = (
 	}
 }
 
-/**
- * The parser a scalar harvest reads through : the marker's parser
- * when declared (spliced as authored, its free names client-checked), else
- * the one the inferred type maps to — and LTC077 at the seed when the type
- * is one the compiler cannot read and no marker declares a parser, because
- * the inferred-string fallback would silently connect e.g. `2.5` as
- * `'2.5'`. Null after reporting: the signal plans nothing.
- */
 const parserForSeed = (
 	shared: PassShared,
 	signal: InitSignalIR,
@@ -1045,9 +780,6 @@ const parserForSeed = (
 	scalarMarker: Extract<HarvestSeedIR, { kind: 'scalar' }> | null,
 ): ParserKind | AuthoredParser | null => {
 	const { component, diagnostics, rawSourceRefused, source } = shared
-	// A non-scalar signal with a direct site (a bare `{items}` list
-	// signal) keeps today's inferred mapping — the scalar rule does
-	// not speak to it.
 	if (!scalarSeeded) return parserForType(signal.inferredType)
 	if (scalarMarker) return authoredParserOf(shared, signal, scalarMarker)
 	if (signal.inferredType === 'unknown') {
@@ -1076,13 +808,6 @@ const parserForSeed = (
 	return parserForType(signal.inferredType)
 }
 
-/**
- * A marker whose parser no read takes: a literal seed, an
- * initializer reused verbatim, a seed that derives from the arg
- * (the substitution reproduces the derivation, nothing parses).
- * The same dead declaration a literal-seeded list's map is (ADR
- * 0046 s7) — refused, not silently ignored.
- */
 const refuseDeadMarker = (
 	shared: PassShared,
 	signal: InitSignalIR,
@@ -1124,58 +849,20 @@ const planHarvests = (
 	const { loopFor, resolveSelector } = selectorAdaptersOf(component)
 
 	for (const signal of component.signals) {
-		// requestContext-backed signals  never need a harvest site —
-		// the client re-dispatches the context-request itself and owns its
-		// own initial value (a Slot seeded with the fallback), rather than
-		// reading it back from server-rendered DOM. LTC004 ("signal never
-		// rendered") does not apply: emit-client.ts emits them through a
-		// dedicated verbatim path, never this harvest machinery.
 		if (signal.family === 'context') continue
-		// A sensor seeds itself on the client: its `{ value }` seed and its
-		// start callback are client code, declared verbatim (`emit-client.ts`
-		// no-harvest path;  still refuses a server name in either), and
-		// a harvest would replace the start callback (ADR 0024 s5).
 		if (signal.constructor === 'createSensor') continue
-		// A declaration reading `host` with no server truth  seeds
-		// itself on the client the same way: it is not server-known, so no
-		// site renders it, and the client declares it verbatim after
-		// `expose()` has installed the props it reads.
 		if (signal.family === 'declared' && signal.unresolvable) continue
-		/**
-		 * A seed reading `host` that the server folds : every read is
-		 * a prop whose server seed `hostSeedExpr` splices (`assemble-ir.ts`
-		 * marks the rest `unresolvable`), so the client's own evaluation after
-		 * `expose()` — the parser applied to the same root attribute — agrees
-		 * with the render by construction, as a literal seed does.
-		 */
 		const hostSeeded =
 			signal.family === 'declared' &&
 			!!signal.init &&
 			dependenciesOf(signal.init).has('host')
-		/**
-		 * A scalar `harvest(seed, parser)` marker (ADR 0024 s7): the
-		 * parser the scalar harvest reads go through — the direct text/attr
-		 * site read, an identity seed's substituted DOM read, a membership
-		 * value read — spliced as authored. Its free names must resolve on
-		 * the client (LTC005's client-position face, as the ticket's map
-		 * entries); checked once, where the marker is consumed.
-		 */
 		const scalarMarker =
 			signal.family === 'declared' && signal.harvest?.kind === 'scalar'
 				? signal.harvest
 				: null
-		/**
-		 * A scalar-seeded signal: the only family the scalar marker and
-		 * LTC077 apply to. A derived callback re-derives (never parses a
-		 * seed back — its `inferredType` is usually `unknown` and that is
-		 * fine), and a `createList` seed is the list harvest's business.
-		 */
 		const scalarSeeded =
 			signal.family === 'declared' &&
 			SCALAR_HARVEST_CONSTRUCTORS.has(signal.constructor)
-		// A reconciled List seeds from the adopted DOM, not a text/attr site.
-		// A derived List (ADR 0024 s4) has no seed to harvest: like every
-		// derive callback it re-derives on the client from its sources.
 		const listPlan = [...reconcilePlans.values()].find(
 			p => p.signal === signal.name,
 		)
@@ -1188,8 +875,6 @@ const planHarvests = (
 						(name === 'host' && hostSeeded && !signal.harvest),
 				)
 			) {
-				// The client reuses a literal seed as written, so a `harvest()`
-				// map there declares parsers nothing reads (ADR 0024 s7).
 				if (signal.harvest) {
 					diagnostics.push(
 						diagnostic.unsupported(
@@ -1207,8 +892,6 @@ const planHarvests = (
 				!listPlan.scoped &&
 				harvestsPerField(signal)
 			) {
-				// Per-field harvest (ADR 0024 s7): each field from its
-				// canonical site in the adopted item, through its parser.
 				const loop = [...reconcilePlans.entries()].find(
 					([, plan]) => plan === listPlan,
 				)?.[0]
@@ -1217,13 +900,6 @@ const planHarvests = (
 					: null
 				if (plan) harvests.push(plan)
 			} else if ([...free].every(name => component.paramNames.includes(name))) {
-				// The arg-seeded List harvests the container's adopted children
-				// through the item value's DOM site (the bare `{item}` hole's
-				// parent, ADR 0001). A body that renders the item nowhere has
-				// no site — no phase can deliver a value the markup does not
-				// carry. A list nested in a Mount Scope  has no
-				// connect-time container: its items render inside an arm or
-				// an item, which may not exist at connect.
 				if (listPlan.scoped) {
 					diagnostics.push(
 						diagnostic.unsupported(
@@ -1264,8 +940,6 @@ const planHarvests = (
 			}
 			continue
 		}
-		// A host-level list never rendered by its own `map`, read by key in
-		// an item setup (ADR 0025): harvested through the alias.
 		if (!listPlan && signal.family === 'declared') {
 			const aliased = planKeyAliasHarvest(shared, signal, reconcilePlans)
 			if (aliased !== undefined) {
@@ -1273,13 +947,6 @@ const planHarvests = (
 				continue
 			}
 		}
-		// `deriveCell`/`deriveStore` initializers are callbacks, not raw values
-		// — a 'text'/'attr' direct-site harvest would splice the DOM read in
-		// place of the whole function (ADR 0005 sub-design 12). A rendered
-		// lazy child of the signal's own name still exists for the WATCH
-		// target/initial value (Pass 4 wires it independently of harvest
-		// selection here), but harvesting always goes through the arg-
-		// substitution route for these constructors.
 		const isDerivedCallback =
 			signal.constructor === 'deriveCell' ||
 			signal.constructor === 'deriveList' ||
@@ -1291,15 +958,6 @@ const planHarvests = (
 					.filter(s => s.signal === signal.name)
 					.sort((a, b) => a.order - b.order)
 		if (own.length === 0) {
-			// The substitution route reproduces the seed expression with each
-			// param replaced by its DOM read — so the client value is the
-			// seed's own derivation, evaluated identically on both sides. The
-			// parser (and LTC077) applies only to an IDENTITY seed: the seed
-			// IS the arg's value, so the substituted read is a raw DOM string
-			// the inferred-string fallback would connect as-is. A deriving
-			// seed (`value.length`, `mode === 'wide'`) keeps today's bare
-			// substitution; a marker there declares a parser no read takes —
-			// refused, like a literal seed's.
 			const identitySeed =
 				!!signal.init &&
 				nodeType(signal.init) === 'Identifier' &&
@@ -1313,11 +971,6 @@ const planHarvests = (
 				refuseDeadMarker(shared, signal, scalarMarker.call)
 				continue
 			}
-			// No rendered site: an initializer over server args can still seed
-			// from the args' DOM sites ( substitution rule). A signal
-			// rendered only through a map/computed thunk  may also
-			// reuse its initializer verbatim — same soundness as a derived
-			// callback, per `allowVerbatim`'s contract above.
 			const reported = diagnostics.length
 			const allowContextMembers =
 				clientCredited.has(signal.name) && !renderCredited.has(signal.name)
@@ -1331,11 +984,6 @@ const planHarvests = (
 					)
 				: null
 			if (substituted) {
-				// The substituted read of an identity seed is a DOM string
-				// ; the marker's parser parses it back, and an unmarked
-				// seed whose type the compiler cannot read is LTC077  —
-				// the bare splice would connect the string as-is. Derived
-				// callbacks and list seeds leave this limb untouched.
 				if (scalarSeeded && scalarMarker) {
 					harvests.push({
 						kind: 'substitute',
@@ -1377,14 +1025,6 @@ const planHarvests = (
 				}
 				continue
 			}
-			// D-20 : a signal seeded from server args that renders only
-			// as formatted text has nothing the client can read back — the text
-			// does not parse, and no arg it reads renders as a raw attribute
-			// (else the substitution above would have found it). LTC059 names
-			// the raw-source fix; it replaces the generic server-only-name
-			// LTC005 `plan.ts` would raise for the same initializer. Skipped
-			// when the substitution failed for another, already-reported reason
-			// (an unaddressable arg site).
 			const formatted = formattedText.get(signal.name)
 			if (
 				formatted &&
@@ -1418,19 +1058,6 @@ const planHarvests = (
 			| { kind: 'text'; element: ElementNode }
 			| { kind: 'attr'; element: ElementNode; attr: string }
 			| undefined
-		// interplay /: a direct site ON THE ROOT (a
-		// signal-identifier lazy root child, `<my-el>{sig}</my-el>`) must never
-		// become a query — `first('<own-tag>')` searches descendants only and
-		// throws `MissingElementError` for the component's own root at
-		// activation. Route it through the ambient `host` instead (the text
-		// site reads `host.textContent`), the same target the ticket's root branch
-		// plans the watch against — harvest and watch agree. `'host'` is
-		// deliberately NOT a query-table entry: `harvestInitializer` passes
-		// unknown query names through verbatim, and `usedNames` already
-		// reserves `'host'` (analysis/plan.ts) so `addQuery` can never allocate
-		// it. (An `attr` site on the root is unreachable in a compiling
-		// component — reactive attributes on the root are LTC005 — but routed
-		// uniformly rather than left emitting a broken query.)
 		if (direct && direct.element === component.root) {
 			const parser = parserForSeed(shared, signal, scalarSeeded, scalarMarker)
 			if (!parser) continue
@@ -1489,8 +1116,6 @@ const planHarvests = (
 			}
 			continue
 		}
-		// membership: the mark sits on a @for output; the value attribute is
-		// the one the compared const was rendered into.
 		const mark = own[0] as {
 			kind: 'membership'
 			element: ElementNode
@@ -1509,12 +1134,6 @@ const planHarvests = (
 			reportUnharvestable(shared, signal)
 			continue
 		}
-		// A scalar seed's membership read takes the marker's parser when
-		// declared  — the parser owns the no-match miss, so no typed
-		// default — and LTC077 when the type is unreadable and no marker
-		// declares one. A typed, unmarked seed keeps today's parser-less
-		// read: the compared const is a string the attribute round-trips
-		// verbatim, and an inferred parser would only restate it.
 		const membership = {
 			kind: 'membership' as const,
 			signal: signal.name,
@@ -1542,11 +1161,6 @@ const planHarvests = (
 
 /* === Exported Functions === */
 
-/**
- * Passes 2+3: render sites, then one harvest plan per signal. Requires the
- * loop plans (ADR 0018 s5): a membership harvest addresses its `each()`
- * collection, a reconciled List seeds from its container.
- */
 export const runHarvest = (
 	shared: PassShared,
 	loopPlans: LoopPlans,

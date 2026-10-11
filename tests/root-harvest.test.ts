@@ -1,29 +1,4 @@
-/**
- * Tests for harvest sites that live on the component ROOT (NOTES
- * ): `first()` searches DESCENDANTS only (`src/helpers/dom.ts`
- * `queryOne` uses `root.querySelector`), so a harvest plan that synthesizes a
- * query for the root's own tag emits `first('<own-tag>')` — which throws
- * `MissingElementError` for the component's own root at activation, with no
- * compile-time diagnostic. Two analysis sites could produce that:
- *
- * 1. `paramDomRead`'s attribute-site walk (ADR 0005 sub-design 12) matched the
- *    root's own server attributes first — the usual case, since args render as
- *    root attributes — planning a query named after the component's own tag
- *    (basic-gauge and the since-retired basic-pluralize both hit this; a
- *    regrouping-era edit had
- *    dropped the ticket's `site.el !== component.root` guard).
- * 2. Pass 3's direct text-site branch for a signal-IDENTIFIER lazy root child
- *    (`<my-el>{sig}</my-el>`, the ticket's interplay note) — the same self-query,
- *    planned even though the ticket's root branch correctly binds the watch against
- *    the ambient `host`.
- *
- * The fix routes BOTH root-site variants through the ambient `host` (never a
- * query-table entry; `harvestInitializer` passes unknown query names through
- * verbatim) and, for the reactivity half of LT-115: when the substituted arg is
- * ALSO an exposed Parser prop rendered on the root, a `deriveCell` body reads
- * `host.<prop>` — the exposed prop's Slot, a TRACKED reactive source — instead
- * of an untracked `getAttribute` read that froze post-connect updates.
- */
+/** Harvest sites on the component ROOT: `first()` searches descendants only, so a self-query for the root's own tag would throw `MissingElementError` at activation — root-site harvests route through the ambient `host`, and an exposed Parser prop arg seeds `deriveCell` through the prop's tracked Slot instead of an untracked `getAttribute` read that would freeze post-connect updates. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 
@@ -124,7 +99,7 @@ describe('an exposed Parser prop arg seeds derived signals through the prop Slot
 		// Eager initializers execute at declaration, BEFORE expose() installs
 		// the Slot-backed property — a host.<prop> read there would be
 		// undefined. The DOM (attribute) read is the only sound seed — and,
-		// for a `number` arg, converted back with `Number()` ().
+		// for a `number` arg, converted back with `Number()`.
 		expect(component?.clientCode).toContain(
 			"createCell(String(Number(host.getAttribute('value') ?? '')))",
 		)
@@ -153,8 +128,8 @@ export function C({}: {})
 		)
 		expect(diagnostics.filter(d => d.severity === 'error')).toEqual([])
 		expect(component).not.toBeNull()
-		// the ticket's root branch already plans the watch against the ambient
-		// host; the harvest now agrees instead of throwing at activation.
+		// The root branch plans the watch against the ambient
+		// host; the harvest agrees with it instead of throwing at activation.
 		expect(component?.clientCode).toContain('watch(greeting, bindText(host))')
 		expect(component?.clientCode).toContain('asString()(host.textContent)')
 		expect(component?.clientCode).not.toContain("first('c-el'")

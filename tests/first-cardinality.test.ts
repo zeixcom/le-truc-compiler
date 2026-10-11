@@ -1,21 +1,4 @@
-/**
- * `first()` cardinality is decided by the SITE (), plus the
- * two output-shape loosenings that travelled with it.
- *
- * - one selector literal is the OPTIONAL form (`undefined` when
- *   absent), two literals the REQUIRED one (throws with the
- *   authored reason);
- * - the structural check (LTC026) is enforced for REQUIRED refs
- *   only — an optional ref may address markup the PAGE authored,
- *   which this component's own template says nothing about;
- * - a REQUIRED ref whose only match sits in a branch that may not
- *   render is required in name only: the analysis has always
- *   addressed it with a non-throwing query under a presence guard
- *   , so the reason string can never be thrown
- *   (LTC040);
- * - the `@{ }` output is the bare root element; a `<style>` block is
- *   its child, and a fragment root is LTC060 ().
- */
+/** `first()` cardinality is decided by the site: one selector literal is the optional form (`undefined` when absent), two literals the required one (throws with the authored reason). The structural check (LTC026) is enforced for required refs only — an optional ref may address markup the page authored. A required ref whose only match sits in a branch that may not render is required in name only: it is addressed with a non-throwing query under a presence guard, so the reason string can never be thrown (LTC040). The `@{ }` output is the bare root element; a `<style>` block is its child and a fragment root is LTC060. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 
@@ -55,10 +38,7 @@ describe('the optional form (LT-123)', () => {
 			`<span class="badge">y</span>`,
 		)
 		expect(diagnostics.some(d => d.code === 'LTC026')).toBe(false)
-		// The client still queries it — the author declared the
-		// const, and setup may read it. The AUTHORED selector is
-		// the runtime selector: there is nothing structural to
-		// resynthesize it from.
+		// The client still queries it — the author declared the const and setup may read it. The authored selector is the runtime selector: there is nothing structural to resynthesize it from.
 		expect(component?.clientCode).toContain(
 			"const extra = first('span.page-authored')",
 		)
@@ -92,8 +72,7 @@ describe('LTC040 — a required reason that can never be thrown (LT-123)', () =>
 		const hit = diagnostics.find(d => d.code === 'LTC040')
 		expect(hit).toBeDefined()
 		expect(hit?.severity).toBe('warning')
-		// The query is non-throwing either way — the warning is
-		// about the dead string, not a behaviour change.
+		// The query is non-throwing either way — the warning is about the dead string, not a behaviour change.
 		expect(maybeQueries(component?.clientCode ?? '').length).toBe(1)
 	})
 
@@ -136,8 +115,7 @@ describe('output shape (LT-123)', () => {
 	})
 
 	test('a fragment root is LTC060, whether or not it carries a <style>', () => {
-		// Owner ruling 2026-09-29 (ADR 0010 s1): the template's root is
-		// the host element, there is no fragment root.
+		// The template's root is the host element; there is no fragment root.
 		for (const output of [
 			`<>
 			<c-el><span>{label}</span></c-el>
@@ -171,8 +149,7 @@ describe('output shape (LT-123)', () => {
 		)
 		expect(diagnostics).toEqual([])
 		expect(component?.css).toContain('color: red')
-		// The style placeholder is hoisted out of the root's children — it
-		// never reaches the emitted markup.
+		// The style placeholder is hoisted out of the root's children — it never reaches the emitted markup.
 		expect(component?.serverCode).not.toContain('<style')
 	})
 

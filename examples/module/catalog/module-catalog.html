@@ -1,9 +1,7 @@
 <module-catalog id="default-test">
 	<header>
 		<p>Shop</p>
-		<!-- basic-button harvests label/badge/disabled from these children
-		     (LT-112 twin contract); module-catalog drives disabled/badge via
-		     pass() -->
+		<!-- basic-button harvests label/badge/disabled from these children; module-catalog drives disabled/badge via pass() -->
 		<basic-button>
 			<button type="button" disabled>
 				<span class="label">🛒 Shopping Cart</span>
@@ -14,9 +12,7 @@
 	<ul>
 		<li>
 			<p>Product 1</p>
-			<!-- form-spinbutton harvests value/min/max/step from the owned
-			     input (LT-112); data-product is module-catalog's boundary
-			     attribute -->
+			<!-- form-spinbutton harvests value/min/max/step from the owned input; data-product is module-catalog's boundary attribute -->
 			<form-spinbutton data-product="product-1" name="product-1">
 				<fieldset>
 					<div class="input">

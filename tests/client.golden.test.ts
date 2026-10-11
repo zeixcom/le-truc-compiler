@@ -1,15 +1,4 @@
-/**
- * Golden tests — client half (): the generated `defineComponent()`
- * modules must equal the committed snapshots (regenerate with
- * `UPDATE_SNAPSHOTS=1 bun test tests/client.golden.test.ts`)
- * and must typecheck against
- * the real `@zeix/le-truc` types — emit-then-check, the CI half of ADR
- * 0023 sub-design 6.
- *
- * The snapshots ARE the convergence evidence from
- * spike/tsrx-phase0/expected/unified-lowerings.md: statement-for-statement
- * today's hand-written components, imports solely from '@zeix/le-truc'.
- */
+/** Golden tests: generated `defineComponent()` modules must equal the committed snapshots (regenerate with `UPDATE_SNAPSHOTS=1 bun test tests/client.golden.test.ts`) and must typecheck against the real `@zeix/le-truc` types — emit-then-check. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
@@ -28,12 +17,7 @@ const registry = new Set<string>([
 	'module-list',
 	'basic-button',
 ])
-// Child-module map: migrated tags → generated clients. This fixture models a
-// FULLY-CUT corpus (every tag served from its generated client) so the
-// emit-then-check typecheck resolves; the live pipeline (server/effects/compile)
-// additionally keeps hand-written twins mapped to their source modules while
-// they remain mounted ( dual-state rule) — basic-button is such a tag
-// today, so real module-list.client.ts imports the twin, not the client.
+// This fixture models a fully-cut corpus (every tag served from its generated client) so the emit-then-check typecheck resolves; the live pipeline additionally keeps hand-written twins mapped while mounted, so the real module-list.client.ts imports the twin, not the client.
 const childImports = new Map<string, string>([
 	['basic-counter', './basic-counter.client'],
 	['module-tabgroup', './module-tabgroup.client'],
@@ -49,15 +33,10 @@ const SOURCES = [
 	'examples/form/checkbox/form-checkbox.tsrx',
 	'examples/module/list/module-list.tsrx',
 ] as const
-// Compiled for the emit-then-check pass only: reachable from a SOURCES
-// client's child-module import, but carrying no snapshot of its own.
+// Compiled for the emit-then-check pass only: reachable from a SOURCES client's child-module import, but carrying no snapshot of its own.
 const TYPECHECK_DEPS = ['examples/basic/button/basic-button.tsrx'] as const
 
-// An arm-set client (ADR 0015): no corpus component emits one yet, so
-// without this fixture the emit-then-check never exercises reconcile()'s arm
-// form, and the declared `types/` surface drifted from it once unnoticed
-// ( failed tsc with "Overload 1 of 2"). The fixture: a cell
-// seeded from a server arg through its DOM site, switching two arms.
+// No corpus component emits an arm-set client yet; without this fixture the emit-then-check never exercises reconcile()'s arm form. A cell seeded from a server arg through its DOM site, switching two arms.
 const ARM_SET_SOURCE = `import { createCell } from '@zeix/le-truc'
 export function C({ mode }: { mode: string })
 	@{
@@ -72,11 +51,7 @@ export function C({ mode }: { mode: string })
 			</c-arm-set>
 	}`
 
-// A scalar-harvest marker's fix-it (ADR 0024 s7): an aliased-number
-// seed wrapped in `harvest(price, asNumber())` and read at a reactive
-// attribute site. The marker does not inform inference, so without the
-// number-marker coercion the site emitted `bindAttribute` over a
-// `State<number>` and the very module LTC077's fix produced failed tsc.
+// Scalar-harvest fix-it: an aliased-number seed wrapped in `harvest(price, asNumber())` read at a reactive attribute site. The marker does not inform inference, so without the number-marker coercion the site emitted `bindAttribute` over a `State<number>` and tsc failed.
 const SCALAR_ATTR_SOURCE = `import { asNumber, createState } from '@zeix/le-truc'
 import { harvest } from '@zeix/le-truc-compiler/macros'
 type Price = number
@@ -93,10 +68,7 @@ export function C({ price }: { price: Price })
 			</c-scalar-attr>
 	}`
 
-// module-list composes FormTextbox (ADR 0005 sub-design 10) and
-// BasicButton () — the compose registry must be built from both before
-// it compiles, keyed by each child's own repo-relative source path (mirroring
-// server/effects/compile.ts).
+// module-list composes FormTextbox and BasicButton — the compose registry must be built from both before it compiles, keyed by each child's repo-relative source path (mirroring server/effects/compile.ts).
 const COMPOSE_FIRST = [
 	'examples/form/textbox/form-textbox.tsrx',
 	'examples/basic/button/basic-button.tsrx',
@@ -147,8 +119,7 @@ describe('client golden — convergence with the hand-written trio', () => {
 		expect(code).toContain(
 			"import { asNumber, bindText, defineComponent } from '@zeix/le-truc'",
 		)
-		// Sub-design 16: the authored import line re-emits alongside the
-		// synthesized one, which drops the names it provides.
+		// The authored import line re-emits alongside the synthesized one, which drops the names it provides.
 		expect(code).toContain("import { createCell } from '@zeix/le-truc'")
 		expect(code).toContain("first('span'")
 		expect(code).toContain('createCell(asNumber()(span.textContent))')
@@ -179,68 +150,41 @@ describe('client golden — convergence with the hand-written trio', () => {
 
 	test('form-textbox: extensions array, Parser-expose, defineMethod, host-mirror, managed watch', () => {
 		const code = compiled[2]?.result.component?.clientCode ?? ''
-		// Extension activation (sub-design 8): formAssociated leads the
-		// emitted array — the FormFactoryContext overload selector.
-		// `value` is deliberately not in observedAttributes (): the
-		// attribute is the reset baseline, not a live-value channel.
+		// formAssociated leads the emitted extensions array — the FormFactoryContext overload selector. `value` is deliberately not in observedAttributes: the attribute is the reset baseline, not a live-value channel.
 		expect(code).toContain('\t[formAssociated()],')
 		expect(code).toContain(
 			"import { bindAttribute, bindProperty, bindText, defineComponent, formAssociated } from '@zeix/le-truc'",
 		)
-		// Sub-design 16: authored real-export names ride their own line.
+		// Authored real-export names ride their own line.
 		expect(code).toContain(
 			"import { createCell, deriveCell, asString, defineMethod } from '@zeix/le-truc'",
 		)
 		expect(code).toContain(
 			"import type { FormAssociatedElement } from '@zeix/le-truc'",
 		)
-		// host destructures from the factory context. No `internals` ambient
-		// here (): `:has(.clear)` replaced the imperative
-		// `internals?.states.add('clearable')` client-stmt, so the factory
-		// never touches internals directly.
+		// No `internals` ambient here: `:has(.clear)` replaced the imperative `internals?.states.add('clearable')` client-stmt, so the factory never touches internals directly.
 		expect(code).toContain('({ expose, first, host, on, watch }) => {')
 		// Attribute-driven prop + method producer, verbatim expose shape
 		expect(code).toContain("value: asString(''),")
 		expect(code).toContain('length: length.get,')
-		// Arg-substituted seed (): the param's mirror site is the live
-		// input — the hand-written seeds createState(textbox.value.length).
+		// Arg-substituted seed: the param's mirror site is the live input.
 		expect(code).toContain('const length = createCell(input.value.length)')
-		// @if union addressing: whichever branch rendered is the element found.
-		// The message is the author's own first()-declared reason (),
-		// not the usual auto-generated one — the one part of the source
-		// `first()` call that flows into the generated code verbatim.
+		// @if union addressing: whichever branch rendered is the element found. The message is the author's own first()-declared reason — the one part of the source `first()` call that flows into the generated code verbatim.
 		expect(code).toContain(
 			"const input = first('textarea, input', 'text control')",
 		)
-		// `clearable`/`validatable` each gate an optional element (
-		// single-branch @if, no @else): the button/error-paragraph queries are
-		// non-throwing `first()`, and their effects only run guarded by presence.
+		// `clearable`/`validatable` each gate an optional element (single-branch @if, no @else): non-throwing `first()` queries, effects guarded by presence.
 		expect(code).toContain("const button = first('button')")
 		expect(code).toContain('if (button) {')
 		expect(code).toContain('clear: defineMethod(() => {')
-		// The host-prop mirror lowers to a property dispatch (AGENTS.md rule)
+		// The host-prop mirror lowers to a property dispatch.
 		expect(code).toContain(
 			"watch(() => host.value, bindProperty(input, 'value'))",
 		)
-		// Managed form prop as watch source. Since  the source spelling
-		// is a `host.<prop>` read lowering to watch()'s thunk overload, not
-		// the FormFactoryContext string-key overload — `host.validationMessage`
-		// still typechecks only against a FormAssociatedElement-typed host, so
-		// the extension ordering stays type-enforced, just via the host type
-		// rather than the watch() key.
-		// (named p2: the description paragraph claimed `p` first, harvested
-		// via arg-substitution rather than a direct site — ADR 0005 sub-design 12)
+		// Managed form prop as watch source: a `host.<prop>` read lowering to watch()'s thunk overload; `host.validationMessage` typechecks only against a FormAssociatedElement-typed host, so the extension ordering stays type-enforced via the host type. Named `p2`: the description paragraph claimed `p` first (arg-substituted harvest).
 		expect(code).toContain('const p2 = first(\'p[role="alert"]\')')
 		expect(code).toContain('watch(() => host.validationMessage, bindText(p2))')
-		// description (): a WRITABLE createCell whose seed is harvested
-		// from the paragraph's own data-remaining attribute (arg-substitution),
-		// with the remaining-count as a separate deriveCell display derivation
-		// over it — maxlength traced to the input's plain attribute, a
-		// descendant site. The paragraph binds the DERIVATION; a prop write
-		// flows through the exposed Slot into the cell and re-derives.
-		// A TOKEN clause since  — and the hand-written twin this test
-		// checks convergence against wrote `first('.description')`, so the
-		// token form converges where the exact-match form diverged.
+		// A writable createCell seeded from the paragraph's own data-remaining attribute (arg-substitution), with the remaining-count as a separate deriveCell derivation; the paragraph binds the derivation and a prop write re-derives through the exposed Slot. A token clause — the hand-written twin wrote `first('.description')`, so the token form converges where the exact-match form diverged.
 		expect(code).toContain("const p = first('p.description')")
 		expect(code).toContain(
 			"const descriptionCell = createCell((p?.getAttribute('data-remaining') ?? ''))",
@@ -262,15 +206,13 @@ describe('client golden — convergence with the hand-written trio', () => {
 		expect(code).toContain("import { asBoolean } from '@zeix/le-truc'")
 		expect(code).toContain('\t[formAssociatedCheckbox()],')
 		expect(code).toContain('checked: asBoolean(false),')
-		// Both mirrors dispatch as properties — checked from the parser-exposed
-		// prop, disabled from the extension member (FormAssociatedElement).
+		// Both mirrors dispatch as properties — checked from the parser-exposed prop, disabled from the extension member (FormAssociatedElement).
 		expect(code).toContain(
 			"watch(() => host.checked, bindProperty(checkbox, 'checked'))",
 		)
 		expect(code).toContain(
 			"watch(() => host.disabled, bindProperty(checkbox, 'disabled'))",
 		)
-		// The on() return-update form passes through verbatim
 		expect(code).toContain(
 			"on(checkbox, 'change', () => ({ checked: checkbox.checked }))",
 		)
@@ -282,17 +224,13 @@ describe('client golden — convergence with the hand-written trio', () => {
 			"import { bindText, defineComponent, reconcile } from '@zeix/le-truc'",
 		)
 		expect(code).toContain("import { createList } from '@zeix/le-truc'")
-		// Static seed passes through verbatim — the server rendered from the
-		// same literal, so the DOM agrees by construction.
+		// Static seed passes through verbatim — the server rendered from the same literal, so the DOM agrees by construction.
 		expect(code).toContain('const items = createList<string>([], {')
-		// The extracted template is stamped `data-list` and queried from the
-		// container's parent — the host, here (ADR 0024 s2).
+		// The extracted template is stamped `data-list` and queried from the container's parent — the host, here.
 		expect(code).toContain(
 			'host.querySelector<HTMLTemplateElement>(\':scope > template[data-list="0"]\')!',
 		)
-		// The item is a Mount Scope (ADR 0024 s1): the hole and the button
-		// are bindItem-scoped locals, the bare `{item}` watched as the item
-		// signal itself.
+		// The hole and the button are bindItem-scoped locals; the bare `{item}` is watched as the item signal itself.
 		expect(code).toContain(
 			"const span = first('span', 'module-list: span missing')",
 		)
@@ -301,8 +239,7 @@ describe('client golden — convergence with the hand-written trio', () => {
 			"const button = first('button', 'module-list: button missing')",
 		)
 		expect(code).toContain("on(button, 'click', () => items.remove(k))")
-		// Registry-aware dispatch: basic-button is a known component, so the
-		// reactive attribute lowers to mediated pass(), not bindProperty.
+		// Registry-aware dispatch: basic-button is a known component, so the reactive attribute lowers to mediated pass(), not bindProperty.
 		expect(code).toContain(
 			'pass(basicButton, { disabled: { get: () => !textbox.length } })',
 		)
@@ -318,10 +255,7 @@ describe('client golden — convergence with the hand-written trio', () => {
 	})
 })
 
-// A per-run directory for the emit-then-check pass, not the build pipeline's
-// output (). It sits at the same depth under the repo root as the real
-// `server/generated/components/`, so relative specifiers in the emitted clients
-// resolve identically.
+// A per-run directory for the emit-then-check pass, not the build pipeline's output. It sits at the same depth under the repo root as `server/generated/components/`, so relative specifiers in the emitted clients resolve identically.
 const generated = createGeneratedDir('client-golden')
 afterAll(() => generated.cleanup())
 
@@ -335,12 +269,7 @@ describe('client golden — emit-then-check (ADR 0005 sub-design 6)', () => {
 				generated.emit(component.entry.clientModule, component.clientCode),
 			)
 		}
-		// module-list's client side-effect-imports './basic-button.client'
-		// because `childImports` models a fully-cut corpus. basic-button has
-		// no snapshot of its own and is deliberately not in SOURCES, but the
-		// typecheck program still needs the module to exist. Emit it here:
-		// until  this test passed only when a previous `build-corpus` had
-		// happened to leave the file in the shared output directory.
+		// module-list's client side-effect-imports './basic-button.client' because `childImports` models a fully-cut corpus. basic-button has no snapshot and is not in SOURCES, but the typecheck program still needs the module to exist.
 		for (const rel of TYPECHECK_DEPS) {
 			const { component } = compileComponent(
 				read(rel),
@@ -393,9 +322,7 @@ describe('client golden — emit-then-check (ADR 0005 sub-design 6)', () => {
 				'--lib',
 				'esnext,dom',
 				'--skipLibCheck',
-				// Child-module side-effect imports pull hand-written examples
-				// (and through them src/) into the program; src/ reads
-				// process.env.DEV_MODE, typed by @types/node as in tsconfig.
+				// Child-module side-effect imports pull hand-written examples (and through them src/) into the program; src/ reads process.env.DEV_MODE, typed by @types/node.
 				'--types',
 				'node',
 				...files,

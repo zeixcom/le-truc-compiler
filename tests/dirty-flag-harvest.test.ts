@@ -1,16 +1,4 @@
-/**
- * Direct test for the CHECKLIST §6 hydration BUG fix: `value`/`checked`/
- * `selected` are dirty-flag attributes — between server render and client
- * upgrade, the user can type, or the browser can refill via session
- * restore/autofill/bfcache, so the live IDL property may already diverge
- * from the content attribute the server rendered. A signal harvested from
- * one of these must read the LIVE PROPERTY, not `getAttribute`, or it
- * silently discards whatever the user already typed in that window.
- *
- * Pinned directly rather than only through goldens: no example in the
- * corpus currently harvests a dirty-flag attribute via this path, so a
- * regression here would be invisible in `client.golden.test.ts`.
- */
+/** Direct test for the dirty-flag hydration bug: `value`/`checked`/`selected` are dirty-flag attributes — between server render and client upgrade the live IDL property may already diverge from the content attribute, so a signal harvested from one must read the live property, not `getAttribute`. Pinned directly: no corpus example harvests a dirty-flag attribute via this path, so a regression here would be invisible in `client.golden.test.ts`. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 

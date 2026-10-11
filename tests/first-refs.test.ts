@@ -1,8 +1,4 @@
-/**
- * Direct unit tests for `first-refs.ts` (): the structural matcher
- * `first(selector, required)` resolution uses to find which template
- * element(s) an author's selector refers to, replacing `ref={}`.
- */
+/** Direct unit tests for `first-refs.ts`: the structural matcher `first(selector, required)` resolution uses to find which template element(s) an author's selector refers to, replacing `ref={}`. */
 import { describe, expect, test } from 'bun:test'
 import {
 	collectMatchingElements,
@@ -103,9 +99,7 @@ describe('collectMatchingElements — bare tag/class/id/attribute-presence', () 
 			'input, div > span',
 		)
 		expect(elements).toEqual([input])
-		// The unsupported branch is still flagged, even though a real match
-		// was found via the supported one — the caller only treats zero
-		// matches as a hard error, so this is informational, not blocking.
+		// The unsupported branch is still flagged even though a real match was found via the supported one — the caller only treats zero matches as a hard error, so this is informational, not blocking.
 		expect(unsupported).toBe(true)
 	})
 
@@ -196,13 +190,7 @@ describe('shareExclusiveIf', () => {
 	})
 })
 
-/**
- * LT-380: `parseSimpleSelector` parses through css-what now, but the
- * VERIFIED SUBSET is frozen — the swap changed how it parses, not what it
- * verifies (widening is ). These pins hold the subset's boundary
- * against css-what's leniency, through the exported matcher
- * (`null` = cannot verify, never "matches nothing").
- */
+/** The verified subset is frozen — the css-what swap changed how the selector parses, not what it verifies. These pins hold the subset's boundary against css-what's leniency, through the exported matcher (`null` = cannot verify, never "matches nothing"). */
 describe('the verified subset is unchanged under the css-what parse (LT-380)', () => {
 	const attrs = (entries: Array<[string, string | null]>) => new Map(entries)
 	const verify = (
@@ -230,10 +218,9 @@ describe('the verified subset is unchanged under the css-what parse (LT-380)', (
 
 	test('whitespace outside quoted values stays unverified (css-what is lenient there)', () => {
 		const el = { tag: 'input', attrs: attrs([['type', 'checkbox']]) }
-		// Browser-valid, but the subset predates the bracket forms — the ticket's widening.
+		// Browser-valid, but outside the frozen subset.
 		expect(verify('[ type = "checkbox" ]', el)).toBeNull()
-		// Browser-invalid (a class token cannot start with a space); css-what
-		// keeps the space in the value, the token check refuses it.
+		// Browser-invalid (a class token cannot start with a space); css-what keeps the space in the value, the token check refuses it.
 		expect(verify('a. b', el)).toBeNull()
 	})
 
@@ -245,9 +232,7 @@ describe('the verified subset is unchanged under the css-what parse (LT-380)', (
 	})
 
 	test('an explicit [id="…"] clause is an attribute, not the id path', () => {
-		// `#a[id="b"]` can never match (one id, two values) — today's shape
-		// of that answer is preserved by routing the explicit clause through
-		// the attrs path while only the hash spelling takes the id path.
+		// `#a[id="b"]` can never match (one id, two values) — the explicit clause routes through the attrs path, only the hash spelling takes the id path.
 		const el = { tag: 'input', attrs: attrs([['id', 'b']]) }
 		expect(verify('#b', el)).toBe(true)
 		expect(verify('[id="b"]', el)).toBe(true)

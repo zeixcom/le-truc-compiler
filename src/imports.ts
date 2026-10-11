@@ -1,35 +1,7 @@
-/**
- * Source-import collection and placement (regrouping move M6 of
- * LE_TRUC_COMPILER.md §7): the ONE module owning "what does this source
- * import, and where does each import land". Three concerns, previously
- * split across `config.ts` (compose-import resolution) and
- * `plain-imports.ts` (plain-import placement):
- *
- * 1. `parseComposeImports` — named imports of sibling `.tsrx` modules
- *    (ADR 0005 sub-design 10), the composable targets.
- * 2. `parseLeTrucImports`/`placeLeTrucImports` — authored
- *    `import { … } from '@zeix/le-truc'` statements: real package exports
- *    (ADR 0005 sub-design 16), placed per name against the runtime-harness
- *    filter rather than re-emitted verbatim.
- * 3. `parsePlainImports` — every OTHER top-level import, with relative
- *    specifiers rewritten for the flat generated directory (ADR
- *    0024 sub-design 14).
- * 4. `placePlainImports`/`computeClientNeededNames` — placement of each
- *    plain import into whichever generated module(s) actually reference
- *    its bindings, inferred from usage — the same free-identifier analysis
- *    the compiler already runs for setup consts — no new annotation syntax.
- *
- * Specifier resolution uses the small pure-string POSIX helpers below:
- * module specifiers are `/`-separated on every host, so path math over them
- * must not follow the platform separator the way `node:path`'s default
- * export does on Windows.
- */
-
-import type { AstNode } from './ast-node'
 import {
+	type AstNode,
 	asArray,
 	forEachFreeIdentifier,
-	freeIdentifiers,
 	identifierName,
 	identifiersIn,
 	isNode,
@@ -78,16 +50,6 @@ const normalize = (p: string): string => {
 
 /* === Compose imports (from config.ts) === */
 
-/**
- * Named imports of other component modules (ADR 0005 sub-design 10, dual
- * surface per ADR 0010 sub-design 6): local binding name → import specifier
- * resolved to a repo-relative path. `filename` is itself repo-relative, so
- * the specifier resolves against its directory. Both authored extensions
- * compose — `.tsrx` and `.tsx` (cross-surface composition included; the
- * corpus's compose registry is keyed by resolved path, so either surface
- * can import the other) — anything else (a `.ts` component, a library
- * import) is not a composable import.
- */
 export const parseComposeImports = (
 	ast: AstNode,
 	filename: string,
@@ -118,7 +80,7 @@ export const parseComposeImports = (
 	return imports
 }
 
-/* === Compile-time markers (ADR 0012 s1, LT-442) === */
+/* === Compile-time markers === */
 
 /** The module an authored source imports its compile-time markers from. */
 export const MACROS_SPECIFIER = '@zeix/le-truc-compiler/macros'
@@ -141,10 +103,7 @@ const specifierOf = (stmt: AstNode): string | null => {
 		: null
 }
 
-/**
- * The name an import specifier imports (`css` in `{ css as style }`), or
- * null for a default or namespace import.
- */
+/** The name an import specifier imports (`css` in `{ css as style }`), or null for a default or namespace import. */
 const importedNameOf = (spec: AstNode): string | null => {
 	if (spec.type !== 'ImportSpecifier') return null
 	const imported = spec.imported
@@ -161,12 +120,6 @@ const isMarkerSpecifier = (stmt: AstNode, spec: AstNode): boolean =>
 	(spec as { importKind?: unknown }).importKind !== 'type' &&
 	isMarkerName(importedNameOf(spec))
 
-/**
- * The source's marker bindings: local name → the marker it imports. The
- * compiler recognizes a marker by binding, never by bare name
- * (`import { css as style }` binds `style`; a `css` that is not this import
- * binds nothing). Both front ends read this table through `markerOf`.
- */
 export const parseMarkerImports = (ast: AstNode): Map<string, MarkerName> => {
 	const markers = new Map<string, MarkerName>()
 	for (const stmt of asArray(ast.body)) {
@@ -195,11 +148,6 @@ const withoutShadowed = (
 	return scoped ?? markers
 }
 
-/**
- * Drop the marker bindings a component-scope declaration shadows: a
- * parameter or setup declaration of the same local name is what a read in
- * the template resolves to, so it is not the marker.
- */
 export const shadowMarkers = (
 	ctx: ExtractContext,
 	declared: ReadonlySet<string>,
@@ -207,13 +155,6 @@ export const shadowMarkers = (
 	ctx.markers = withoutShadowed(ctx.markers, declared)
 }
 
-/**
- * The marker an identifier node resolves to, or null when it is none.
- * `enclosing` names what the scopes between the component function and the
- * identifier declare — a reactive-list item's binding, key and setup names
- * (ADR 0024 s5) — so a marker one of them shadows resolves to nothing there,
- * as a component-scope declaration does through `shadowMarkers`.
- */
 export const markerOf = (
 	ctx: ExtractContext,
 	node: unknown,
@@ -224,22 +165,10 @@ export const markerOf = (
 	return withoutShadowed(ctx.markers, enclosing).get(name) ?? null
 }
 
-/**
- * Record that a consumer read the marker reference `node`: the sweep
- * (`reportUnclaimedMarkers`) leaves it alone.
- */
 export const claimMarker = (ctx: ExtractContext, node: unknown): void => {
 	if (isNode(node)) ctx.claimedMarkers.add(node)
 }
 
-/**
- * Refuse every reference to a marker binding inside the component function
- * that no consumer claimed (LTC005): the marker import is stripped from both
- * generated modules, so an unconsumed reference would reach one unbound.
- * `markers` is the import table before component-scope shadowing — the walk
- * resolves shadowing itself, through every scope inside `fn`. Generic over
- * `MARKER_NAMES`: each marker's copy lives in `diagnostic.misplacedMarker`.
- */
 export const reportUnclaimedMarkers = (
 	ctx: ExtractContext,
 	fn: AstNode,
@@ -255,12 +184,7 @@ export const reportUnclaimedMarkers = (
 	})
 }
 
-/**
- * An import declaration's text with its marker specifiers removed, or null
- * when every specifier is a marker — a marker import never reaches a
- * generated module (ADR 0012 s1). A declaration with no marker specifier
- * returns its text unchanged.
- */
+/** An import declaration's text with its marker specifiers removed, or null when every specifier is a marker — a marker import never reaches a generated module. */
 const withoutMarkers = (source: string, stmt: AstNode): string | null => {
 	const specs = asArray(stmt.specifiers)
 	const kept = specs.filter(spec => !isMarkerSpecifier(stmt, spec))
@@ -280,26 +204,14 @@ const withoutMarkers = (source: string, stmt: AstNode): string | null => {
 
 /* === `@zeix/le-truc` authored imports === */
 
-/**
- * One `import { … } from '@zeix/le-truc'` statement in an authored source:
- * every VALUE name it binds (type-only statements are skipped — they were
- * dropped from generated output before sub-design 16 and stay dropped).
- */
 export type LeTrucImport = {
 	names: string[]
 	start: number
 	end: number
-	/** Each name's import specifier, for a diagnostic's range (LT-371). */
+	/** Each name's import specifier, for a diagnostic's range. */
 	specifiers: Map<string, AstNode>
 }
 
-/**
- * Every named VALUE import from `'@zeix/le-truc'` — the author's declaration
- * of which real package exports the source uses (ADR 0005 sub-design 16).
- * NOT a plain import (`parsePlainImports` still excludes this specifier
- * below): placement is per-name against the runtime-harness filter
- * (`placeLeTrucImports`), not the verbatim re-emission plain imports get.
- */
 export const parseLeTrucImports = (ast: AstNode): LeTrucImport[] => {
 	const result: LeTrucImport[] = []
 	for (const stmt of asArray(ast.body)) {
@@ -334,14 +246,6 @@ export const parseLeTrucImports = (ast: AstNode): LeTrucImport[] => {
 	return result
 }
 
-/**
- * Exports of the server runtime harness (`server/compiler/runtime.ts`,
- * ADR 0005 sub-design 2): the names a generated SERVER module binds from the
- * harness import `emit-server.ts` synthesizes. An authored
- * `'@zeix/le-truc'` import must not re-bind any of them server-side — two
- * import statements can't share a local name, and the harness's plain-value
- * shims are what server evaluation semantically requires.
- */
 const RUNTIME_HARNESS_EXPORTS: ReadonlySet<string> = new Set<string>([
 	'createCell',
 	'createList',
@@ -376,19 +280,9 @@ const RUNTIME_HARNESS_EXPORTS: ReadonlySet<string> = new Set<string>([
 	'entries',
 ])
 
-/**
- * `emit-server.ts`'s `argsFromAttrs` emission () re-emits Parser
- * expressions outside `expose()`, so it needs to know which of a parsed
- * expression's free identifiers are harness-provided (importable) and which
- * resolve through the existing stubs/imports instead.
- */
 export { RUNTIME_HARNESS_EXPORTS }
 
-/**
- * The span from the first to the last of `names`' specifiers in `imp` —
- * what an unused-import report covers (); the whole declaration when
- * a specifier carries no position.
- */
+/** The span from the first to the last of `names`' specifiers in `imp` — what an unused-import report covers; the whole declaration when a specifier carries no position. */
 const specifierSpan = (
 	imp: LeTrucImport,
 	names: readonly string[],
@@ -405,12 +299,7 @@ const specifierSpan = (
 	return Number.isFinite(start) ? { start, end } : imp
 }
 
-/**
- * `imp.names` split into maximal runs of adjacent specifiers that `skip`
- * does not hold — so an unused-import range never covers a context name
- * LTC037 reports on its own (`{ createTask, host, createCell }` is two
- * runs).
- */
+/** `imp.names` split into maximal runs of adjacent specifiers that `skip` does not hold — so an unused-import range never covers a context name LTC037 reports on its own. */
 const runsWithout = (
 	imp: LeTrucImport,
 	skip: ReadonlySet<string>,
@@ -427,26 +316,10 @@ const runsWithout = (
 	return runs
 }
 
-/**
- * Place each authored `'@zeix/le-truc'` import into the generated modules,
- * per name (ADR 0005 sub-design 16): a name lands in the CLIENT module when
- * a client-emitted position uses it (the real package IS the client
- * implementation), and in the SERVER module only when used there AND the
- * runtime harness cannot provide it — the harness keeps providing its
- * plain-value shims for signal constructors, parsers, `defineMethod`, so the
- * authored line is filtered per name rather than re-emitted verbatim. A
- * statement no name uses anywhere warns via LTC014, same as plain imports.
- */
 export const placeLeTrucImports = (
 	ctx: ExtractContext,
 	component: SetupLikeComponent,
 	leTrucImports: LeTrucImport[],
-	/**
-	 * Verbatim texts each generated module re-emits (type declarations, the
-	 * params slice, the setup statements): a le-truc name whose only
-	 * surviving uses there are TYPE positions places as `type X` — the
-	 * usage walks count value reads only (LT-423 fixture).
-	 */
 	typeTexts: { server: readonly string[]; client: readonly string[] } = {
 		server: [],
 		client: [],
@@ -467,8 +340,7 @@ export const placeLeTrucImports = (
 	const serverUsage = serverUsageNames(component)
 	const clientUsage = computeClientNeededNames(component)
 	const typeNamesIn = (texts: readonly string[]): ReadonlySet<string> =>
-		// A name in an authored TYPE position counts only outside comments:
-		// strip them, then take the flat identifier tokens (`identifiersIn`).
+		// A name in an authored TYPE position counts only outside comments: strip them, then take the flat identifier tokens (`identifiersIn`).
 		new Set(
 			texts.flatMap(t =>
 				identifiersIn(
@@ -478,25 +350,18 @@ export const placeLeTrucImports = (
 		)
 	const serverTypeNames = typeNamesIn(typeTexts.server)
 	const clientTypeNames = typeNamesIn(typeTexts.client)
-	// A FactoryContext member inside an authored '@zeix/le-truc' import is
-	// LTC037 (compiler.ts) — never re-emit one: it is not a package export
-	// and would break the generated module's imports.
+	// A FactoryContext member inside an authored '@zeix/le-truc' import is LTC037 (compiler.ts) — never re-emit one: it is not a package export.
 	const contextVocabulary = new Set<string>([
 		...FACTORY_CONTEXT_MEMBERS,
 		...CONTEXT_NAMES,
 	])
 	for (const imp of leTrucImports) {
-		// A FactoryContext member inside an authored '@zeix/le-truc' import is
-		// LTC037 (compiler.ts) — excluded here so it is neither placed nor
-		// double-reported as an unused import.
+		// A FactoryContext member inside an authored '@zeix/le-truc' import is LTC037 (compiler.ts) — excluded here so it is neither placed nor double-reported as an unused import.
 		const names = imp.names.filter(n => !contextVocabulary.has(n))
 		if (names.length === 0) continue
 		const usedServer = names.filter(n => serverUsage.has(n))
 		const usedClient = names.filter(n => clientUsage.has(n))
-		// Type-only survivors: unused as values, named in the module's own
-		// verbatim texts. Placed as `type X` so a type-only export stays one
-		// ( fixture: `MutableStore<T>` in a verbatim signal
-		// declaration — the usage walks count value reads only).
+		// Type-only survivors: unused as values, named in the module's own verbatim texts. Placed as `type X` so a type-only export stays one.
 		const typeServer = names.filter(
 			n => !serverUsage.has(n) && serverTypeNames.has(n),
 		)
@@ -509,8 +374,7 @@ export const placeLeTrucImports = (
 			typeServer.length === 0 &&
 			typeClient.length === 0
 		) {
-			// One report per run of adjacent names, so no range covers a
-			// context name between them ().
+			// One report per run of adjacent names, so no range covers a context name between them.
 			for (const run of runsWithout(imp, contextVocabulary))
 				ctx.diagnostics.push(
 					diagnostic.unusedPlainImport(
@@ -552,27 +416,6 @@ export type PlainImportIR = {
 	end: number
 }
 
-/**
- * Every top-level `ImportDeclaration` whose specifier does NOT resolve to a
- * composable target — `.tsrx` OR `.tsx` (`parseComposeImports` above claims
- * both; the dual-extension filter is the production shape the ticket's spike
- * worked around by local-name overlap;  spike findings fact 7,
- * `adr/archive/0032-spike-findings.md`) — and is not
- * `'@zeix/le-truc'` (`parseLeTrucImports` above claims that specifier — its
- * placement is per-name against the runtime-harness filter, not the
- * verbatim re-emission plain imports get). Side-effect-only imports
- * (`import 'culori/css'`) have no bindings to trace usage from. A relative
- * specifier (`./`, `../`) is rewritten to stay valid from the generated
- * modules' flat output directory — it was authored relative to the source
- * file's own location, which is almost never where the compiled module ends
- * up.
- *
- * `outDirPrefix` is that rewrite's prefix back to the project root — `../`
- * once per segment of the CONFIGURED output root (
- * `corpus-config.ts`). It was a hard-coded `'../../../'` until the output
- * root became a consumer's choice; the default still is, so an unconfigured
- * call emits exactly what it emitted before.
- */
 export const parsePlainImports = (
 	ctx: ExtractContext,
 	ast: AstNode,
@@ -597,8 +440,7 @@ export const parsePlainImports = (
 			specifier === '@zeix/le-truc'
 		)
 			continue
-		// A marker specifier never reaches a generated module (ADR 0012 s1):
-		// the declaration drops whole when every specifier is a marker.
+		// A marker specifier never reaches a generated module: the declaration drops whole when every specifier is a marker.
 		const stripped = withoutMarkers(ctx.source, stmt)
 		if (stripped === null) continue
 		const localNames: string[] = []
@@ -627,17 +469,7 @@ export const parsePlainImports = (
 	return result
 }
 
-/**
- * Every server-known-position expression node anywhere in the template.
- * Includes `'server'`-kind attributes (the classifier's fallback
- * for any non-arrow `{…}` expression, e.g. `data-foo={helper(count)}`) —
- * they are spliced verbatim and unconditionally into the SERVER module by
- * emit-server.ts, no scope/dependency gate exists there, unlike `reactive`/
- * `style-map`/`class-map`. They belong in this always-server-rendered
- * bucket, not the scope-gated `serverRenderedThunkNodes` one (a plain import used only inside a `'server'`-kind attribute was invisible to `placePlainImports`, mis-diagnosed as unused,
- * and dropped from the server module even though the generated code
- * referenced it).
- */
+/** Every server-known-position expression node anywhere in the template, including `'server'`-kind attributes — they are spliced verbatim and unconditionally into the server module. */
 const serverExprNodes = (root: TemplateNode): AstNode[] => {
 	const out: AstNode[] = []
 	walkTemplate(root, node => {
@@ -662,19 +494,10 @@ const clientExprNodes = (root: TemplateNode): AstNode[] => {
 		if (node.kind === 'expr' && node.reactivity === 'reactive')
 			out.push(node.expr)
 		else if (node.kind === 'client-stmt') out.push(node.node)
-		// A reactive conditional's test is its client arm-key thunk (ADR 0015).
+		// A reactive conditional's test is its client arm-key thunk.
 		else if (node.kind === 'conditional' && node.mode === 'reactive')
 			out.push(node.test)
-		// `pass={{ }}` on a composed element (): `collectAttrs` only
-		// covers `kind: 'element'` attrs (`ComposeAttrIR` is a different
-		// vocabulary, walk.ts's own doc comment on `collectAttrs` used to
-		// flag this as a known gap) — a plain-setup-const/plain-import
-		// referenced ONLY inside a compose `pass` thunk (`truc:pass={{ value:
-		// () => toDisplay(...) }}`) needs the exact same client-need tracing
-		// raw-element `pass` gets below, or it silently never gets emitted.
-		// A compose-site handler arg () lowers to a parent-side `on()`
-		// in the factory, exactly like a native `onX` event attribute
-		// (); a forwarded one emits nothing.
+		// Compose `pass` thunks and non-forwarded handler args: `collectAttrs` covers `kind: 'element'` attrs only, so they need the same client-need tracing raw-element `pass` gets below.
 		else if (node.kind === 'compose')
 			for (const attr of node.attrs) {
 				if (attr.kind === 'pass')
@@ -701,12 +524,7 @@ const clientExprNodes = (root: TemplateNode): AstNode[] => {
 	return out
 }
 
-/**
- * Server-conditional reactive-family thunks (`reactive`/`style-map`/
- * `class-map`) — gated by the same `isServerEvaluable` rule emit-server.ts
- * applies (evaluability.ts), so a plain import used only inside a
- * thunk that DOES get server-rendered still lands server-side.
- */
+/** Server-conditional reactive-family thunks (`reactive`/`style-map`/`class-map`) — gated by the same `isServerEvaluable` rule emit-server.ts applies, so a plain import used only inside a server-rendered thunk still lands server-side. */
 const serverRenderedThunkNodes = (
 	root: TemplateNode,
 	serverKnown: ReadonlySet<string>,
@@ -750,20 +568,6 @@ type SetupLikeComponent = Pick<
 	| 'serverKnown'
 >
 
-/**
- * Every name required in the CLIENT module: free names of every always-
- * client-emitted position (reactive/style-map/class-map/event attribute
- * thunks, lazy `&{}` children, `client-stmt` side effects, compose-site
- * `pass` thunks and handler args, `clientSetup` statements, signal
- * declarations — signals are always harvested
- * client-side), `expose()` (also always both), plus a fixpoint over
- * `plainSetup`: a plain const pulled in by any of those (or by another
- * plain const already pulled in) contributes its own free names too. A
- * plain const referenced ONLY from a server-only position (e.g. an `@if`
- * condition) is correctly excluded — it would be a "Cannot find name"
- * client-side otherwise (found migrating `form-textbox.tsrx`'s `@if
- * (validatable)`, alongside ).
- */
 export const computeClientNeededNames = (
 	component: SetupLikeComponent,
 ): ReadonlySet<string> => {
@@ -772,10 +576,7 @@ export const computeClientNeededNames = (
 		for (const n of dependenciesOf(exprNode)) needed.add(n)
 	for (const stmt of component.clientSetup)
 		for (const n of dependenciesOf(stmt.node)) needed.add(n)
-	// A `harvest()` marker is spliced into the client's declaration as
-	// authored (ADR 0024 s7): the list form's parser entries () and
-	// the scalar form's parser (); the server reads the seed through
-	// without it.
+	// A `harvest()` marker is spliced into the client's declaration as authored; the server reads the seed through without it.
 	for (const signal of component.signals) {
 		if (signal.family !== 'declared') continue
 		const { harvest } = signal
@@ -785,15 +586,11 @@ export const computeClientNeededNames = (
 		if (harvest?.kind === 'scalar')
 			for (const n of dependenciesOf(harvest.parser)) needed.add(n)
 	}
-	// Every item setup statement is client-emitted, in `bindItem` (ADR
-	// 0046 s5) — a ref through its selector alone.
+	// Every item setup statement is client-emitted, in `bindItem` — a ref through its selector alone.
 	for (const stmt of component.itemSetup)
 		if (stmt.kind !== 'ref')
 			for (const n of dependenciesOf(stmt.node)) needed.add(n)
-	// Every `setup` entry that ISN'T a plain const (signals, `expose()`) is
-	// always client-emitted too — `plainSetup` is `setup`'s only conditional
-	// subset (same object references, so `Set` membership by name is enough
-	// to tell them apart).
+	// Every `setup` entry that ISN'T a plain const (signals, `expose()`) is always client-emitted too — `plainSetup` is `setup`'s only conditional subset.
 	const plainSetupNames = new Set(
 		component.plainSetup.map(s => s.name).filter((n): n is string => !!n),
 	)
@@ -815,22 +612,13 @@ export const computeClientNeededNames = (
 	return needed
 }
 
-/**
- * Every name a server-evaluated position uses: setup statements (emitted
- * verbatim into the server module unconditionally, ADR 0005 sub-design 12),
- * always-server template expressions, and server-conditional reactive-family
- * thunks. Shared by `placePlainImports` and `placeLeTrucImports`; exported
- * since  step 5 for the rendered-client-only-const check (`LTC046`),
- * which asks the complementary question — did a setup const the harness
- * cannot evaluate reach one of these positions?
- */
 export const serverUsageNames = (
 	component: SetupLikeComponent,
 ): ReadonlySet<string> => {
 	const serverNames = new Set<string>()
 	for (const stmt of component.setup)
 		for (const n of dependenciesOf(stmt.node)) serverNames.add(n)
-	// The item setup the server's loop declares (ADR 0024 s5).
+	// The item setup the server's loop declares.
 	for (const stmt of component.itemSetup)
 		if (onServer(stmt))
 			for (const n of dependenciesOf(stmt.node)) serverNames.add(n)
@@ -844,23 +632,10 @@ export const serverUsageNames = (
 	return serverNames
 }
 
-/**
- * Place each plain import into the generated server module, client module,
- * or both — inferred from where its bindings are actually used. Pushes a
- * LTC014 warning (not dropped silently) for an import with no detectable
- * usage anywhere the compiler looks.
- */
 export const placePlainImports = (
 	ctx: ExtractContext,
 	component: SetupLikeComponent,
 	plainImports: PlainImportIR[],
-	/**
-	 * Declaration texts each generated module carries verbatim (type
-	 * aliases, `declare global`, the server's parameter types). A name they
-	 * reference is a use in that module — but only an `import type`
-	 * statement is credited from them, since it is erased at build time and
-	 * can carry no side effect into a module that would not otherwise load it.
-	 */
 	typeTexts: { server: readonly string[]; client: readonly string[] } = {
 		server: [],
 		client: [],
@@ -876,8 +651,7 @@ export const placePlainImports = (
 	const serverNames = serverUsageNames(component)
 	const clientNames = computeClientNeededNames(component)
 	const typeNamesIn = (texts: readonly string[]): ReadonlySet<string> =>
-		// A name in an authored TYPE position counts only outside comments:
-		// strip them, then take the flat identifier tokens (`identifiersIn`).
+		// A name in an authored TYPE position counts only outside comments: strip them, then take the flat identifier tokens (`identifiersIn`).
 		new Set(
 			texts.flatMap(t =>
 				identifiersIn(
@@ -893,9 +667,7 @@ export const placePlainImports = (
 	const serverLocalNames = new Set<string>()
 	for (const imp of plainImports) {
 		if (imp.sideEffectOnly) {
-			// No bound name to trace usage from — a missing side-effect import
-			// is a silent runtime bug, not a compile error, so default to the
-			// safe choice: include it everywhere rather than guess.
+			// No bound name to trace usage from — a missing side-effect import is a silent runtime bug, not a compile error, so include it everywhere.
 			server.push(imp.text)
 			client.push(imp.text)
 			continue

@@ -1,20 +1,4 @@
-<!-- Regenerated from the compiled server render (LT-111 cutover):
-     renderModuleTodo({}) from server/generated/components/module-todo.server.ts —
-     the demo serves exactly the markup the compiled client hydrates. The variant
-     set serves module-todo.tsx (ADR 0039); module-todo.tsrx and the
-     hand-written module-todo.ts stay as variants. The per-item steady state
-     (key-derived `id`/`for`, the item `data-key`) is clone-time: the client
-     sets it per cloned item, so the template carries none. Since LT-466 the
-     composed <form-inplace-edit> sits beside the <form-checkbox>, not inside
-     its label (interactive content in a label leaks activation); the label
-     keeps only a visually-hidden text bound to the item label, whose display
-     text arrives via module-todo's per-item truc:pass into host.value. Since
-     LT-467 the remaining count is module-todo's own ICU message (the `=0` arm
-     folds server-side); the root `lang` is the client evaluator's locale, and
-     at the source locale no `i18n` attribute is written. Since LT-489 the
-     remove button is the composed BasicButton — its render adds the
-     empty badge span (hidden by `.badge:empty`), and the `onClick`
-     handler arg binds per item in the client's bindItem scope. -->
+<!-- Regenerated from the compiled server render: the demo serves exactly the markup the compiled client hydrates. The per-item steady state (key-derived `id`/`for`, the item `data-key`) is clone-time: the client sets it per cloned item, so the template carries none. The composed <form-inplace-edit> sits beside the <form-checkbox>, not inside its label (interactive content in a label leaks activation). -->
 <module-todo lang="en">
 	<form action="#">
 		<form-textbox name="add-todo" value="">
@@ -82,9 +66,7 @@
 	</template>
 	<footer>
 		<p class="remaining">Well done, all done!</p>
-		<!-- form-radiogroup serves its compiled client since LT-116 — the
-		     labels carry the item's value in data-value, the compiled each()
-		     addressing channel the hand-written enhancer didn't need. -->
+		<!-- form-radiogroup serves its compiled client: the labels carry the item's value in data-value, the compiled each() addressing channel the hand-written enhancer didn't need. -->
 		<form-radiogroup value="all" class="split-button">
 			<fieldset>
 				<legend class="visually-hidden">Filter</legend>

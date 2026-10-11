@@ -1,10 +1,4 @@
-/* Exception to scoping rule (see module-dialog.css's body.scroll-lock for
-   prior art): `.docs-body`/`.docs-main` are the two-column shell wrapper
-  around `<section-menu>` in docs-src/layouts/*.html — they're
-   siblings/ancestors of the component, not inside it, but the sidebar-role
-   layout only reads as a sidebar once these are a flex row. Below 48em
-   `section-menu` is off-canvas (see the max-width query below), so the
-   shell stays a single column there — nothing to coordinate. */
+/* Exception to scoping rule (see module-dialog.css's body.scroll-lock for prior art): `.docs-body`/`.docs-main` are the two-column shell wrapper around `<section-menu>` in docs-src/layouts/*.html — siblings/ancestors of the component, not inside it, but the sidebar-role layout only reads as a sidebar once these are a flex row. Below 48em `section-menu` is off-canvas (see the max-width query below), so the shell stays a single column there. */
 :root {
 	--header-height: 3rem;
 }
@@ -30,8 +24,7 @@
 }
 
 section-menu {
-	/* Default (no JS, any width): normal in-flow block, all links reachable
-	   without script — the drawer behavior below is JS-enhanced only. */
+	/* Default (no JS, any width): normal in-flow block, all links reachable without script — the drawer behavior below is JS-enhanced only. */
 	display: block;
 
 	& ol,
@@ -113,13 +106,9 @@ section-menu {
 	}
 }
 
-/* Off-canvas drawer — only once JS has enhanced the component (`.js`,
-   added by section-menu.ts on connect). Without JS, section-menu stays in
-   normal flow at every width (rule block above). */
+/* Off-canvas drawer — only once JS has enhanced the component (`.js`, added by section-menu.ts on connect). Without JS, section-menu stays in normal flow at every width (rule block above). */
 @media screen and (max-width: 44.999em) {
-	/* Toggle button contract: id="sidebar-toggle" (see TOGGLE_ID in
-	   section-menu.ts). Stays above the drawer's fixed, viewport-covering
-	   backdrop (z-index 100) so it remains clickable to close while open. */
+	/* Toggle button contract: id="sidebar-toggle" (see TOGGLE_ID in section-menu.ts). Stays above the drawer's fixed, viewport-covering backdrop (z-index 100) so it remains clickable to close while open. */
 	#sidebar-toggle {
 		z-index: 101;
 		position: absolute;
@@ -160,13 +149,7 @@ section-menu {
 		position: fixed;
 		inset: 0;
 		z-index: 100;
-		/* No `visibility`/transition-delay hiding trick here: a transition on
-		   a property that also changes the moment `.js` is first added (going
-		   from the pre-JS default straight to the closed state) delays that
-		   very first application too — the drawer would sit visibly "open"
-		   for one full `--transition-short` after every page load. `transform`
-		   + `pointer-events` alone close it instantly; only the *movement* of
-		   `<nav>` (below) animates. */
+		/* No `visibility`/transition-delay hiding trick here: a transition on a property that also changes the moment `.js` is first added (going from the pre-JS default straight to the closed state) delays that very first application too — the drawer would sit visibly "open" for one full `--transition-short` after every page load. `transform` + `pointer-events` alone close it instantly; only the *movement* of `<nav>` (below) animates. */
 		pointer-events: none;
 
 		& module-scrollarea {
@@ -191,12 +174,7 @@ section-menu {
 			opacity: var(--opacity-transparent);
 		}
 
-		/* `.ready` (added a frame after `.js`, see section-menu.ts) gates the
-		   transitions themselves — the closed layout above still applies
-		   instantly on connect either way, but without this gate the *first*
-		   application of `.js` would itself be a transitionable change (no
-		   `.js` → `.js`), animating the drawer sliding out on every page
-		   load even though it was never open. */
+		/* `.ready` (added a frame after `.js`, see section-menu.ts) gates the transitions themselves — the closed layout above still applies instantly on connect either way, but without this gate the *first* application of `.js` would itself be a transitionable change (no `.js` → `.js`), animating the drawer sliding out on every page load even though it was never open. */
 		&.ready {
 			& module-scrollarea {
 				transition: transform var(--transition-short) var(--easing-inout);
@@ -249,9 +227,7 @@ section-menu {
 }
 
 @media screen and (min-width: 45em) {
-	/* Toggle button contract: id="sidebar-toggle" (see TOGGLE_ID in
-   section-menu.ts). Hidden above the breakpoint since the sidebar is
-   always visible there and has nothing to toggle. */
+	/* Toggle button contract: id="sidebar-toggle" (see TOGGLE_ID in section-menu.ts). Hidden above the breakpoint since the sidebar is always visible there and has nothing to toggle. */
 	#sidebar-toggle {
 		display: none;
 	}
@@ -261,8 +237,7 @@ section-menu {
 	}
 
 	section-menu {
-		/* Above the breakpoint the sidebar is always visible, sticky, and
-		   independently scrollable — no toggle, no off-canvas/backdrop. */
+		/* Above the breakpoint the sidebar is always visible, sticky, and independently scrollable — no toggle, no off-canvas/backdrop. */
 		position: sticky;
 		top: 0;
 		align-self: start;

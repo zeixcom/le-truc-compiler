@@ -1,47 +1,9 @@
-/**
- * What the realm cannot answer — the classifier-facing half of the former
- * `sim/patch-table.ts` (ADR 0013 sub-design 3 limb 2).
- *
- * The patch table had two audiences reading one module. The APPLIER needs
- * per-runtime shapes: which stub a missing `ResizeObserver` gets, whether a
- * native `requestAnimationFrame` must be forced over, how a closed `fetch`
- * is spelled. Those stay with the driver (`sim/patch-table.ts`). The
- * CLASSIFIER needs something much smaller and substrate-independent: the
- * NAMES of the globals no realm answers, the member reads a realm answers
- * wrong, and the census copy for each. Those are here, compiler-side, so
- * `tier.ts` classifies and the census prints with no substrate installed
- * (ADR 0012 sub-design 5).
- *
- * ## The delete-a-row property still holds
- *
- * ADR 0008 kept the capability rows in the patch table so that deleting a
- * row re-routes the affected components from the Static tier to the
- * Simulated tier automatically, with no second list to keep in sync. That
- * property is about there being ONE list, not about which file it is in —
- * and it survives the move intact, because the applier never reads these
- * rows. A driver that gains real layout deletes rows here.
- *
- * `sim/patch-table.ts` is held to {@link UNANSWERABLE_GLOBALS} by a driver
- * test rather than by a shared literal: the two lists answer different
- * questions about the same names, and deriving one from the other would
- * make both unreadable.
- */
+/** What the realm cannot answer — the classifier-facing half of the patch table: the globals no realm answers and the member reads a realm answers wrong, kept substrate-independent so the classifier runs with no driver installed. */
 
 /* === Types === */
 
-/**
- * A global no realm answers — absent and stubbed inert (`ResizeObserver`,
- * `matchMedia`) or present and deliberately closed (`fetch` and the other
- * network globals, ADR 0006 sub-design 2d).
- *
- * Reading one is what makes an expression unresolvable under limb (a) of
- * ADR 0008 sub-design 1. Only the NAME is classifier business; what the
- * driver puts in its place is not.
- */
 export type UnanswerableGlobal = {
-	/** Global name as authored. A dotted name (`navigator.sendBeacon`) is
-	 * matched on its root identifier, which is all a free-identifier scan
-	 * can see. */
+	/** Global name as authored */
 	name: string
 	/** `stub` — absent from the realm; `network` — present but closed. */
 	kind: 'stub' | 'network'
@@ -49,20 +11,6 @@ export type UnanswerableGlobal = {
 	note?: string
 }
 
-/**
- * A MEMBER read the realm cannot answer, even though the global carrying it
- * is present (ADR 0008 sub-design 1 limb (a); the capability-row shape ADR
- * 0026 §2's amendment requires).
- *
- * {@link UnanswerableGlobal} describes globals that are absent or closed, so
- * a missing NAME is the whole story. These rows describe the opposite case:
- * `HTMLElement` is real and `element.scrollLeft` reads without throwing — it
- * just returns a silent zero, because jsdom has no layout engine. A
- * name-based check cannot see that, so the classifier would call a
- * layout-reading component realm-answerable and route it to the Simulated
- * tier, which is exactly the `module-scrollarea` misrouting ADR 0008 exists
- * to prevent (~2.3 s of build time to compute nothing).
- */
 export type CapabilityPatch = {
 	/** Member name as authored (`scrollLeft`, `getBoundingClientRect`). */
 	member: string
@@ -74,12 +22,6 @@ export type CapabilityPatch = {
 
 /* === The tables === */
 
-/**
- * Every global the driver stubs inert or closes. `REALM_GLOBALS` has no
- * counterpart here on purpose: those are the globals the realm DOES
- * provide, and reading one is precisely what makes a component
- * realm-answerable.
- */
 export const UNANSWERABLE_GLOBALS: readonly UnanswerableGlobal[] = [
 	// --- Absent from the realm, stubbed inert ------------------------------
 	{
@@ -109,7 +51,7 @@ export const UNANSWERABLE_GLOBALS: readonly UnanswerableGlobal[] = [
 		note: 'the build has no session history; navigation calls are inert',
 	},
 
-	// --- Present but closed (ADR 0006 sub-design 2d) -----------------------
+	// --- Present but closed ------------------------------------------------
 	{
 		name: 'fetch',
 		kind: 'network',
@@ -122,33 +64,6 @@ export const UNANSWERABLE_GLOBALS: readonly UnanswerableGlobal[] = [
 	{ name: 'navigator.sendBeacon', kind: 'network' },
 ]
 
-/**
- * Member reads the realm executes without throwing and answers WRONG — the
- * second half of ADR 0008 sub-design 1 limb (a).
- *
- * Two families, and they are unanswerable for different reasons:
- *
- * 1. **Layout geometry.** jsdom has no layout engine, so every one of these
- *    returns 0. Not fixable at this substrate (ADR 0008's "layout is out of
- *    scope for jsdom by construction"), which is why `module-scrollarea` —
- *    the corpus's single largest cost driver at 2,091 occurrences — is a
- *    Static-tier component rather than a Simulated-tier one.
- * 2. **`ElementInternals` members with no jsdom implementation.** Scoped
- *    per ADR 0026 §2's amendment: `internals` is NOT one unanswerable row
- *    any more. ARIA expressions ARE realm-answerable since , through
- *    `bindAria()`'s attribute fallback — the served HTML carries the value —
- *    so `ariaExpanded` and friends are deliberately absent from this list.
- *    Custom states and the form members remain unanswerable: jsdom's
- *    skeletal object flows through non-null (which populates
- *    `internalsHosts` and lets `bindAria()` bind the host content
- *    attribute), and the library's own  shape check treats it as no
- *    internals at all — the honest posture for a form-associated component,
- *    since an incomplete stub is worse than none, and polyfilling a working
- *    reflection surface would fire the stale-attribute removal at simulated
- *    connect and strip `role`/`aria-*` from the served markup. The former
- *    `PROTOTYPE_PATCHES` column (prototype-method rewrites) was deleted
- *    with  — it had been empty since .
- */
 export const CAPABILITY_PATCHES: readonly CapabilityPatch[] = [
 	// --- Layout geometry: jsdom returns silent zeros -----------------------
 	...(
@@ -204,16 +119,6 @@ export const CAPABILITY_PATCHES: readonly CapabilityPatch[] = [
 
 /* === The reason vocabulary === */
 
-/**
- * The root identifier each unanswerable global is recognised by.
- *
- * A dotted entry contributes its ROOT, because a free-identifier scan sees
- * `navigator`, not `navigator.sendBeacon`. So `navigator` reads as
- * unanswerable as a whole — over-broad, and deliberately so: the
- * classifier is sound rather than complete (ADR 0008 sub-design 2), and
- * over-broad here routes a component DOWNWARD, which costs build time and
- * never ships wrong HTML.
- */
 export const UNANSWERABLE_GLOBAL_NAMES: ReadonlySet<string> = new Set(
 	UNANSWERABLE_GLOBALS.map(global => global.name.split('.')[0] ?? global.name),
 )
@@ -222,10 +127,6 @@ export const UNANSWERABLE_GLOBAL_NAMES: ReadonlySet<string> = new Set(
 export const UNANSWERABLE_MEMBERS: ReadonlyMap<string, CapabilityPatch> =
 	new Map(CAPABILITY_PATCHES.map(patch => [patch.member, patch]))
 
-/**
- * Census copy for a global the realm does not answer. Kept beside the table
- * so the reason and the row that produced it move together.
- */
 export const unanswerableGlobalReason = (name: string): string =>
 	`\`${name}\` is stubbed in the simulation realm`
 

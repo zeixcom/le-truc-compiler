@@ -1,44 +1,4 @@
-/**
- * The realm patch table (ADR 0006 sub-design 2).
- *
- * Executing a generated client module against jsdom means the module's free
- * globals — `HTMLElement`, `customElements`, `document`, observer and event
- * constructors — must resolve to the *simulated* realm's classes, not to
- * whatever the host runtime happens to expose. The three server runtimes fail
- * that differently:
- *
- * - **Bun** supplies no DOM classes but DOES supply `fetch` (and friends), which
- *   survive into the realm untouched — a component's connect-time `fetch()`
- *   would reach the network from a build (sub-design 2d).
- * - **Node** supplies no DOM classes at all; every entry here is a fill.
- * - **Deno** ships many web APIs natively, so the hazard inverts: a native
- *   `Event`/`CustomEvent`/`MutationObserver` would SHADOW the realm's, and
- *   `instanceof` across the boundary silently goes false. Filling only what is
- *   missing is therefore wrong; the realm's value must be FORCED over the
- *   native one.
- *
- * Hence the table is data, not conditionals: one declarative list per concern,
- * applied uniformly by `realm.ts`. Verified 2026-09-03 on Bun 1.3.11, Node
- * 26.7.0 and Deno 2.9.6: `bun run check:sim` serializes `form-colorgraph`
- * byte-identically under all three. `runtimes` scopes an entry when a runtime
- * genuinely differs; no entry needs it today, because forcing a value that is
- * already absent is a fill and forcing one that is present is the de-shadow —
- * the same operation covers both cases.
- *
- * ## The applier's half only ()
- *
- * This table used to serve two audiences. The CLASSIFIER's half — the names
- * of the globals no realm answers, the member reads a realm answers wrong,
- * and the census copy for each — moved to
- * `../simulation/capabilities.ts` so `tier.ts` classifies and the census
- * prints with no substrate installed (ADR 0013 sub-design 3 limb 2). What
- * remains is per-runtime force/fill/stub data, which only `realm.ts` reads.
- *
- * The two halves name the same globals and are held together by a test
- * (`sim-realm.test.ts`) rather than by a shared literal: they answer
- * different questions, and deriving one from the other would make both
- * unreadable.
- */
+/** The realm patch table: per-runtime force/fill/stub data — the realm's classes forced over host natives, absent constructors stubbed inert, network globals replaced with reporting never-settling stubs. */
 
 import type { SimRuntime } from '../simulation/contract'
 
@@ -73,8 +33,7 @@ export type StubShape =
 
 /**
  * A global the realm does not implement, stubbed inert so a runs-once-at-connect
- * effect is harmless rather than a `ReferenceError` (which the spike observed
- * surfacing process-fatal rather than per-element).
+ * effect is harmless rather than a `ReferenceError`.
  */
 export type StubGlobalPatch = {
 	kind: 'stub'
@@ -88,14 +47,14 @@ export type StubGlobalPatch = {
 
 /**
  * An ambient network global, replaced with a no-op that reports at call
- * time and then NEVER SETTLES (amended sub-design 2d, 2026-09-03).
+ * time and then NEVER SETTLES.
  * A rejecting stub is wrong under the hermetic-quiescence boundary
  * (`boundary.ts`): draining a rejection to settlement routes every fetching
  * component to its `@catch` arm, but the build cannot know the request
  * failed — it never ran. A promise that never settles keeps the component's
- * task at `nil`, which is what CHECKLIST §8/§9 require of SSG and is what
+ * task at `nil`, which is what SSG requires and what
  * `match()` renders as `@pending`. The build must never depend on the
- * network either way (sub-design 2d); only the arm the client ends up
+ * network either way; only the arm the client ends up
  * shipping changes.
  */
 export type NetworkGlobalPatch = {
@@ -224,12 +183,12 @@ export const STUB_GLOBALS: readonly StubGlobalPatch[] = [
 
 /**
  * Every ambient network global, replaced with a reporting, never-settling
- * stub (amended sub-design 2d). Reporting happens at CALL time, so a
+ * stub. Reporting happens at CALL time, so a
  * network attempt is always a build warning regardless of what the component
  * does with the returned promise. The promise itself never settles, which is
  * what keeps a fetching component's task at `nil` and its markup on the
  * `@pending` arm under the quiescence drain — a rejection would route it to
- * `@catch` and ship an arm the build cannot know is right (CHECKLIST §8/§9).
+ * `@catch` and ship an arm the build cannot know is right.
  */
 export const NETWORK_GLOBALS: readonly NetworkGlobalPatch[] = [
 	{

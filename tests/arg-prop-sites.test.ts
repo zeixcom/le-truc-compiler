@@ -1,20 +1,4 @@
-/**
- * The arg-and-prop coincidence ().
- *
- * A component whose props are harvested from its own server-rendered
- * children needs one site to do three jobs: render the value (from
- * the server arg), let the client harvest it back at connect
- * (ADR 0001, DOM-is-truth), and rebind it when the prop is written
- * afterwards. Before this, each spelling covered part of it —
- * `{label}` rendered but never rebound, `{host.label}` rebound but
- * rendered EMPTY — which is what pushed  into duplicating the
- * value onto a host attribute and  into a template-less mode.
- *
- * So: an expression naming BOTH a server arg and an `expose()`d prop
- * of that name is reactive by position. The server emission is
- * untouched (it still splices the arg); the client gets the effect
- * the `host.<name>` spelling would have produced.
- */
+/** Arg-and-prop coincidence: an expression naming both a server arg and an `expose()`d prop of that name is reactive by position — server emission untouched, client gets the effect the `host.<name>` spelling would have produced. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 
@@ -47,10 +31,7 @@ describe('text sites (LT-122)', () => {
 			`<span>{label}</span>`,
 		)
 		expect(diagnostics).toEqual([])
-		// Server: the ARG is spliced, exactly as before this rule.
 		expect(component?.serverCode).toContain('text(label)')
-		// Client: the PROP is watched — the spelling `{host.label}`
-		// would have produced, against the same site.
 		expect(component?.clientCode).toContain(
 			'watch(() => host.label, bindText(el))',
 		)
@@ -84,11 +65,9 @@ describe('text sites (LT-122)', () => {
 		)
 		expect(diagnostics).toEqual([])
 		const client = component?.clientCode ?? ''
-		// The optional branch keeps its non-throwing query and guard
-		// ( machinery) — this rule only supplies the source.
+		// The optional branch keeps its non-throwing query and guard; this rule only supplies the source.
 		expect(client).toMatch(/const \w+ = first\('b'\)\n/)
 		expect(client).toContain('watch(() => host.badge, bindText(')
-		// …and the server still renders the branch from the arg.
 		expect(component?.serverCode).toContain('text(badge)')
 	})
 })
@@ -102,9 +81,7 @@ describe('attribute sites (LT-122)', () => {
 		)
 		expect(diagnostics).toEqual([])
 		expect(component?.serverCode).toContain("attr('disabled', disabled)")
-		// Attribute dispatch: `disabled` on a <button> is not a
-		// dirty-flag control attribute, so `bindAttribute`'s
-		// boolean path (toggleAttribute) is the right write.
+		// `disabled` on a <button> is not a dirty-flag control attribute, so `bindAttribute`'s boolean path (toggleAttribute) is the right write.
 		expect(component?.clientCode).toContain("bindAttribute(button, 'disabled')")
 		expect(component?.clientCode).toContain('watch(() => host.disabled,')
 	})
@@ -153,23 +130,7 @@ export function C({ label }: { label: string })
 	})
 })
 
-/**
- * The SERVER half of the same coincidence ().
- *
- * `hostDerivedFold` () lets a thunk reading only `host.<prop>`
- * members render an initial value server-side, by splicing each read
- * for the prop's server truth. Its `foldable` set was Parser-exposed
- * props only — the host attribute is their seed, so the root
- * attribute's expression IS the value.
- *
- * A HARVESTED prop has the same guarantee from the other direction:
- * the arg renders the site, the site seeds the prop at connect, so
- * the ARG is that prop's server truth. Without this, a component that
- * follows the data account (harvest, don't duplicate onto a host
- * attribute) pays for it with LTC034 — every `hidden` thunk reading
- * the harvested prop silently drops out of the initial HTML, which is
- * exactly the pre-JS flash the fold exists to prevent.
- */
+/** Server half of the same coincidence: `hostDerivedFold` lets a thunk reading only `host.<prop>` members render an initial value server-side. A harvested prop's server truth is the arg that renders its site — without the fold, its thunks drop out of the initial HTML (LTC034), the pre-JS flash the fold exists to prevent. */
 describe('host-derived folds over a harvested prop (LT-118)', () => {
 	const compileZero = (exposeText: string, extraParams = '') =>
 		compileComponent(
@@ -211,12 +172,7 @@ describe('host-derived folds over a harvested prop (LT-118)', () => {
 	})
 
 	test('a prop that is NOT arg-rendered routes instead of warning (LT-165 step 5)', () => {
-		// `other` is exposed as a signal getter but no site renders it from a
-		// same-named arg and no plain-value initializer states it, so the
-		// server has no truth to splice — omission, not a guess. (A
-		// plain-value initializer WOULD state it — the ticket's route 4 — which
-		// is why `other: ''` folds.) The omission is a routing signal (the
-		// realm reads `host.other` for real), not a diagnostic.
+		// `other` is exposed as a signal getter but no site renders it from a same-named arg and no plain-value initializer states it, so the server has no truth to splice — omission, not a guess (a plain-value initializer would state it, which is why `other: ''` folds). The omission is a routing signal, not a diagnostic.
 		const { component, diagnostics } = compileComponent(
 			`import { createCell } from '@zeix/le-truc'
 export function C({ zero = '' }: { zero?: string })
@@ -245,24 +201,7 @@ export function C({ zero = '' }: { zero?: string })
 	})
 })
 
-/**
- * Ref-presence folds ().
- *
- * The hand-written twin gated its whole zero-state affordance on
- * `const zero = first('.zero'); if (zero) { … }` — a local ref, not a
- * reactive prop, and certainly not public API. A compiled component
- * should be able to say the same thing: `hidden={() => Boolean(zeroSpan)
- * && host.value === 0}` on an element OUTSIDE the branch that renders
- * `.zero`.
- *
- * The client half already worked (a ref is in scope in the factory). The
- * server half did not: a ref name is not server-known, so the whole thunk
- * fell out of the initial HTML (LTC034) — a real pre-JS flash, and the
- * pressure that made an earlier draft expose `zero` as a public prop just
- * to have something server-known to read. But the server DOES decide the
- * answer: it renders `.zero` exactly when the `@if (zero)` it sits in is
- * taken, so the ref's presence folds to that branch's own condition.
- */
+/** Ref-presence folds: a ref name is not server-known, so a presence thunk fell out of the initial HTML (LTC034). But the server decides the answer — it renders `.zero` exactly when the `@if (zero)` it sits in is taken, so the ref's presence folds to that branch's own condition. */
 describe('ref-presence folds (LT-118)', () => {
 	const compileGate = (template: string, gate: string) =>
 		compileComponent(
@@ -296,12 +235,7 @@ import { asNumber } from '@zeix/le-truc'`,
 	})
 
 	test('a ref read composes with a host-prop read in one thunk', () => {
-		// The two substitutable sets are consulted together — mixing them is
-		// the shape the real corpus uses (form-spinbutton's `hidden={() =>
-		// Boolean(zeroSpan) && host.value === 0}`). `value` needs its root
-		// attribute here to be a foldable host prop in the first place, and
-		// its seed is the parser applied to the attribute's serialized value
-		// () — the same evaluation the client's connect-time parse is.
+		// The two substitutable sets are consulted together — the shape the real corpus uses (form-spinbutton's `hidden={() => Boolean(zeroSpan) && host.value === 0}`). `value` needs its root attribute to be a foldable host prop, seeded by the parser applied to the attribute's serialized value — the same evaluation as the client's connect-time parse.
 		const { component, diagnostics } = compileComponent(
 			`export function C({ zero = '', value = 0 }: { zero?: string; value?: number })
 @{

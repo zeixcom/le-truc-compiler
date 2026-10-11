@@ -1,10 +1,4 @@
-/**
- * Tests for `style={() => ({ … })}` object-literal-bodied style thunks
- * (): server-side initial render and client-side lowering to one
- * `watch(thunk, bindStyle(el, keys))` call against `bindStyle()`'s map-form
- * overload () — including the component-root case (targeting `host`),
- * which the custom-element reactive-attribute gate otherwise rejects.
- */
+/** Tests for `style={() => ({ … })}` object-literal-bodied style thunks: server-side initial render and client-side lowering to one `watch(thunk, bindStyle(el, keys))` call against `bindStyle()`'s map-form overload — including the component-root case (targeting `host`), which the custom-element reactive-attribute gate otherwise rejects. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 

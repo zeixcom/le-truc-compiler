@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 /**
- * `i18n:sync` (ADR 0030 sub-design 5, LT-173 step 3b).
+ * `i18n:sync`.
  *
  * The one writer for the committed catalogs — the build itself stays
  * read-only over tracked files. For every locale that has an
@@ -17,10 +17,9 @@
  *    review the diff and decide whether the translation needs rework
  *    before committing,
  * 3. every ORPHANED key — a catalog entry nothing in the corpus declares
- *    (a translator's typo, a renamed key, a deleted component; the
- *    census's `orphaned` status, LT-196) — is pruned from the catalog and
- *    from the staleness manifest. Every locale carries the same key set
- *    (one ICU pattern per key, ADR 0030 s4), so an orphan is unconditional:
+ *    — is pruned from the catalog and
+ *    from the staleness manifest. Every locale carries the same key set,
+ *    so an orphan is unconditional:
  *    it reports, and prunes, in every locale that carries it,
  * 4. every pattern-integrity finding (LT-219: a `malformed` entry — an
  *    unparseable pattern, or a value that is not a string at all, such as

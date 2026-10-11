@@ -1,17 +1,4 @@
-/**
- * The MF2 exit (ADR 0009 Alternatives): the mechanical MF1 → MF2
- * conversion the migration would run, as a test-side helper. The two
- * upstream packages do the work — `@messageformat/icu-messageformat-1`
- * lifts MF1 into the MF2 data model, `messageformat@4` serializes, parses
- * and renders it. Our only additions are two normalizations the
- * converter's output needs before it is valid, serializable MF2:
- * {@link dedupeInputs} and {@link stringifyLiterals}.
- *
- * Like `@messageformat/core`, both packages are test dependencies only —
- * no `server/compiler/` file imports them (pinned in mf2-exit.test.ts).
- * The rebaseline procedure the migration follows is in MF2_EXIT.md, beside
- * this file.
- */
+/** The mechanical MF1 → MF2 conversion the migration would run, as a test-side helper: the upstream packages do the work; {@link dedupeInputs} and {@link stringifyLiterals} are the only local normalizations. Test dependencies only — no `server/compiler/` file imports these packages (pinned in mf2-exit.test.ts). */
 import {
 	MF1Functions,
 	mf1ToMessageData,
@@ -24,22 +11,7 @@ import {
 	stringifyMessage,
 } from 'messageformat'
 
-/**
- * MF1 lets one argument drive selectors of different types in different
- * arms — `{type, select, ordinal {{count, selectordinal, …}} other
- * {{count, plural, …}}}`, the `c-plural` fixture's `tasks` (). The
- * converter lifts each into its own `.input {$count …}`, and MF2 forbids
- * declaring a variable twice (`duplicate-declaration`). Rewrite every
- * input of a repeated variable as a `.local $count__N = {$count …}` over
- * the external variable, and point its selector at the local.
- *
- * Placeholders (`#` becomes `{$count}`) keep reading the external
- * variable — the same number, formatted without an annotation, which
- * renders as `:number` does. That equivalence breaks under a plural
- * `offset` (`#` is the offset value), so a repeated variable with an
- * offset is refused: the exit cannot carry it mechanically, and the test
- * suite says so at authoring time.
- */
+/** MF1 lets one argument drive differently-typed selectors in different arms; the converter lifts each into its own `.input`, and MF2 forbids declaring a variable twice — so repeats become `.local $x__N` over the external variable. Placeholders keep reading the external variable, an equivalence a plural `offset` breaks, so a repeated variable under an offset is refused. */
 export const dedupeInputs = (message: Model.Message): Model.Message => {
 	if (message.type !== 'select') return message
 	const inputs = new Map<string, number>()
@@ -82,15 +54,7 @@ export const dedupeInputs = (message: Model.Message): Model.Message => {
 	}
 }
 
-/**
- * The converter maps number skeletons to `Intl.NumberFormat` options and
- * copies their values into MF2 literals as-is — `::.00` yields
- * `minimumFractionDigits: 2`, a number. The formatter accepts that, but
- * `stringifyMessage` requires string literals and throws, so the text the
- * migration commits could not be written. Stringify every literal option
- * value; MF2's functions parse digit-string options, so rendering is
- * unchanged.
- */
+/** The converter copies number-skeleton option values into literals as numbers, which `stringifyMessage` rejects — stringify them; MF2's functions parse digit-string options, so rendering is unchanged. */
 export const stringifyLiterals = (message: Model.Message): Model.Message => {
 	const options = (opts: Model.Options | undefined) =>
 		opts &&
@@ -143,11 +107,7 @@ export const toMF2Data = (mf1: string): Model.Message =>
 /** MF1 source → MF2 source text: what the migration commits. */
 export const toMF2 = (mf1: string): string => stringifyMessage(toMF2Data(mf1))
 
-/**
- * Compile MF2 source text. Bidi isolation is off: MF2 wraps every
- * placeholder in FSI/PDI by default and MF1 never did, so leaving it on
- * would change every rendered string (MF2_EXIT.md, "Rendering").
- */
+/** Compile MF2 source text with bidi isolation off: MF2 wraps every placeholder in FSI/PDI by default and MF1 never did, so leaving it on would change every rendered string. */
 export const compileMF2 = (lang: string, mf2: string) =>
 	new MessageFormat(lang, parseMF2(mf2), {
 		functions: MF1Functions,

@@ -1,33 +1,4 @@
-/**
- * Cross-surface parity for every corpus variant set (
- * ADR 0017 s1).
- *
- * The suite DISCOVERS its pairs: every folder in the corpus holding a
- * `.tsrx` and a `.tsx` spelling of one tag is a variant set, and each is
- * compiled on both front ends with identical registries, compose
- * registries and args, then compared:
- *
- * - server renders through the VALUE HARNESS byte-for-byte (the bar: ADR
- *   0029's markup-identical-across-tiers invariant extends across surfaces
- *   for identically-authored components) — the build serves ONE member, so
- *   this is the only place the unserved member's render is proven equal;
- * - CSS artifacts byte-for-byte (the build's own LTC051 check covers CSS
- *   only);
- * - the registry entry (`exposedProps`, `propsType`, tier) — the compose
- *   registry validates `pass()` against whichever member a parent imports;
- * - Simulated-tier sets render through the UNMODIFIED `sim/` realm
- *   byte-for-byte;
- * - client modules structurally (snapshot review, not bytes — naming and
- *   import placement may differ);
- * - the §4.4 synthetic fixtures (`tests/fixtures/tsx/`)
- *   compile through the unmodified analysis and render (async boundary:
- *   pending arm; control-flow shapes: taken arms).
- *
- * The comparison runs BOTH-SIDES LIVE (the .tsrx originals compile in the
- * same process) rather than against copied golden strings — the repo's
- * golden tests already pin those bytes; live comparison additionally proves
- * the two front ends agree under the same registry state.
- */
+/** Cross-surface parity for every corpus variant set: each folder-local `.tsrx`/`.tsx` pair is compiled on both front ends with identical registries, compose registries and args, then compared — server render through the VALUE HARNESS byte-for-byte (the build serves ONE member, so this is the only place the unserved member's render is proven equal), CSS artifacts byte-for-byte, the registry entry, Simulated-tier sets through the UNMODIFIED `sim/` realm, client modules structurally (snapshot review, not bytes — naming and import placement may differ), and the synthetic fixtures in `tests/fixtures/tsx/` through the unmodified analysis and render. The comparison runs BOTH-SIDES LIVE rather than against copied golden strings, proving the two front ends agree under the same registry state. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
@@ -43,7 +14,7 @@ import { createGeneratedDir } from '../helpers/generated-corpus'
 import { lineAt, textAt } from '../located'
 
 const ROOT = path.resolve(import.meta.dir, '../..')
-/** Synthetic `.tsx` shapes and tsc probes — test fixtures, not examples (LT-237). */
+/** Synthetic `.tsx` shapes and tsc probes — test fixtures, not examples. */
 const FIXTURES_TSX = 'tests/fixtures/tsx'
 const read = (rel: string): string =>
 	fs.readFileSync(path.join(ROOT, rel), 'utf8')
@@ -58,11 +29,7 @@ type Fixture = {
 
 const pascal = (tag: string): string => renderName(tag).slice('render'.length)
 
-/**
- * Every folder-local variant set in the configured corpus scan — a `.tsrx`
- * and a `.tsx` in ONE directory, named for one tag (ADR 0017). A new set
- * joins the suite by existing; none can escape it.
- */
+/** Every folder-local variant set in the configured corpus scan — a `.tsrx` and a `.tsx` in ONE directory, named for one tag. A new set joins the suite by existing; none can escape it. */
 const CORPUS = await loadCorpus()
 
 const discoverVariantSets = async (): Promise<Fixture[]> => {
@@ -152,11 +119,7 @@ const compilePair = (fx: Fixture, entries: InternalRegistryEntry[]) => {
 	return { tsrx, tsxx }
 }
 
-/**
- * What a client module derives from the authored types (): the
- * `defineComponent<Props>` type argument and every Parser call, in order.
- * Author comments are copied verbatim and may legitimately differ.
- */
+/** What a client module derives from the authored types: the `defineComponent<Props>` type argument and every Parser call, in order. Author comments are copied verbatim and may legitimately differ. */
 const clientTypeFacts = (code: string | undefined): string[] =>
 	[
 		...(code ?? '').matchAll(
@@ -168,13 +131,7 @@ const clientTypeFacts = (code: string | undefined): string[] =>
 const argsFromAttrsOf = (code: string | undefined): string =>
 	/export function argsFromAttrs[\s\S]*?\n}\n/.exec(code ?? '')?.[0] ?? ''
 
-/**
- * A server module's render function signature (`paramsText`), compared
- * token-wise: comments, whitespace and separator punctuation are layout,
- * not the args contract. The `.tsx` members are Biome-formatted and their
- * `.tsrx` twins are not (Biome skips `.tsrx`), so byte equality would pin
- * formatting rather than the authored args (LT-237 review).
- */
+/** A server module's render function signature (`paramsText`), compared token-wise: comments, whitespace and separator punctuation are layout, not the args contract. The `.tsx` members are Biome-formatted and their `.tsrx` twins are not (Biome skips `.tsrx`), so byte equality would pin formatting rather than the authored args. */
 const renderSignatureOf = (code: string | undefined): string =>
 	(
 		/export function render\w+\([\s\S]*?\): string \{/.exec(code ?? '')?.[0] ??
@@ -186,12 +143,7 @@ const renderSignatureOf = (code: string | undefined): string =>
 		.replace(/[,;]+([}\])\]])/g, '$1')
 		.replace(/;/g, ',')
 
-/**
- * Pairs whose `.tsx` member authors different args than its `.tsrx` twin:
- * listbox's `'truc:pass'` compose surface sits on the `.tsx` ARGS type (a
- * JSX parent type-checks against the child's first parameter) but on the
- * `.tsrx` Props type. The `i18n` drift was reconciled in the  move.
- */
+/** Pairs whose `.tsx` member authors different args than its `.tsrx` twin: listbox's `'truc:pass'` compose surface sits on the `.tsx` ARGS type (a JSX parent type-checks against the child's first parameter) but on the `.tsrx` Props type. */
 const AUTHORED_ARGS_DRIFT = new Set(['form-listbox'])
 
 const generated = createGeneratedDir('tsx-parity')
@@ -227,7 +179,7 @@ const discoveryEntries = [
 // A composing set's server module supplies its composed children's reserved
 // records (`i18n: i18nRecord("form-listbox", …)`), which import './i18n' —
 // write the generated i18n module from the compiled .tsrx entries, the same
-// derivation the real corpus pipeline performs (ADR 0009 sub-design 2).
+// derivation the real corpus pipeline performs.
 await writeI18nModule(
 	generated.path,
 	await collectI18n(
@@ -294,10 +246,9 @@ describe('variant sets — front-end parity (§4.3, ADR 0017 s1)', () => {
 				expect(tsxx.component?.css).toBe(tsrx.component?.css)
 			})
 
-			//: the `.tsx` converter once dropped the args annotation, so
-			// every arg read as untyped — `asString` harvests, all args
-			// optional, no `string` channels — and the snapshot above pinned
-			// it. Pin the two surfaces' derived facts against each other.
+			// The `.tsx` converter once dropped the args annotation, reading
+			// every arg as untyped; this pins the two surfaces' derived
+			// facts against each other.
 			test('client facts derived from the args type identical (props type argument, harvest parsers)', () => {
 				expect(clientTypeFacts(tsxx.component?.clientCode)).toEqual(
 					clientTypeFacts(tsrx.component?.clientCode),
@@ -370,7 +321,7 @@ describe('variant sets — front-end parity (§4.3, ADR 0017 s1)', () => {
 						})
 						expect(phase2B).toBe(phase2A)
 					} finally {
-						// Awaited: the restores follow the final settle (), and
+						// Awaited: the restores follow the final settle, and
 						// the next fixture's realm must not be created under this
 						// one's still-applied patches.
 						await realm.dispose()
@@ -394,8 +345,8 @@ describe('§4.4 synthetic shapes through the unmodified analysis', () => {
 		const render = renderOf('async-el', 'AsyncEl')
 		const html = await render(component.serverCode, {})
 		// Fresh task in the value harness: pending WITHOUT a retained value —
-		// the pending arm is the live winner; every arm is an inert template
-		// (ADR 0015 s4).
+		// the pending arm is the live winner; every arm is an inert
+		// template.
 		expect(html).toContain('<p data-key="nil" class="loading">Loading</p>')
 		expect(html).toContain(
 			'<template data-arms="0" data-key="ok"><div class="content"></div></template>',
@@ -404,10 +355,10 @@ describe('§4.4 synthetic shapes through the unmodified analysis', () => {
 			'<template data-arms="0" data-key="err"><p class="error"></p></template>',
 		)
 		expect(html).not.toContain('hidden')
-		// The stale arm is gone (): no fourth root anywhere.
+		// The stale arm is gone: no fourth root anywhere.
 		expect(html).not.toContain('stale')
 		// The `isPending(data)` class binding folds server-side — the fresh
-		// task is pending at build time, so the class renders on ().
+		// task is pending at build time, so the class renders on.
 		expect(html).toContain('<p role="status" class="pending">')
 		// reconcile() switches the arms by the task state; the client-side
 		// class binding reads isPending(data) so it re-fires when the task
@@ -514,12 +465,12 @@ export function Seeded({ initial, removeLabel }: { initial?: string[]; removeLab
 		)
 		expect(diagnostics).toEqual([])
 		if (!component) throw new Error('seeded fixture must compile')
-		// The reconcile path: an extracted <template> (stamped `data-list`,
-		// ADR 0024 s2) and a reconcile() call, keyed by the list's own
+		// The reconcile path: an extracted <template> (stamped
+		// `data-list`) and a reconcile() call, keyed by the list's own
 		// keyConfig (no authored key clause needed).
 		expect(component.serverCode).toContain('<template data-list="0">')
 		expect(component.clientCode).toContain('reconcile(')
-		//: a server-static attribute inside the reactive-list body is
+		// A server-static attribute inside the reactive-list body is
 		// admitted — folded into the initial items AND baked into the served
 		// template, so cloned items carry the value with no client binding.
 		expect(component.serverCode).toContain(`attr('aria-label', removeLabel)`)
@@ -566,8 +517,7 @@ export function Seeded({ initial, removeLabel }: { initial?: string[]; removeLab
 	test('statement-context arms are diagnosed — bare client-stmt inside a branch is not expressible', () => {
 		// A `&&` arm must be JSX: an IIFE returning null (the .tsrx client-stmt
 		// shape — a bare side effect beside conditional markup) has no JSX
-		// spelling and is REJECTED, retiring the construct with the grammar
-		// (ADR 0005 s11 already restricted it to @if roots).
+		// spelling and is REJECTED.
 		const source = `export function NoStmt({ flag }: { flag: boolean })
 {
 	expose({})
@@ -639,14 +589,14 @@ export function BadHost(
 		const hit = diagnostics.find(d => d.code === 'LTC050')
 		expect(hit).toBeDefined()
 		expect(hit?.message).toContain('FormFactoryContext')
-		//: the report covers the written type (line 10 — it sits on
+		// The report covers the written type (line 10 — it sits on
 		// the context parameter's second line), not the whole parameter.
 		expect(lineAt(source, hit)).toBe(10)
 		expect(textAt(source, hit)).toBe('FactoryContext<BadHostProps>')
 		expect(hit?.location.file).toBe('bad-host.tsx')
-		//: no fix. Renaming the written type alone would leave
+		// No fix: renaming the written type alone would leave
 		// `FormFactoryContext` unimported (this fixture, like the corpus,
-		// imports only `FactoryContext`), and ADR 0022 s1 attaches a fix only
+		// imports only `FactoryContext`), and a fix is attached only
 		// where applying it needs no author judgement.
 		expect(hit?.fix).toBeUndefined()
 	})
@@ -665,7 +615,7 @@ export function BadHost(
 		expect(hit?.message).toContain('does not set `config.formAssociated`')
 		expect(textAt(source, hit)).toBe('FormFactoryContext<BadHostProps>')
 		// Two repairs (annotate FactoryContext, or set formAssociated): the
-		// message names both and there is no fix (ADR 0022 s1).
+		// message names both and there is no fix.
 		expect(hit?.fix).toBeUndefined()
 	})
 

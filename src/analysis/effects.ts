@@ -1,23 +1,4 @@
-/**
- * Per-construct client effect planning (regrouping move M5): pass
- * 4's orchestration — `runEffects`'s five phases and the document-ordered
- * walk driver `emitTopEffects` — over the subsystem modules the bands moved
- * into (2026-10-10 split): `construct-effects.ts` (construct lowering and
- * the shared helpers), `branch-effects.ts` (control-flow addressing),
- * `mount-scopes.ts` (arms and list items), `compose-effects.ts` (composed
- * elements).
- *
- * Dependency shape (2026-10-10 architecture review): the pass context
- * (`EffectsContext`) and the selector adapters parameterized on it live
- * here with the drivers, so the subsystem modules import both from this
- * module while it imports their entry points — a cycle held safe, like
- * effects→loops and the harvest↔list-harvest pair, by every cross-call
- * sitting inside a function body, so no cycle resolves at module load. The
- * same shape repeats between mount-scopes and branch-effects.
- */
-
-import type { AstNode } from '../ast-node'
-import { objectKeys, sanitizeVarName } from '../ast-utils'
+import { type AstNode, objectKeys, sanitizeVarName } from '../ast-utils'
 import { diagnostic, type LocalDiagnostic } from '../diagnostics'
 import {
 	foldableHostProps,
@@ -69,16 +50,6 @@ import {
 	selectorFor as selectorForIn,
 } from './selectors'
 
-/**
- * Pass 4's shared state : what `runEffects`'s nested closures used
- * to capture, threaded explicitly so each comment band — construct
- * lowering, control-flow addressing, compose, the compose-`id` validation —
- * is a module-scope unit. Built once at the top of `runEffects` and never
- * reassigned; the derived fold inputs are the same per-component values the
- * closure era computed lazily at the top of the walk. Exported for the
- * subsystem modules' `Pick` slices (2026-10-10 split); not part of the
- * package surface.
- */
 export type EffectsContext = {
 	component: ComponentIR
 	source: string
@@ -100,77 +71,20 @@ export type EffectsContext = {
 	) => string
 	collectAmbient: (node: AstNode | null | undefined) => void
 	badFreeNames: (node: AstNode) => string[]
-	/**
-	 * `badFreeNames` for a list-body position (`analysis/plan.ts`):
-	 * the setup consts and authored imports no client-need walk reaches.
-	 * Item-scoped planning (ADR 0024 s1) reports through this — a setup const
-	 * read only inside an item is still never emitted client-side.
-	 */
 	badListBodyNames: (node: AstNode) => string[]
 	/** Registry-child tags addressed (type-flow imports), from `PassShared`. */
 	childTags: Set<string>
-	/**
-	 * The item and key bindings and the setup names (ADR 0024 s5) of the
-	 * reactive-list items currently being planned (ADR 0024 s1), empty
-	 * outside one. Item-scoped sites are
-	 * per-item state the server deliberately omits in every tier — never a
-	 * routing signal, and never a suppression record (the revert would
-	 * undo per-item truth the mount re-establishes on every clone).
-	 */
 	itemNames: ReadonlySet<string>
-	/**
-	 * The key bindings and per-item consts of every enclosing reactive-list
-	 * item (ADR 0024 s1 and s5, LT-424/LT-426), empty outside one — the
-	 * clone-time names. A `server` attribute over these alone is set once at
-	 * the mount of the scope that owns its element.
-	 */
 	keyNames: ReadonlySet<string>
-	/**
-	 * The server-only check for the current scope's positions: `badFreeNames`
-	 * at host level and in host-level arms, `badListBodyNames` once inside a
-	 * reactive-list item — arms and lists nested in an item included.
-	 */
 	scopeBadNames: (node: AstNode) => string[]
-	/**
-	 * Registry entries by TAG . The compose registry is keyed by source
-	 * path because composition resolves through import specifiers; a
-	 * `pass={{ }}` on a raw dashed tag has only the tag, so it needs the
-	 * other index. Built from the same map rather than threading a second
-	 * one through: pass 1 puts every compilable file's entry in there, so
-	 * the two indexes are the same set of components.
-	 */
 	entryByTag: Map<string, InternalRegistryEntry>
-	/**
-	 * A reactive conditional's arm locals (ADR 0015) are `bindArm`-scoped
-	 * variables, not factory queries: each one's selector over the whole
-	 * template, for the suppressed-site records `selectorOf` writes.
-	 */
 	armSelectors: Map<string, string>
-	// The two substitutable sets for `hostDerivedFold`
-	// below — host props with a known server truth, and refs whose
-	// presence the server decides — computed once per component rather
-	// than per attribute. Both must match what `emit-server.ts` will
-	// actually fold, or LTC034 warns about an attribute that does render.
 	derivableHostProps: ReturnType<typeof foldableHostProps>
 	derivableRefGuards: ReturnType<typeof foldableRefGuards>
-	//  step 6: the render-scope names a host-derived fold may leave in
-	// a spliced thunk (args, signals, transitive-pure setup consts). Must be
-	// the same set `emit-server.ts` folds with, or this check warns about an
-	// attribute that does render (or silences one that doesn't).
 	foldScope: ReturnType<typeof foldableRenderScope>
-	/**
-	 * The compose sites whose handler args a scope's walk planned or refused
-	 * : any other site carrying one is refused at the end of the
-	 * pass, so no handler drops silently.
-	 */
 	handledComposes: Set<ComposeNode>
 }
 
-/**
- * The component-scoped selector adapters, parameterized on the pass
- * context — exported for the subsystem modules, whose narrower context
- * slices all carry `component`.
- */
 export const selectorFor = (
 	fx: Pick<EffectsContext, 'component'>,
 	el: ElementNode,
@@ -243,9 +157,6 @@ const emitTopEffects = (fx: EffectsContext, node: TemplateNode): void => {
 	if (node === component.root) {
 		for (const attr of component.root.attrs) {
 			if (attr.kind === 'style-map') {
-				//: the root's own reactive style is the one construct
-				// addressable without a query — the target is the ambient
-				// `host`, not a queried descendant.
 				collectAmbient(attr.object)
 				ambient.add('host')
 				effects.push({
@@ -259,8 +170,6 @@ const emitTopEffects = (fx: EffectsContext, node: TemplateNode): void => {
 				continue
 			}
 			if (attr.kind === 'class-map') {
-				//: same root exemption as style-map — targets the
-				// ambient `host`, not a queried descendant.
 				collectAmbient(attr.object)
 				ambient.add('host')
 				effects.push({
@@ -291,10 +200,6 @@ const emitTopEffects = (fx: EffectsContext, node: TemplateNode): void => {
 				break
 			}
 		}
-		//: the root's lazy text CHILDREN are the text-binding
-		// counterpart of the style-map/class-map root exemptions above
-		// — shared with the nested path through
-		// `emitLazyTextChildren` .
 		emitLazyTextChildren(
 			fx,
 			component.root,
@@ -333,20 +238,9 @@ const emitTopEffects = (fx: EffectsContext, node: TemplateNode): void => {
 
 /* === Exported Functions === */
 
-/**
- * Pass 4: the document-ordered client effect walk (regrouping move
- * M5). Builds the pass context once, walks the template through
- * `emitTopEffects`, then runs the standalone compose-`id` validation —
- * the band units live at module scope .
- */
 export const runEffects = (
 	shared: PassShared,
 	{ forPlans, reconcilePlans }: LoopPlans,
-	/**
-	 * Unread here: the parameter carries the ORDER (ADR 0018 s5). Harvest
-	 * registers its queries first, and query registration order is the
-	 * byte-stable contract — so effects cannot be planned without it.
-	 */
 	_harvests: HarvestPlans,
 ): EffectPlans => {
 	const {
@@ -366,14 +260,7 @@ export const runEffects = (
 		usedNames,
 		queries,
 	} = shared
-	/**
-	 * Registry entries by TAG . The compose registry is keyed by
-	 * source path because composition resolves through import specifiers; a
-	 * `pass={{ }}` on a raw dashed tag has only the tag, so it needs the
-	 * other index. Built from the same map rather than threading a second
-	 * one through: pass 1 puts every compilable file's entry in there, so
-	 * the two indexes are the same set of components.
-	 */
+	/** Registry entries by TAG — see `EffectsContext.entryByTag`. */
 	const entryByTag = new Map<string, InternalRegistryEntry>()
 	if (composeRefs.mode === 'resolved')
 		for (const entry of composeRefs.registry.values())

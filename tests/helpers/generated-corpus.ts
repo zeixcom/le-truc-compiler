@@ -1,18 +1,4 @@
-/**
- * Per-run output directories for tests that must EXECUTE generated TSRX
- * modules ().
- *
- * Emitting into the real `server/generated/components/` couples the test suite to
- * a directory the build pipeline owns, in two ways that both surface as an
- * unreproducible red run:
- * - any concurrent writer (`bun run scripts/build-corpus.ts`, `check:corpus`, a
- *   running dev server) overwrites a module between a test's write and its
- *   import;
- * - two test files that pick the same tag (`c-el`) overwrite each other,
- *   since `bun test` shares one process and one module registry.
- *
- * Each test file takes its own directory instead, and removes it afterward.
- */
+/** Per-run output directories for tests that must execute generated modules. Emitting into the real `server/generated/components/` couples the suite to a directory the build pipeline owns: a concurrent writer overwrites a module between a test's write and its import, and two test files picking the same tag overwrite each other (bun shares one process and one module registry). Each test file takes its own directory and removes it afterward. */
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import * as path from 'node:path'
@@ -20,26 +6,13 @@ import { DEFAULT_EMIT_PATHS, type EmitPaths } from '../../src/emit-paths'
 
 const ROOT = path.resolve(import.meta.dir, '../..')
 
-/**
- * Emit paths whose harness import stays repo-relative. The published
- * default () is the package specifier `@zeix/le-truc-compiler/runtime`,
- * which plain-tsc spawns (`--ignoreConfig`, no `paths`) cannot resolve — the
- * tests that typecheck their emitted modules with such a spawn pin the
- * relative specifier instead, which resolves from this helper's depth (see
- * `BASE` below).
- */
+/** Emit paths whose harness import stays repo-relative. The published default is the package specifier `@zeix/le-truc-compiler/runtime`, which a plain-tsc spawn (`--ignoreConfig`, no `paths`) cannot resolve; tests that typecheck emitted modules with such a spawn pin the relative specifier instead, which resolves from this helper's depth. */
 export const REPO_EMIT_PATHS: EmitPaths = {
 	...DEFAULT_EMIT_PATHS,
 	runtimeImport: '../../../src/runtime',
 }
 
-/**
- * Sibling of the real `server/generated/components/`, NOT an OS temp dir: emitted
- * modules import `'../../compiler/runtime'` (and examples/ helpers three levels
- * up), so the output has to sit at the same depth under the repo root for
- * those relative specifiers to resolve. `server/generated/` is gitignored,
- * so a leaked directory never shows up in `git status`.
- */
+/** Sibling of the real `server/generated/components/`, not an OS temp dir: emitted modules import `'../../compiler/runtime'` (and examples/ helpers three levels up), so the output has to sit at the same depth under the repo root for those relative specifiers to resolve. `server/generated/` is gitignored, so a leaked directory never shows up in `git status`. */
 const BASE = path.join(ROOT, 'server/generated')
 
 export type GeneratedDir = {
@@ -71,10 +44,7 @@ export function createGeneratedDir(label: string): GeneratedDir {
 	const dir = mkdtempSync(path.join(BASE, `corpus-test-${label}-`))
 	live.add(dir)
 
-	// The module registry keys on the resolved specifier, so a file re-emitted
-	// with DIFFERENT code would otherwise resolve to the first version. Bump a
-	// per-file token on change and import through it; identical re-emits keep
-	// their token, preserving the cheap cached import.
+	// The module registry keys on the resolved specifier, so a file re-emitted with different code would otherwise resolve to the first version. Bump a per-file token on change and import through it; identical re-emits keep their token, preserving the cheap cached import.
 	const tokens = new Map<string, number>()
 	const emitted = new Map<string, string>()
 

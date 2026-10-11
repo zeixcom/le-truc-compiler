@@ -1,18 +1,4 @@
-/**
- * The substrate resolver's absence discrimination (ADR 0012 s5).
- *
- * `resolveSimulationProvider` used to swallow EVERY error from the driver
- * import, which made a driver that is installed but broken indistinguishable
- * from one that was never installed — tolerable while that still failed the
- * build, silently dangerous once absence became a routing outcome. The
- * narrowed catch admits only genuine resolution failures for the driver or
- * its substrate. These tests pin both gates of {@link isSubstrateAbsence}:
- * the error SHAPE (a module-resolution failure vs anything else) and the
- * failing SPECIFIER (driver/substrate vs a transitive dependency). The
- * shapes are as Bun and Node actually throw them: Bun's `ResolveMessage`
- * carries `.specifier`; Node's `ERR_MODULE_NOT_FOUND` names the module in
- * the message only.
- */
+/** The substrate resolver's absence discrimination: the narrowed catch admits only genuine resolution failures for the driver or its substrate, keeping an installed-but-broken driver distinct from a never-installed one. These tests pin both gates of {@link isSubstrateAbsence} — the error SHAPE (a module-resolution failure vs anything else) and the failing SPECIFIER (driver/substrate vs a transitive dependency) — as Bun and Node actually throw them: Bun's `ResolveMessage` carries `.specifier`; Node's `ERR_MODULE_NOT_FOUND` names the module in the message only. */
 
 import { describe, expect, test } from 'bun:test'
 import {

@@ -1,15 +1,4 @@
-/**
- * The runtime seam (): glob semantics, the Node implementation's file
- * and spawn behavior, and Bun↔Node parity on the patterns the build actually
- * uses.
- *
- * The glob translator is ONE shared implementation (`server/runtimes/glob.ts`)
- * — the tests pin it against Bun.Glob on the repo's real trees, because the
- * scanner it replaced WAS Bun.Glob and a consumer's configured corpus must
- * not change because the runtime did. The Node implementation is exercised
- * directly (it loads fine under Bun — it only touches node: APIs), so a
- * regression there fails here and not first in the cross-runtime check.
- */
+/** The runtime seam: glob semantics, the Node implementation's file and spawn behavior, and Bun↔Node parity on the patterns the build actually uses. The glob translator is ONE shared implementation, pinned against Bun.Glob on the repo's real trees — a consumer's configured corpus must not change because the runtime did. The Node implementation is exercised directly (it loads fine under Bun — it only touches node: APIs), so a regression there fails here and not first in the cross-runtime check. */
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'

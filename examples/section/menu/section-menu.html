@@ -1,18 +1,4 @@
-<!-- Regenerated from the compiled server render (LT-469 cutover):
-     renderSectionMenu({ children }) from
-     server/generated/components/section-menu.server.ts — the test page serves
-     exactly the markup the compiled client hydrates; the render of these
-     children is byte-identical to what the page authors. The variant set
-     serves section-menu.tsx (ADR 0039); section-menu.tsrx and the
-     hand-written section-menu.ts stay as variants. server/templates/menu.ts
-     stays hand-written and byte-compatible with this render plus the
-     compose-site id="sidebar" attribute it writes itself (pinned by
-     templates/menu.test.ts). The page keeps #sidebar-toggle before the host
-     and #outside-target after <main>; the sheet is the set's emitted
-     stylesheet (examples/main.css).
-     The menu links carry the page path, not a bare fragment: the test
-     layout sets <base href="/">, so "#page-one" would resolve to
-     "/#page-one" and navigate away to a 404 (LT-491). -->
+<!-- Regenerated from the compiled server render: the test page serves exactly the markup the compiled client hydrates; the render of these children is byte-identical to what the page authors. The menu links carry the page path, not a bare fragment: the test layout sets <base href="/">, so "#page-one" would resolve to "/#page-one" and navigate away to a 404. -->
 
 <button
 	id="sidebar-toggle"
@@ -56,9 +42,7 @@
 	<h1 id="page-one">Page One</h1>
 	<h1 id="page-two">Page Two</h1>
 	<h1 id="page-three">Page Three</h1>
-	<!-- Fixed to the top-right corner — unambiguously clear of the
-	     left-anchored drawer (max 16rem wide) for the outside-click test,
-	     regardless of grid/layout width or viewport size. -->
+	<!-- Fixed to the top-right corner — unambiguously clear of the left-anchored drawer for the outside-click test, regardless of layout width or viewport size. -->
 	<p
 		id="outside-target"
 		style="position: fixed; top: 0.5rem; right: 0.5rem; z-index: 200;"

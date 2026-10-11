@@ -1,14 +1,11 @@
-/**
- * The post-lowering validation tail, shared by both front ends (
- * ADR 0010 sub-design 6: the anti-drift half of the dual front-end
- * contract): every check that needs the lowered `root`, `config`, or the
- * extracted `expose()` argument. Front-end-neutral like the other
- * front-end stage modules: no parser values, only the loose `AstNode`
- * type.
- */
+/** The post-lowering validation tail, shared by both front ends: every check that needs the lowered `root`, `config`, or the extracted `expose()` argument. */
 
-import type { AstNode } from './ast-node'
-import { asArray, forEachFreeIdentifier, identifierName } from './ast-utils'
+import {
+	type AstNode,
+	asArray,
+	forEachFreeIdentifier,
+	identifierName,
+} from './ast-utils'
 import { diagnostic } from './diagnostics'
 import type { ExtractContext } from './extract-context'
 import { reportDuplicatedChannels } from './first-refs'
@@ -24,23 +21,7 @@ import {
 } from './vocabulary'
 import { childNodes, walkTemplate } from './walk'
 
-/**
- * Report a `name` (static or bound) on a descendant `input`/`select`/
- * `textarea`/`button` inside a form-associated component's template
- * (CHECKLIST §7): the inner control stays out of NATIVE form
- * submission only because it's unnamed — the host submits via
- * `setFormValue` instead. A named inner control submits the field TWICE:
- * once via `setFormValue`, once natively. The markup looks entirely
- * reasonable and the failure is server-side (a duplicate form field) and
- * invisible in the browser, so this is a compiler error, not a doc note.
- *
- * Walks the already-lowered template IR (post-lowering) directly —
- * `kind: 'element'` nodes only; composed children are the child's own
- * template, a boundary, same as `first-refs.ts`'s `collectMatchingElements`.
- * Only `static`/`server`/`reactive` attribute kinds represent a real HTML
- * `name` value; `ref`/`event`/`pass`/etc. carry a `.name` field with a
- * different meaning (a JS binding or event name) and must not match.
- */
+/** Report a `name` (static or bound) on a descendant `input`/`select`/`textarea`/`button` inside a form-associated component's template: a named inner control submits the field twice (once via `setFormValue`, once natively), a server-side failure invisible in the browser. */
 const reportNamedFormControls = (
 	ctx: ExtractContext,
 	root: TemplateNode,
@@ -69,18 +50,7 @@ const reportNamedFormControls = (
 	)
 }
 
-/**
- * Report a loop whose output is a direct root of an `if`/`switch` branch
- * () — `.tsrx` `@if (…) { … } @else { @for … }`, `.tsx`
- * `{c ? <>{xs.map(…)}</> : …}` (fragments flatten, so the loop's items land
- * as the arm's roots). The server renders it correctly, but the client
- * addresses a branch by its roots: it binds the loop output with `first()`,
- * so only the first item gets its handlers. A loop wrapped in an element
- * inside the branch is not this shape: the wrapper is the branch root, and
- * a client construct inside it is already LTC005 (analysis/branch-effects.ts,
- * "must sit on the branch root elements"). A loop's `@empty` arm is not a
- * branch, so the empty-state spellings stay legal.
- */
+/** Report a loop whose output is a direct root of an `if`/`switch` branch — the client addresses a branch by its roots, so only the loop's first item gets its handlers; a loop wrapped in an element is not this shape, and a loop's `@empty` arm is not a branch. */
 const reportLoopsInBranches = (
 	ctx: ExtractContext,
 	root: TemplateNode,
@@ -100,18 +70,7 @@ const reportLoopsInBranches = (
 	})
 }
 
-/**
- * LTC081's placement rules for handler args (). A handler arg carries
- * no value inside the component: the composing parent binds its handler on
- * the element that carries the arg, through a query from its own scope. So
- * the arg may be read in two positions only — an event attribute's value
- * on a raw element, and a composed child's handler arg it forwards to (both
- * recorded in `ctx.handlerArgRefs` by the attribute classifiers) — and
- * neither may sit inside a reactive arm or a reactive-list item, whose
- * elements the client recreates on a flip or a reconcile (the parent's
- * connect-time query would go stale), nor inside a server-data loop body,
- * which renders it once per item where the parent binds one listener.
- */
+/** LTC081's placement rules for handler args: an arg may be read only as an event attribute's value on a raw element or a composed child's forwarded handler arg, and neither may sit inside a reactive arm or a reactive-list item (the parent's connect-time query would go stale) nor inside a server-data loop body. */
 const reportHandlerArgPlacements = (
 	ctx: ExtractContext,
 	root: TemplateNode,
@@ -190,7 +149,7 @@ const reportHandlerArgPlacements = (
 	visit(root, null)
 }
 
-/** The handler-arg placements a template node carries (LT-461). */
+/** The handler-arg placements a template node carries. */
 const placementsOf = (
 	node: TemplateNode,
 ): Array<{ arg: string; at: AstNode }> => {
@@ -207,46 +166,6 @@ const placementsOf = (
 	return []
 }
 
-/**
- * The post-lowering validation tail, shared by both front ends. Runs after
- * `resolveTemplateOutput` and `readModuleDecls` because every check below
- * needs `root`, `config`, or `expose.argNode`:
- *
- * - LTC039 (): one value, two channels. Skips the ROOT element (the
- *   root is the host, so a Parser prop rendered as its attribute is the
- *   correct channel) and the sanctioned override (); a
- *   `formAssociated()`/`formAssociatedCheckbox()` host's reserved prop
- *   (`value`/`checked`) is a third exclusion — the root's own content
- *   attribute is the reset baseline, not a duplicate copy.
- * - LTC047 (ADR 0009 sub-design 4): literal prose inside a
- *   component that declared `export const i18n`. Author-fixable, so a
- *   genuine compile warning that converges to zero — unlike a missing
- *   translation, which rides the build report's translation census instead.
- *   Two or more adjacent letters is the prose test: a single-letter fragment
- *   (a plural `s` suffix span) is per-instance page data, not catalog
- *   material.
- * - LTC055 (ADR 0009 s4): every `t.<key>` site against the key's
- *   parsed ICU pattern — called with exactly its arguments, or read bare
- *   when it takes none (`reportMessageCallSites`, i18n.ts).
- * - `config.observedAttributes` must name Parser-exposed props only — a
- *   name that is not Parser-exposed would make the extension silently
- *   inert.
- * - LTC028 (): an expose() key that is a reserved word or Object
- *   builtin. Ungated: the runtime throws `InvalidPropertyNameError` before
- *   its `prop in this` guard, and since  contains that throw, this
- *   rule is what the author actually sees.
- * - The LTC010 family (): a form-associated component's expose()
- *   naming a member the extension installs on the prototype — silently
- *   shadows it at the JS level. `value`/`checked` (config.form) are the
- *   deliberate exceptions the component MUST expose; the variant's own
- *   reset-baseline prop (`defaultValue`/`defaultChecked`) is
- *   reserved too.
- * - A form-associated component's inner native control must have
- *   no `name`.
- * - A loop inside an `if`/`switch` branch is LTC005.
- * - LTC081 (): a handler arg read or placed where the composing
- *   parent cannot address it (`reportHandlerArgPlacements`).
- */
 export const validateLoweredComponent = (
 	ctx: ExtractContext,
 	{

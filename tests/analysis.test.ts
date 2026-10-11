@@ -1,10 +1,4 @@
-/**
- * Independent-pass tests for the analysis split (M5): each pass in
- * `server/compiler/analysis/` is a function over an explicitly constructed
- * `PassShared` — no `analyzeClient` orchestration needed. These tests
- * exercise one pass at a time against a hand-built context, the
- * unit-testability the old 2,500-line closure monolith made impossible.
- */
+/** Independent-pass tests: each analysis pass runs over an explicitly constructed `PassShared`, without `analyzeClient` orchestration. */
 import { describe, expect, test } from 'bun:test'
 import { runEffects } from '../src/analysis/effects'
 import { runHarvest } from '../src/analysis/harvest'
@@ -117,8 +111,7 @@ describe('analysis passes over a constructed context', () => {
 
 	test('pass order is a type contract, not a convention (ADR 0018 s5)', () => {
 		const ctx = contextFor(realComponent())
-		// Never executed — the assertions are the `@ts-expect-error`s, which
-		// fail typecheck the day a pass stops requiring its producer's output.
+		// Never executed — the assertions are the `@ts-expect-error`s, which fail typecheck the day a pass stops requiring its producer's output.
 		const harvestBeforeLoops = () => {
 			// @ts-expect-error — runHarvest requires runLoops' LoopPlans
 			runHarvest(ctx)
@@ -144,14 +137,7 @@ describe('analysis passes over a constructed context', () => {
 	})
 })
 
-/**
- * LT-124: class discriminators are TOKEN clauses. Before  the pin
- * ran on `matchesSelector`, the hand matcher that had to track the
- * synthesizer's grammar exactly; since then matching is css-select's on
- * the materialized probe (ADR 0023), so the same questions are asked
- * through the engine's public count — `countForSelector` over the
- * element's own subtree, which includes the element itself.
- */
+/** Class discriminators are token clauses, matched through css-select on the materialized probe via `countForSelector` over the element's own subtree (which includes the element itself). */
 describe('class discriminators are token clauses (LT-124)', () => {
 	/** The element a `first()`-addressed span lowers to, given a class value. */
 	const spanWithClass = (className: string): ComponentIR => {
@@ -190,9 +176,7 @@ describe('class discriminators are token clauses (LT-124)', () => {
 
 	test('a multi-token class offers one candidate per token, order-insensitively', () => {
 		const component = spanWithClass('label icon')
-		// The FIRST unique candidate wins, so the synthesized selector names
-		// one token — but either token identifies the element, which is the
-		// property exact match did not have.
+		// The first unique candidate wins, so the synthesized selector names one token — but either token identifies the element.
 		const { selector } = resolveSelector(component, firstSpan(component))
 		expect(['span.label', 'span.icon']).toContain(selector)
 		expect(countForSelector(component.root, 'span.label')).toBe(1)
@@ -200,9 +184,7 @@ describe('class discriminators are token clauses (LT-124)', () => {
 	})
 
 	test('a token clause matches page markup carrying extra classes', () => {
-		// The acceptance case: the template renders `class="label"`, the PAGE
-		// renders `class="label icon"`. Structurally the same question asked
-		// of the engine — a token clause matches by membership.
+		// The template renders `class="label"`, the page renders `class="label icon"` — a token clause matches by membership.
 		const pageSpan = firstSpan(spanWithClass('label icon'))
 		expect(countForSelector(pageSpan, 'span.label')).toBe(1)
 		expect(countForSelector(pageSpan, 'span.icon')).toBe(1)
@@ -212,8 +194,7 @@ describe('class discriminators are token clauses (LT-124)', () => {
 	})
 
 	test('a token that is not a plain identifier falls back to exact match', () => {
-		// `.w-1/2` would be a querySelector SYNTAX error — a throw at
-		// activation, not a miss — so those keep the exact-match form.
+		// `.w-1/2` would be a querySelector syntax error — a throw at activation, not a miss — so those keep the exact-match form.
 		const component = spanWithClass('w-1/2')
 		expect(resolveSelector(component, firstSpan(component))).toEqual({
 			selector: 'span[class="w-1/2"]',
@@ -222,14 +203,7 @@ describe('class discriminators are token clauses (LT-124)', () => {
 	})
 })
 
-/**
- *  follow-up (owner, 2026-08-30): `#id` is the canonical spelling of an
- * id discriminator. Unlike the class change this is NOT a widening —
- * `input#name-input` and `input[id="name-input"]` select exactly the same
- * element — so it is pure canonicalization. It is also a new capability:
- * `id` was not among the raw-element discriminator candidates at all, only
- * among the compose-site ones.
- */
+/** `#id` is the canonical spelling of an id discriminator — not a widening, since `input#x` and `input[id="x"]` select exactly the same element. */
 describe('id discriminators use the hash form (LT-124)', () => {
 	/** Two same-tag inputs — the bare tag is ambiguous, forcing a discriminator. */
 	const twoInputs = (idValue: string): ComponentIR => {
@@ -285,11 +259,7 @@ describe('id discriminators use the hash form (LT-124)', () => {
 })
 
 describe('aria-* discriminators are the last resort (LT-101)', () => {
-	/**
-	 * module-dialog's shape: an opener told apart by ARIA alone. No `first()`
-	 * ref — an authored selector would lead the candidates , and this
-	 * block pins the synthesizer's own order.
-	 */
+	/** An opener told apart by ARIA alone: no `first()` ref, so this pins the synthesizer's own candidate order. */
 	const twoButtons = (openerAttrs: string): ComponentIR => {
 		const { component } = compileSource(
 			`export function C({}: {})
@@ -332,14 +302,7 @@ describe('aria-* discriminators are the last resort (LT-101)', () => {
 	})
 })
 
-/**
- * A synthesized selector's uniqueness is counted over the OWN
- * template, but the runtime query descends into every composed child's
- * rendered markup. With the children's shapes known, a candidate a child
- * could match is emitted with a `:not(<child-tag> *)` exclusion — the bare
- * `button` module-codeblock's overlay resolved to found the composed
- * basic-button's own `<button>` first.
- */
+/** Uniqueness is counted over the own template, but the runtime query also descends into composed children's rendered markup — a candidate a child could match is emitted with a `:not(<child-tag> *)` exclusion. */
 describe('selectors account for composed children', () => {
 	const child = (body: string): ComponentIR =>
 		compileSource(
@@ -356,8 +319,7 @@ describe('selectors account for composed children', () => {
 			'child.tsrx',
 		).component as ComponentIR
 
-	// No `first()` refs: this block pins synthesis; the authored-selector
-	// route has its own block below .
+	// No `first()` refs: this block pins synthesis; the authored-selector route has its own block below.
 	const parent = (withRefs = false): ComponentIR =>
 		compileSource(
 			`import { Child } from './child.tsrx'
@@ -418,9 +380,7 @@ export function P({}: {})
 		const component = withChild(
 			child('<button type="button" class={size}>in</button>'),
 		)
-		// Every candidate clashes (the dynamic class may hold "overlay"), so
-		// all come out exclusion-wrapped — and the most precise decorated
-		// base wins , the class hook over the bare tag.
+		// Every candidate clashes (the dynamic class may hold "overlay"), so all come out exclusion-wrapped; the most precise decorated base wins.
 		expect(
 			resolveSelector(component, elementByTag(component, 'button')),
 		).toEqual({ selector: 'button.overlay:not(child-el *)', unique: true })
@@ -470,12 +430,7 @@ export function P({}: {})
 	})
 
 	test('a template-proper candidate beside content holding a match keeps the exclusion (LT-512)', () => {
-		// The owner ruling's probe: the child renders only `{children}`, and
-		// the parent passes a matching element into it. The plain probe never
-		// sees compose content, so the exclusion is the only thing keeping
-		// the passed element out of the query — the client's querySelector
-		// takes the first match in document order, and the content sits
-		// under the child's host, earlier than the target.
+		// The child renders only `{children}` and the parent passes a matching element into it: the plain probe never sees compose content, so the exclusion is the only thing keeping the passed element out of the query (document order puts it under the child's host, earlier than the target).
 		const rawChild = compileSource(
 			`export function Child({ children }: { children?: string })
 @{
@@ -524,16 +479,12 @@ export function P({}: {})
 			ComponentIR['root'],
 			{ kind: 'element' }
 		>
-		// The synthesized form: the most precise decorated base ( —
-		// the class hook over the bare tag) with the exclusion.
+		// Synthesized form: the most precise decorated base (the class hook over the bare tag) with the exclusion.
 		expect(resolveSelector(parent, button)).toEqual({
 			selector: 'button.overlay:not(child-el *)',
 			unique: true,
 		})
-		// The authored-contract form: the ref attr carries the author's
-		// selector, and it still proves itself exclusion-wrapped. Since
-		//  it coincides with the synthesized form here — the leg pins
-		// that the authored path, not the synthesis, produced it.
+		// Authored-contract form: the ref attr carries the author's selector and still comes out exclusion-wrapped — the authored path, not synthesis, produced it.
 		;(
 			button as {
 				attrs: Array<{ kind: string; name?: string; selector?: string }>
@@ -553,11 +504,7 @@ export function P({}: {})
 	})
 
 	test('among exclusion-decorated candidates the most precise base wins (LT-520)', () => {
-		// The child takes open children, so its `children` shape may match
-		// every candidate of the parent's own template (ADR 0026): all come
-		// out decorated and the base decides — the id outranks the class
-		// hook and the bare tag, and a role keeps its first place over a
-		// class hook.
+		// The child takes open children, so its `children` shape may match every candidate of the parent's own template: all come out decorated and the base decides — id outranks class hook and bare tag; role keeps first place over a class hook.
 		const rawChild = compileSource(
 			`export function Child({ children }: { children?: string })
 @{
@@ -612,8 +559,7 @@ export function P({}: {})
 	})
 
 	test('type is not a hook — a decorated type-only button keeps the bare tag', () => {
-		// `type="button"` is boilerplate, not an addressing hook: within its
-		// rank the candidate order stands, and the bare tag precedes it.
+		// `type="button"` is boilerplate, not an addressing hook: the bare tag precedes it within its rank.
 		const component = compileSource(
 			`import { Child } from './child.tsrx'
 export function P({}: {})
@@ -677,12 +623,7 @@ export function P({}: {})
 	})
 })
 
-/**
- * LT-316: a `first()` ref's authored selector is the contract page-authored
- * occurrences are addressed by, so it is emitted whenever it is
- * structurally verifiable — in the synthesized grammar and unique over the
- * own template — and synthesis is only the fallback.
- */
+/** A `first()` ref's authored selector is the contract page-authored occurrences are addressed by: emitted whenever structurally verifiable (in the synthesized grammar and unique over the own template), with synthesis only as fallback. */
 describe('authored first() selectors are emitted when verifiable (LT-316)', () => {
 	const resolveRef = (template: string, selector: string, tag: string) => {
 		const component = compileSource(

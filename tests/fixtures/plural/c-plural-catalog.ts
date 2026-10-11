@@ -1,10 +1,4 @@
-/**
- * The `c-plural` fixture's catalog (): the retired basic-pluralize
- * entries, verbatim from the committed `i18n/*.json` they left. The source
- * locale (`en`) lives inline in `c-plural.tsrx`. Each `tasks` pattern spells
- * its locale's own plural and ordinal categories inside one select on
- * `type` — Welsh and Arabic carry six.
- */
+/** The `c-plural` fixture's catalog: the retired basic-pluralize entries, verbatim from the committed `i18n/*.json` they left. The source locale (`en`) lives inline in `c-plural.tsrx`. Each `tasks` pattern spells its locale's own plural and ordinal categories inside one select on `type` — Welsh and Arabic carry six. */
 export const C_PLURAL_CATALOG: Record<
 	string,
 	{ done: string; remaining: string; tasks: string }

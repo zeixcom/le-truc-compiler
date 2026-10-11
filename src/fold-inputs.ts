@@ -1,50 +1,5 @@
-/**
- * The partial-readiness invariant as a compile-time check (ADR 0012
- * sub-design 4): **a component's folded output may depend only on
- * its own props and a closed, enumerable set of page-ambient values.**
- *
- * Template emission (ADR 0012 sub-design 3) turns the props into
- * template holes and passes the ambient set through the include. Anything
- * else a fold reads — the build page's `document`, the build machine's
- * `navigator`, a `window` global — has no hole to become, so a fold that
- * reads it forecloses emitting the component as a template. The check runs
- * now, before the emitter exists, so a design landing in between cannot do
- * that quietly.
- *
- * This module is the ONE place the invariant's vocabulary is declared:
- *
- * - {@link PAGE_AMBIENT_TYPES} / {@link PAGE_AMBIENTS} — the closed ambient set. Adding a member here is
- *   the visible, reviewable act that widens what every future emitter must
- *   pass through the include; nothing else widens it.
- * - {@link FOLD_HARNESS_NAMES} — names the server harness binds that are
- *   pure functions of the component's own state, not page inputs.
- * - {@link PAGE_CONTEXT_GLOBALS} — globals that read page or build-machine
- *   context. Several sit in `JS_GLOBALS` (the client analysis needs them),
- *   which is exactly why the server-evaluability gate admits them: it asks
- *   "is every name in scope", and a global always is.
- *
- * Two checks read it. `ambientRecordViolations` (called from the params
- * contract) keeps the reserved `i18n` record's destructured members inside
- * the set; `checkFoldInputs` (called from the shared pipeline) walks every
- * position the server render evaluates and reports a page-context read
- * there. Both report LTC054 — ADR 0007 tier 1 (Prevented), statically
- * decidable, no runtime half. `assertFoldScopeClosed` is the compiler-side
- * guard: it throws when the render scope (`serverKnown`) holds a name that
- * is neither an own arg, an own setup name, nor a declared harness name.
- *
- * The Simulated tier is outside the invariant by construction (ADR 0013
- * sub-design 2: SSG-only, never a template), so statements the realm owns —
- * the ones setup extraction routes, reading refs, `host`/`internals`, or a
- * client-only primitive — are not fold inputs and are not checked.
- *
- * Reconcile rider (ADR 0015, 2026-09-21): a reactive condition's INITIAL
- * winner is prop-dependent output — legal under this check, because its
- * inputs are the same args and ambients every other fold reads. How the
- * emitted backend conditional represents it is the ticket's to name.
- */
-
-import type { AstNode } from './ast-node'
 import {
+	type AstNode,
 	asArray,
 	freeIdentifiers,
 	identifierName,
@@ -67,20 +22,11 @@ import { childNodes } from './walk'
 
 /* === The declared vocabulary === */
 
-/** The reserved parameter that carries the page-ambient record (ADR 0009 s2). */
+/** The reserved parameter that carries the page-ambient record. */
 export const AMBIENT_RECORD_PARAM = 'i18n'
 
-/**
- * The closed page-ambient set: the reserved `i18n` record's members (ADR
- * 0030 sub-design 2), each with the TypeScript type the generated `I18n`
- * interface gives it. `src/i18n-catalog.ts` writes that interface from
- * this table, so the record type and the check cannot disagree about what
- * the record carries.
- */
 export const PAGE_AMBIENT_TYPES: Readonly<Record<string, string>> = {
 	lang: 'string',
-	// The interface's type parameter: each server module instantiates it
-	// with the component's exact per-key record ().
 	t: 'T',
 	timeZone: 'string',
 	currency: 'string',
@@ -92,21 +38,8 @@ export const PAGE_AMBIENTS: ReadonlySet<string> = new Set(
 	Object.keys(PAGE_AMBIENT_TYPES),
 )
 
-/**
- * Names the server harness binds into the render scope that are not args
- * or setup names. `isPending(signal)` reads the component's own signal, so
- * it is a function of the component's state, not a page input.
- */
 export const FOLD_HARNESS_NAMES: ReadonlySet<string> = new Set(['isPending'])
 
-/**
- * Globals whose value is page or build-machine context. A fold reading
- * one bakes the BUILD's answer into the served markup, and no template
- * hole can carry it to a backend. Deliberately separate from the
- * impure-ambient rule (`evaluability.ts`, LTC033): that rule is about
- * values with no server answer at all (the clock, the RNG); this one is
- * about inputs the invariant has not admitted.
- */
 export const PAGE_CONTEXT_GLOBALS: ReadonlySet<string> = new Set([
 	'document',
 	'window',
@@ -135,13 +68,6 @@ export const PAGE_CONTEXT_GLOBALS: ReadonlySet<string> = new Set([
 export const pageContextReads = (node: AstNode): string[] =>
 	[...freeIdentifiers(node)].filter(n => PAGE_CONTEXT_GLOBALS.has(n)).sort()
 
-/**
- * LTC054 for the reserved record's destructuring: every member the params
- * pattern takes out of `i18n` must be in {@link PAGE_AMBIENTS}. A rest
- * element (`i18n: { ...rest }`) takes every member there is and is refused
- * too. Binding the whole record (`{ i18n }`) is allowed here; its member
- * reads are checked where they are evaluated (`checkFoldInputs`).
- */
 export const ambientRecordViolations = (
 	source: string,
 	paramsNode: AstNode | null,
@@ -177,14 +103,6 @@ export const ambientRecordViolations = (
 	return out
 }
 
-/**
- * The compiler-side half of the invariant: the render scope holds only the
- * component's own args, its own setup names, and declared harness names. A
- * change that widens `serverKnown` with anything else (a page URL, a
- * request object) throws here in every corpus test rather than landing
- * silently. A thrown error, not a diagnostic: no authored source can cause
- * it.
- */
 export const assertFoldScopeClosed = (component: ComponentIR): void => {
 	const own = new Set<string>([
 		...component.paramNames,
@@ -199,12 +117,6 @@ export const assertFoldScopeClosed = (component: ComponentIR): void => {
 		)
 }
 
-/**
- * LTC054 for every position the server render evaluates: a page-context
- * read there — directly, or through a setup helper whose body reads one —
- * is reported at the position. See the module doc for what is and is not
- * a fold input.
- */
 export const checkFoldInputs = (
 	component: ComponentIR,
 	diagnostics: LocalDiagnostic[],
@@ -213,10 +125,6 @@ export const checkFoldInputs = (
 	const { source } = component
 	const refNames = declaredRefNames(component.firstRefs)
 
-	/**
-	 * Setup statements the realm owns (routed by setup extraction), which
-	 * the Folded-tier server module never evaluates for the fold.
-	 */
 	const realmOwned = (node: AstNode): boolean =>
 		[...freeIdentifiers(node)].some(
 			n =>
@@ -227,10 +135,6 @@ export const checkFoldInputs = (
 	const isFunction = (node: AstNode): boolean =>
 		/Function(Expression)?$/.test(String(node.type))
 
-	// Setup helpers (function-valued consts) whose body reads page context,
-	// directly or by calling another such helper — to a fixpoint. A helper is
-	// never evaluated by its declaration, only by a fold that calls it, so
-	// the report lands on the calling position.
 	const tainted = new Map<string, string[]>()
 	let changed = true
 	while (changed) {
@@ -262,10 +166,6 @@ export const checkFoldInputs = (
 		if (reads.length > 0) report(node, where, reads)
 	}
 
-	// Setup: every non-function statement the server re-declares runs in the
-	// render function, so its initializer is a fold input whether or not a
-	// template position reads the name. `requestContext` is substituted by
-	// its fallback server-side, so only the fallback is evaluated.
 	for (const stmt of component.setup) {
 		if (!stmt.name || isFunction(stmt.node)) continue
 		const signal = component.signals.find(s => s.name === stmt.name)
@@ -338,12 +238,6 @@ export const checkFoldInputs = (
 				if (loop) {
 					if (loop.kind === 'each') {
 						checkEvaluated(loop.iterable, 'the items of a loop')
-						// CHECKLIST §4 / LTC033 (error form): the iterable
-						// is always evaluated, once, at build time — a shuffle or a
-						// random id bakes into the page for good. Checked here, not
-						// in the front ends, because only this walk holds the
-						// loop's OUTER scope, which a resolvable-locale `Intl`
-						// needs to fold.
 						if (containsImpureAmbient(loop.iterable, scope))
 							diagnostics.push(
 								diagnostic.impureLoopItems(source, loop.iterable),
@@ -358,8 +252,6 @@ export const checkFoldInputs = (
 							loopScope.add(hoisted.name)
 						}
 					} else {
-						// The key and the item's setup names bind per item in the
-						// server's loop (ADR 0024 s5).
 						if (loop.keyName) loopScope.add(loop.keyName)
 						for (const stmt of loop.setup)
 							if (stmt.name) loopScope.add(stmt.name)
@@ -376,7 +268,7 @@ export const checkFoldInputs = (
 				break
 			case 'conditional':
 				if (node.mode === 'reactive') {
-					// The initial winner folds like any reactive site (ADR 0015).
+					// The initial winner folds like any reactive site.
 					checkReactive(node.test, scope, 'a condition')
 					break
 				}
@@ -417,10 +309,6 @@ export const checkFoldInputs = (
 
 /* === Internal Functions === */
 
-/**
- * The page context `node` reaches: its own page-context global reads plus,
- * for each tainted helper it references, that helper's reads.
- */
 const readsOf = (
 	node: AstNode,
 	tainted: ReadonlyMap<string, string[]>,
@@ -431,15 +319,6 @@ const readsOf = (
 	return [...reads].sort()
 }
 
-/**
- * Reads off a whole-bound ambient record (`{ i18n }` → `i18n.url`) that
- * name a member outside {@link PAGE_AMBIENTS}, or compute one. The
- * destructured spelling is checked at the params pattern instead
- * (`ambientRecordViolations`); this covers the whole-record binding, whose
- * `I18n` type would make tsc refuse the read — but the build does not
- * necessarily run tsc. Unaware of shadowing: a local named `i18n` is
- * checked the same way, which errs toward reporting.
- */
 const recordMemberReads = (node: AstNode): string[] => {
 	const out: string[] = []
 	// Type positions are skipped: a member read never occurs in one.

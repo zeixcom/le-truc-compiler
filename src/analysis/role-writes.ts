@@ -1,32 +1,10 @@
-/**
- * The one-writer-per-property check (ADR 0026 s3).
- *
- * A child acts on the content a parent passes only through declared roles
- * (ADR 0026 s2), and it does so with *runtime writes*: role-addressed
- * `first()` references whose `watch` bindings — `bindProperty`,
- * `bindAttribute`, `bindText`, `bindClass`, `bindVisible`, `bindStyle`,
- * `bindAria` — own a property on every element carrying the role's class.
- * The parent owns that content too (s1), and binds it through its own
- * `first()` references into the compose site. When both bind the same
- * property on the same role element, two writers fight forever: the child's
- * binding fires on its signals, the parent's on its own.
- *
- * Both halves are the same scan. {@link watchBindingsOf} reads the authored
- * factory statements — `watch(source, helper(ref, …))` calls, verbatim in
- * `setup`/`clientSetup` — for bindings a declared `first()` reference
- * targets. The child half ({@link roleWritesOf}) filters to role-addressed
- * references and becomes the registry entry's `roleWrites`; the parent half
- * ({@link findRoleWriterConflicts}) runs in the registry-aware pass at each
- * compose site with children, matching the site's content elements' role
- * classes against the child entry's recording. `on()` return updates write
- * host props, not role elements — out of scope by the task's ruling.
- *
- * Tier 1 Prevented (ADR 0007): statically decidable on both sides, no
- * runtime half.
- */
-
-import type { AstNode } from '../ast-node'
-import { asArray, identifierName, isNode, nodeType } from '../ast-utils'
+import {
+	type AstNode,
+	asArray,
+	identifierName,
+	isNode,
+	nodeType,
+} from '../ast-utils'
 import { childrenInsertionsOf } from '../children-region'
 import { namesDeclaredRole } from '../first-refs'
 import type { ComponentIR, TemplateNode } from '../ir'
@@ -46,19 +24,6 @@ export type RoleBindHelper =
 	| 'bindStyle'
 	| 'bindAria'
 
-/**
- * One property a client writes on role elements, read off a `watch`
- * binding. For the property/attribute family, `name` is the match key —
- * the ATTRIBUTE spelling the write lands on, with IDL divergences
- * reconciled (`className` → `class`, `htmlFor` → `for`, `tabIndex` →
- * `tabindex`, `ariaValueNow` → `aria-valuenow`) — and `authored` keeps the
- * spelling the author wrote for the message. A whole-attribute write
- * (`class`, `style`, or the element's text) subsumes the partial kind: it
- * erases any class token, style property or bound text on the element.
- * `bindVisible` writes the `hidden` property. Unreadable arguments (a
- * computed name) are skipped: the check fires only where it can name what
- * is written.
- */
 export type RoleWrite = {
 	helper: RoleBindHelper
 	target:
@@ -89,17 +54,6 @@ export type RoleWriterConflict = {
 
 /* === Internal Functions === */
 
-/**
- * The attribute spelling a written name lands on — the match key for the
- * property/attribute family, since both dispatch to the same underlying
- * state for a given name. An ARIA IDL property reflects to its lowercase
- * attribute (`ariaSelected` → `aria-selected`, `ariaValueNow` →
- * `aria-valuenow` — attribute names carry no inner capitals); the two IDL
- * spellings that diverge otherwise map to their attributes (`className` →
- * `class`, `htmlFor` → `for`); everything else lowercases (`tabIndex` →
- * `tabindex`, `readOnly` → `readonly`). `authored` keeps the spelling the
- * author wrote for the message.
- */
 const normalizeWriteName = (name: string): string => {
 	if (/^aria[A-Z]/.test(name)) return `aria-${name.slice(4).toLowerCase()}`
 	if (name === 'className') return 'class'
@@ -162,17 +116,6 @@ const writeTargetsOf = (
 
 /* === Exported Functions === */
 
-/**
- * Every authored `watch` binding a declared `first()` reference targets, in
- * source order. A binding is `watch(<source>, <helper>(<ref>, …))` with
- * `<helper>` one of the seven bind helpers and `<ref>` an identifier naming
- * a `firstRefs` entry; anything else — a prop-key watch (`watch('value',
- * …)`), a custom handler, a helper over `host` or a non-ref name, a
- * computed name argument — is skipped: both halves record only what the
- * compiler can name. Names are stored under their attribute spelling (the
- * match key, `normalizeWriteName`), so a `bindAria(tab, 'ariaSelected')`
- * collides with a parent `bindAttribute(el, 'aria-selected')`.
- */
 export const watchBindingsOf = (component: ComponentIR): WatchBinding[] => {
 	const helpers: ReadonlySet<string> = new Set<RoleBindHelper>([
 		'bindProperty',
@@ -218,11 +161,6 @@ export const watchBindingsOf = (component: ComponentIR): WatchBinding[] => {
 	return bindings
 }
 
-/**
- * Every declared role the SUBJECT compound of a selector list names — the
- * collect counterpart of `first-refs.ts`' boolean `namesDeclaredRole`, so a
- * write is recorded under each role it conflicts through.
- */
 export const subjectRolesOf = (
 	selectorList: string,
 	roles: ReadonlySet<string>,
@@ -245,19 +183,6 @@ export const subjectRolesOf = (
 	return found
 }
 
-/**
- * The registry entry's `roleWrites` (ADR 0026 s3): the component's
- * watch bindings whose reference is role-addressed — the selector's subject
- * names a declared role, the template inserts `{children}` (without an
- * insertion the content can never arrive — the  review-2 posture),
- * and the reference resolved to no own-template element. A reference that
- * matched the child's OWN markup writes that element, not the passed
- * content — no conflict with a parent's binding is possible, so it is not
- * recorded; the same holds for a `deferred` reference a compose site
- * claimed (it addresses a composed child's host). One entry per role the
- * selector's subject names. Null when there is no roles contract, no
- * insertion, or no role-addressed binding: the field stays off the entry.
- */
 export const roleWritesOf = (
 	component: ComponentIR,
 ): Record<string, RoleWrite[]> | null => {
@@ -270,9 +195,6 @@ export const roleWritesOf = (
 		insertions.unmarked
 	if (!inserts) return null
 	const roleSet = new Set(roles.keys())
-	// A `deferred` reference the compose-aware pass claimed (the `ref` attr
-	// on a compose node, attached by `analysis/compose-refs.ts`) addresses a
-	// composed child's host, not content.
 	const claimedDeferred = new Set(
 		allComposeNodes(component.root)
 			.map(node => refOf(node)?.name)
@@ -298,18 +220,6 @@ export const roleWritesOf = (
 	return Object.keys(byRole).length > 0 ? byRole : null
 }
 
-/**
- * The compose-site half (ADR 0026 s3): a parent `watch` binding on
- * a `first()` reference INTO a compose site's content, whose element
- * carries a role class the child's client also writes the same property on,
- * is a conflict — reported at the parent's binding, naming both writers.
- * Runs in the registry-aware pass only (it reads each child's entry).
- * The reference-targeted binding is the parent's write channel this check
- * reads; a reactive `truc:html` in content () is a template-authored
- * write the statement scan does not see — the accepted-edge ruling (LT-476
- * review) scopes the check to authored statements, and widening it is
- * the ticket's question.
- */
 export const findRoleWriterConflicts = (
 	component: ComponentIR,
 	composeRegistry: ReadonlyMap<string, InternalRegistryEntry>,
@@ -346,13 +256,6 @@ export const findRoleWriterConflicts = (
 	return findings
 }
 
-/**
- * The parent's references into one compose site's content: ref name → the
- * referenced element. The same walk `planContentRefs` runs at effect
- * planning (analysis/compose-effects.ts): the front end attached these ref attrs
- * because the element collection enters compose content (ADR 0026 s1), and
- * a nested compose site is LTC011's refusal, not content to walk.
- */
 const contentRefsOf = (
 	node: ComposeNode,
 ): Map<string, Extract<TemplateNode, { kind: 'element' }>> => {
@@ -380,28 +283,12 @@ const classTokensOf = (
 	return []
 }
 
-/**
- * The names whose write replaces the element's WHOLE text — the name-channel
- * writes that subsume a `bindText` (the channels converge on `textContent`).
- */
 const WHOLE_TEXT_NAMES: ReadonlySet<string> = new Set([
 	'textcontent',
 	'innertext',
 	'innerhtml',
 ])
 
-/**
- * Do a parent's and a child's write hit the same property? Property and
- * attribute writes compare by their attribute spelling (the channels
- * converge for a given name — the divergence the dirty-flag rule handles is
- * the's, a dispatch detail neither writer's intent changes). A
- * whole-attribute write subsumes the partial kind in BOTH directions:
- * replacing `class` erases a `bindClass` token, replacing `style` erases a
- * `bindStyle` property, and writing the element's text (`textContent`,
- * `innerText`, `innerHTML`) erases bound text — so the whole write
- * conflicts with any token, style property or text write of its kind.
- * Class tokens, style properties and text compare within their family.
- */
 const conflictsWith = (parent: RoleWrite, child: RoleWrite): boolean => {
 	const a = parent.target
 	const b = child.target
@@ -410,9 +297,6 @@ const conflictsWith = (parent: RoleWrite, child: RoleWrite): boolean => {
 	const whole: NameTarget | null =
 		a.channel === 'name' ? a : b.channel === 'name' ? b : null
 	if (!whole) {
-		// Same-family partials: token vs token, property vs property, text.
-		// Mismatched partial channels (a token against a style property, a
-		// class token against bound text) share no state.
 		if (a.channel !== b.channel) return false
 		if (a.channel === 'text') return true
 		if (a.channel === 'class' && b.channel === 'class')

@@ -1,15 +1,4 @@
-/**
- * The published diagnostic record's ranges (ADR 0022 s1–s2).
- *
- * One pin per producer family: the reported `location` covers the
- * offending construct, in the file the caller named. Each rule both
- * surfaces share is pinned on both, and the two must cover the same
- * authored text — or, where the surfaces spell the construct differently
- * (a loop, a condition), each its own spelling of it. The parity suite
- * (`tsx/diagnostic-parity.test.ts`) compares covered text for every
- * diagnostic it sees. A rule with no
- * construct in scope reports the whole file, never no location.
- */
+/** The published diagnostic record's ranges: one pin per producer family — the reported `location` covers the offending construct, in the file the caller named. Each rule both surfaces share is pinned on both; a rule with no construct in scope reports the whole file, never no location. */
 
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
@@ -26,8 +15,6 @@ import { compileComponent, compileSource } from '../src/frontend/tsrx'
 import { compileComponentTsx } from '../src/frontend/tsx'
 import { walkTemplate } from '../src/walk'
 import { textAt } from './located'
-
-/* === Helpers === */
 
 type Shape = {
 	setup?: string
@@ -115,8 +102,6 @@ const expectCoversEach = (
 }
 
 const CELL_IMPORT = "import { createCell } from '@zeix/le-truc'\n"
-
-/* === Tests === */
 
 describe('the record shape (ADR 0022 s1)', () => {
 	test('a reported diagnostic carries location and related, never line', () => {
@@ -539,10 +524,7 @@ export function C({}: {}) {
 			'LTC074',
 			'<li class="head">x</li>',
 		)
-		// (b) the losing arm: a compile-time winner proves nothing, so the
-		// `else` root is flagged though the condition seeds `then`. Pinned
-		// non-vacuously: the seed is `then`, the winner's root is exempt,
-		// and the one LTC074 per surface covers the `else` root only.
+		// (b) The losing arm: a compile-time winner proves nothing, so the `else` root is flagged though the condition seeds `then` — pinned non-vacuously below (seed asserted), one LTC074 per surface covering the `else` root only.
 		const losing: Shape = {
 			head,
 			setup,
@@ -655,7 +637,7 @@ export function C({}: {}) {
 		const setup =
 			"\t\tconst items = createList<string>([], { keyConfig: 'item' })\n\t\texpose({})"
 		for (const shape of [
-			// form-tokenbox's fixed shape (): the input is exempt
+			// form-tokenbox's fixed shape: the input is exempt
 			{
 				template:
 					'<ul data-container><input type="text" data-unreconciled>@for (const item of items) { <li>{item}</li> }</ul>',
@@ -669,8 +651,7 @@ export function C({}: {}) {
 				tsxTemplate:
 					'<ul data-container>{items.map(item => <li>{item}</li>)}</ul>',
 			},
-			// the @empty arm's roots also sit beside the loop as `output`'s
-			// siblings — the server stamps them `data-unreconciled` ()
+			// the @empty arm's roots also sit beside the loop as `output`'s siblings — the server stamps them `data-unreconciled`
 			{
 				template:
 					'<ul data-container>@for (const item of items) { <li>{item}</li> } @empty { <li class="none">Nothing yet</li> }</ul>',
@@ -718,7 +699,7 @@ export function C({}: {}) {
 			tsxTemplate:
 				'<ul data-container><truc:try pending={<li class="p">p</li>} catch={e => <li class="b">{e.message}</li>}><li class="a">{data}</li></truc:try>{items.map(item => <li>{item}</li>)}</ul>',
 		}
-		// The message names the boundary, not a conditional ().
+		// The message names the boundary, not a conditional.
 		for (const { surface, hit } of reportOn(shape, 'LTC063')) {
 			expect(hit?.message).toStartWith(
 				surface === 'tsx'

@@ -1,25 +1,5 @@
-/**
- * `first(selector, required)` element-reference resolution (
- * replacing `ref={}`). A front-end-owned pure leaf, sibling of
- * `reactivity.ts`/`evaluability.ts`: `compiler.ts` calls this once the
- * template IR exists (`lowerChildren` has run) to structurally match an
- * author's selector against the component's own template, before attaching
- * the matched element(s) to the same `{kind: 'ref', name}` IR shape
- * `ref={}` used to populate directly. Depends only on `ir.ts` types, so
- * both the front end and (if ever needed) the analysis layer can import it
- * without crossing the pipeline's documented front-end → analysis
- * direction the other way.
- *
- * The author's selector is used ONLY here, at compile time, to identify
- * WHICH element(s) a `first()`-declared name refers to. It is never emitted
- * as the runtime selector — `analysis/selectors.ts`'s `resolveSelectorIn`/
- * `selectorFor` still synthesize that, exactly as for `ref={}` before it,
- * so every existing dedup/union-addressing guarantee carries over unchanged.
- */
-
 import * as cssWhat from 'css-what'
-import type { AstNode } from './ast-node'
-import { isNode } from './ast-utils'
+import { type AstNode, isNode } from './ast-utils'
 import { diagnostic, type LocalDiagnostic, type Site } from './diagnostics'
 import type { FirstRefDecl, TemplateNode } from './ir'
 import {
@@ -57,20 +37,6 @@ const staticAttrs = (element: ElementNode): Map<string, string | null> => {
 	return map
 }
 
-/**
- * Parse ONE simple selector (no combinators, no pseudo-classes) into its
- * structural parts. Supports an optional tag followed by any combination of
- * `.class`, `#id`, and `[attr]`/`[attr="value"]` clauses, in any order.
- * Since  (ADR 0023 Decision 5) the parse itself runs on css-what;
- * the post-checks keep the VERIFIED SUBSET exactly what it was — the swap
- * changed how the selector parses, not what it verifies (widening is
- * ): pseudo-classes, combinators, selector lists, namespaced or
- * uppercase tags, attribute operators beyond `=`/presence, the `i` flag,
- * single-quoted or unquoted attribute values, and any whitespace outside a
- * quoted value (css-what is lenient there in ways the subset predates)
- * all return `null`. The caller must treat `null` as "cannot verify
- * structurally," never as "matches nothing."
- */
 const parseSimpleSelector = (selector: string): SimpleSelector | null => {
 	const trimmed = selector.trim()
 	if (trimmed === '') return null
@@ -80,8 +46,6 @@ const parseSimpleSelector = (selector: string): SimpleSelector | null => {
 	} catch {
 		return null
 	}
-	// ONE simple selector: a single compound — no selector list, no
-	// combinator, no empty parse.
 	const compound = branches[0]
 	if (branches.length !== 1 || !compound || compound.length === 0) return null
 	let tag: string | null = null
@@ -90,26 +54,18 @@ const parseSimpleSelector = (selector: string): SimpleSelector | null => {
 	const attrs: Array<{ name: string; value: string | null }> = []
 	for (const [index, simple] of compound.entries()) {
 		if (simple.type === 'tag') {
-			// The tag leads the compound, is lowercase HTML, and is not
-			// namespaced — css-what accepts far more (`1a`, `a b` as one
-			// escaped name, `a|b`) than the subset verified before it.
 			if (index !== 0 || simple.namespace !== null) return null
 			if (!/^[a-z][a-z0-9-]*$/.test(simple.name)) return null
 			tag = simple.name
 		} else if (simple.type === 'attribute') {
 			if (simple.namespace !== null || simple.ignoreCase === true) return null
 			if (simple.action === 'element') {
-				// The `.token` spelling (css-what encodes class membership as
-				// a `class`/`element` attribute predicate).
 				if (simple.name !== 'class' || !PLAIN_SELECTOR_TOKEN.test(simple.value))
 					return null
 				classes.push(simple.value)
 			} else if (
 				simple.action === 'equals' &&
 				simple.name === 'id' &&
-				// Only the `#id` spelling takes the id path — an explicit
-				// `[id="…"]` clause is an attribute like any other, exactly
-				// as the clause loop before the swap treated it.
 				simple.ignoreCase === 'quirks'
 			) {
 				if (!PLAIN_SELECTOR_TOKEN.test(simple.value)) return null
@@ -128,8 +84,6 @@ const parseSimpleSelector = (selector: string): SimpleSelector | null => {
 				return null
 			}
 		} else {
-			// Pseudo-classes, pseudo-elements, the universal selector,
-			// traversal entries — richer than the subset.
 			return null
 		}
 	}
@@ -137,13 +91,6 @@ const parseSimpleSelector = (selector: string): SimpleSelector | null => {
 	return { tag, id, classes, attrs }
 }
 
-/**
- * The subset's only whitespace is inside a quoted attribute value, and its
- * only attribute spelling is `[name="value"]`: css-what additionally
- * tolerates `[ a = "b" ]` (browser-valid, but the subset predates it and
- *  owns widening), single-quoted values, and unquoted values — all
- * refused here so the verified subset stays what it was.
- */
 const leavesSimpleSubset = (trimmed: string): boolean => {
 	let quote: string | null = null
 	for (let i = 0; i < trimmed.length; i++) {
@@ -181,17 +128,6 @@ const matchesSimpleSelector = (
 	return true
 }
 
-/**
- * Does `candidate` — any `{tag, attrs}` pair, so composed elements can be
- * matched too once the registry has resolved their tag (`analysis/
- * compose-refs.ts`) — structurally match an author-written selector? A
- * comma-separated list is OR semantics (matching `ElementFromSelector<S>`'s own
- * comma-union typing); each branch is a tag with any combination of
- * `.class`, `#id`, and `[attr]`/`[attr="value"]`. Returns `null` — not
- * `false` — when NO branch matches AND at least one branch used unsupported
- * syntax, so the caller can distinguish "verified: no match" from "cannot
- * verify."
- */
 export const matchesAuthoredSelectorOn = (
 	candidate: { tag: string; attrs: ReadonlyMap<string, string | null> },
 	selectorList: string,
@@ -210,13 +146,6 @@ export const matchesAuthoredSelectorOn = (
 
 /* === Exported Functions === */
 
-/**
- * Every element in `root` matching an author-written selector. A composed
- * element's own template is a different component and never enters the IR,
- * but the content a compose site passes as `children` does: it is this
- * component's markup, rendered into the child's Children Region (ADR 0026
- * s1), so the walk enters it.
- */
 export const collectMatchingElements = (
 	root: ElementNode,
 	selectorList: string,
@@ -235,31 +164,11 @@ export const collectMatchingElements = (
 	return { elements, unsupported }
 }
 
-/**
- * Does any branch of an author-written selector list name a CUSTOM-element
- * tag (one containing a `-`)? The deferral test for LT-127: a `first()`
- * selector that matched no raw element in this component's own template,
- * but names a custom-element tag, may still be addressing a COMPOSED
- * (PascalCase) child — whose eventual tag lives in another file's registry
- * entry and is unknown inside single-file `compileSource`. Such a selector
- * is handed to the registry-aware second pass (`analysis/compose-refs.ts`)
- * instead of being rejected here; anything else is a genuine LTC026.
- */
 export const namesCustomElementTag = (selectorList: string): boolean =>
 	selectorList
 		.split(',')
 		.some(branch => parseSimpleSelector(branch)?.tag?.includes('-') === true)
 
-/**
- * Does any branch of an author-written selector list name one of `roles`
- * in its SUBJECT compound (ADR 0026 s2)? The subject compound is
- * what the query matches — the part after the last combinator — so a role
- * class anywhere earlier does not address the content through the contract.
- * Selector lists are OR semantics: one role-naming subject is enough.
- * Returns `null` — not `false` — when the selector does not parse, so the
- * caller can distinguish "no declared role" from "cannot read the
- * subject" and stay silent there.
- */
 export const namesDeclaredRole = (
 	selectorList: string,
 	roles: ReadonlySet<string>,
@@ -295,10 +204,6 @@ export const namesDeclaredRole = (
 	return false
 }
 
-/**
- * The nearest enclosing `@if` whose branches (`then`/`alternate`) directly
- * contain `target`, searching from `root`.
- */
 const enclosingIfIn = (
 	root: ElementNode,
 	target: ElementNode,
@@ -323,15 +228,6 @@ const enclosingIfIn = (
 	return walk(root)
 }
 
-/**
- * Are all of `elements` mutually exclusive at runtime — direct branch roots
- * of the SAME `@if`, at most one per branch? This is the structural shape
- * `first('input, textarea', 'required')` needs when the referenced element
- * differs by tag across an `@if`/`@else` — the same "whichever branch
- * rendered" guarantee `analysis/selectors.ts`'s `selectorFor` union
- * addressing already relies on elsewhere, scoped here to DIRECT branch
- * roots only, matching that existing precedent.
- */
 export const shareExclusiveIf = (
 	root: ElementNode,
 	elements: ElementNode[],
@@ -348,48 +244,6 @@ export const shareExclusiveIf = (
 	)
 }
 
-/**
- * LTC039 (): report every site that renders a server arg
- * whose name is a PARSER-exposed prop — the value's own seeding
- * channel is the host attribute, so such a site is a second copy.
- *
- * The component ROOT is skipped deliberately: the root IS the host,
- * so `<form-textbox value={value}>` is the Parser's channel being
- * rendered, which is the correct half. Only OWNED descendants
- * duplicate it (`<textarea …>{value}</textarea>` beside that same
- * root attribute — form-textbox ships `value` twice today).
- *
- * A site whose OWN element the Parser's fallback reads is skipped too
- * (). `asNumber(asNumber(1)(input.step))` rendered onto the very
- * `<input>` that `input` addresses is not one value arriving twice — it
- * is the data account's sanctioned OVERRIDE precedence (bullet 2: the
- * host attribute wins over the harvested value), which  restored
- * deliberately for form-spinbutton's `value`/`min`/`max`/`step`. The
- * criterion is the one confirmed with the owner: warn only when the two
- * channels are genuinely INDEPENDENT copies. Note this is per-SITE, not
- * per-prop — the same prop rendered onto a DIFFERENT element than the
- * one its fallback reads is still a duplicate and still warns.
- *
- * The exclusion covers text-child sites as well as attributes ():
- * `expose({ label: asString(labelSpan.textContent ?? '') })` over
- * `<span class="label">{label}</span>` is bullet 4's canonical harvest
- * site with bullet 2's override added. A text child's site element is
- * its PARENT, which `walkTemplate` already hands to the visitor.
- *
- * A `formAssociated()`/`formAssociatedCheckbox()` host's reserved prop
- * (`value`/`checked`) is a THIRD exclusion, distinct from bullet 2's
- * override (): the root's own content attribute is the RESET
- * BASELINE the extension reads on `formResetCallback` (`defaultValue`/
- * `defaultChecked`, ), and the owned site is the CURRENT
- * value — native `<input value>` semantics, where the content attribute
- * and the IDL property deliberately diverge. Neither channel is
- * removable, so the ordinary fix-it ("drop the attribute") would break
- * form reset. Exempt only while the root actually carries that baseline
- * attribute — absent it, there is no baseline and the original
- * duplication hazard is real — and when the exemption doesn't apply,
- * `duplicatedPropChannel`'s message is branched so it never tells a
- * form-associated author to delete their reset baseline.
- */
 export type DuplicatedChannelsCheck = {
 	root: TemplateNode
 	source: string
@@ -418,9 +272,6 @@ export const reportDuplicatedChannels = ({
 		const name = String(expr.name)
 		return argNames.has(name) && parserProps.has(name) ? name : null
 	}
-	// The root carries the reserved prop as its own baseline attribute —
-	// the condition that makes the second channel a baseline rather than
-	// a duplicate ().
 	const rootHasBaselineAttr =
 		formResetProp !== null &&
 		root.kind === 'element' &&
@@ -436,11 +287,6 @@ export const reportDuplicatedChannels = ({
 			),
 		)
 	}
-	/**
-	 * The `first()` name bound to this element, if any — the element's own
-	 * `{kind:'ref'}` attribute, which is how a fallback expression addresses
-	 * it (`input.step`).
-	 */
 	const refNameOf = (
 		node: TemplateNode & { kind: 'element' },
 	): string | null => {
@@ -458,11 +304,6 @@ export const reportDuplicatedChannels = ({
 	walkTemplate(root, (node, parent) => {
 		if (node.kind === 'expr') {
 			const prop = named(node.expr)
-			// A text child's site element is its PARENT () — `walkTemplate`
-			// hands it to the visitor, so the same per-site exclusion the
-			// attribute branch below applies works here unchanged. The root is
-			// not skipped the way it is for attributes: a text child OF the root
-			// is an owned site, not the host's own attribute channel.
 			if (
 				prop &&
 				!isSanctionedOverride(
@@ -488,17 +329,6 @@ export const reportDuplicatedChannels = ({
 	})
 }
 
-/**
- * LTC042 (): every element in the template carrying a STATIC `id`.
- * A template is per-INSTANCE; an `id` is per-DOCUMENT. The constant is
- * correct for exactly one instance on a page and silently wrong for the
- * second — including the root element, which is the host itself.
- *
- * Only `kind: 'static'` attrs are reported: an `id={expr}` is already the
- * shape this diagnostic asks for, whatever the expression turns out to be
- * (the compiler cannot and should not judge whether the author's value is
- * unique per instance — that is the instantiator's contract).
- */
 export const reportStaticIds = (
 	root: TemplateNode,
 	source: string,
@@ -519,25 +349,6 @@ export const reportStaticIds = (
 	})
 }
 
-/**
- * The server-side condition deciding whether `refName`'s matched element
- * is in this component's OWN rendered output () — the expression
- * text to substitute for a `Boolean(ref)` presence read when folding a
- * thunk server-side (`evaluability.ts`).
- *
- * The server renders the element exactly when every `@if` on the path to
- * it is taken, so the answer is the conjunction of those conditions
- * (negated for an `@else` arm): `'true'` when nothing guards it, `'false'`
- * when no element matches the ref at all (only a PAGE could supply it, and
- * the server did not).
- *
- * `null` — meaning "do not fold, omit the attribute instead" — for the two
- * cases the server cannot settle with a plain condition: a ref inside a
- * `@switch`/`@try` arm or a reactive conditional's arm (arm selection is not a single boolean), and a ref
- * matched more than once (the union of several conditions is not what a
- * presence read means). Refusing to fold is always safe; folding wrongly
- * bakes a wrong initial state into the HTML.
- */
 export const refBranchGuard = (
 	root: TemplateNode,
 	refName: string,
@@ -558,8 +369,6 @@ export const refBranchGuard = (
 			return
 		}
 		if (node.kind === 'conditional' || node.kind === 'try') {
-			// Arm selection is not a plain condition — if the ref lives in
-			// one, refuse rather than guess.
 			if (someNode(node, carriesRef)) bailed = true
 			return
 		}
@@ -572,14 +381,6 @@ export const refBranchGuard = (
 	return guards.length === 0 ? 'true' : guards.join(' && ')
 }
 
-/**
- * Does every path to `target` from `root` pass through an `@if`
- * with no `@else` ()? Such an element is absent from the
- * rendered DOM whenever that branch didn't take, so a reference
- * to it is optional NO MATTER how `first()` was called — the
- * analysis addresses it with a non-throwing query under a
- * presence guard (`handleOptionalBranch`, analysis/branch-effects.ts).
- */
 export const inOptionalBranch = (
 	root: TemplateNode,
 	target: TemplateNode,
@@ -603,11 +404,6 @@ export const inOptionalBranch = (
 	return found
 }
 
-/**
- * Does `target` sit inside a reactive conditional's arm (ADR 0015)? Such an
- * element is recreated from its arm template whenever the arm switches, so
- * no connect-time reference to it stays valid.
- */
 export const inReactiveArm = (
 	root: TemplateNode,
 	target: TemplateNode,
@@ -622,22 +418,11 @@ export const inReactiveArm = (
 	return found
 }
 
-/**
- * Does `target` sit inside a reactive-list item (ADR 0024 s1)? An item's
- * elements exist once per item and are recreated on every reconcile —
- * adopted, cloned, removed — so a connect-time reference from the host
- * scope goes as stale as an arm's.
- */
 export const inReconcileItem = (
 	outputs: readonly TemplateNode[],
 	target: TemplateNode,
 ): boolean => outputs.some(output => someNode(output, n => n === target))
 
-/**
- * Every `first()` name a query may address, in source order — all but a
- * REQUIRED ref whose resolution was rejected. An optional ref stays
- * declared whatever its stage: setup code may read it.
- */
 export const declaredRefNames = (
 	firstRefs: ReadonlyMap<string, FirstRefDecl>,
 ): Set<string> =>

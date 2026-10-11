@@ -1,10 +1,4 @@
-/**
- * The reserved `i18n` parameter and the catalog pipeline (ADR 0009,
- * ): compiler-side units — the inline declaration, the reserved-name
- * guard, the record supply at compose sites, the lang precedence, the
- * root-lang render — plus the build-side census and
- * the generated record runtime.
- */
+/** The reserved `i18n` parameter and the catalog pipeline: compiler-side units — the inline declaration, the reserved-name guard, the record supply at compose sites, the lang precedence, the root-lang render — plus the build-side census and the generated record runtime. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import {
 	mkdtempSync,
@@ -43,12 +37,7 @@ const compile = (source: string, path = 'examples/x/c-i18n.tsrx') =>
 const composeRegistryOf = (...entries: InternalRegistryEntry[]) =>
 	new Map(entries.map(entry => [entry.source, entry]))
 
-/**
- * Catalog facts injected into `collectI18n` — the census's census-half
- * tests run against synthetic corpora, so the committed `i18n/` files
- * must not leak real keys into their gap sets. Locale facts (the platform
- * plural sets) stay real: they are keyed by locale name, not by file.
- */
+/** Catalog facts injected into `collectI18n` — the census tests run against synthetic corpora, so the committed `i18n/` files must not leak real keys into their gap sets. Locale facts (the platform plural sets) stay real: they are keyed by locale name, not by file. */
 const injectedCatalogs = (
 	overrides: Record<string, Record<string, string>>,
 ) => ({
@@ -56,8 +45,6 @@ const injectedCatalogs = (
 	overrides: new Map(Object.entries(overrides)),
 	manifest: new Map<string, Record<string, string>>(),
 })
-
-/* === The inline declaration + the untranslated-literal warning (LTC047) === */
 
 describe('LTC008 from the i18n walk carries a line (LT-223)', () => {
 	test('a malformed inline i18n declaration reports its line number', () => {
@@ -69,7 +56,7 @@ describe('LTC008 from the i18n walk carries a line (LT-223)', () => {
 		const hit = diagnostics.find(d => d.code === 'LTC008')
 		expect(hit).toBeDefined()
 		expect(lineAt(source, hit)).toBe(2)
-		//: the range covers the declarator, not just its line.
+		// The range covers the declarator, not just its line.
 		expect(textAt(source, hit)).toBe(`i18n = 'task'`)
 	})
 })
@@ -99,8 +86,7 @@ describe('LTC047 — untranslated literal prose (LT-173 step 5)', () => {
 		expect(hit).toBeDefined()
 		expect(hit?.severity).toBe('warning')
 		expect(lineAt(source, hit)).toBe(6)
-		// The prose's JSXText now runs to the whitespace before the <style>
-		// child ( moved the style inside the root).
+		// The prose's JSXText runs to the whitespace before the <style> child.
 		expect(textAt(source, hit)).toBe('Hello world\n\t\t\t')
 		expect(hit?.location.file).toBe('examples/x/c-i18n.tsrx')
 	})
@@ -118,12 +104,9 @@ describe('LTC047 — untranslated literal prose (LT-173 step 5)', () => {
 	})
 })
 
-/* === Quoted and dotted keys are ordinary keys (LT-251) === */
-
 describe('quoted message keys', () => {
 	test('a dotted key is an ordinary key — no category-suffix rule (LT-251)', () => {
-		// The `<key>.<category>` convention retired with the one-ICU-pattern
-		// model: any suffix, or none, compiles clean.
+		// The `<key>.<category>` convention retired with the one-ICU-pattern model: any suffix, or none, compiles clean.
 		const { component, diagnostics } = compile(
 			catalogSource(
 				`{t['task.onee']}`,
@@ -135,8 +118,6 @@ describe('quoted message keys', () => {
 		expect(component.serverCode).toContain(`t['task.onee']`)
 	})
 })
-
-/* === The reserved parameter: callers never pass it (ADR 0009 s2) === */
 
 const i18nChildSource = `
 export const i18n = { task: 'task' }
@@ -168,8 +149,7 @@ export function BasicI18nParent({}: {})
 		</basic-i18n-parent>
 }`
 
-// An i18n-DECLARING parent: its own `lang` binding is the ambient locale at
-// its compose sites (the ticket's compose-graph inheritance).
+// An i18n-declaring parent: its own `lang` binding is the ambient locale at its compose sites.
 const i18nParentOf = (attrs: string): string => `
 import { BasicI18nChild } from '../child/basic-i18n-child.tsrx'
 
@@ -226,8 +206,7 @@ describe('the reserved `i18n` parameter (ADR 0009 sub-design 2)', () => {
 		expect(component.serverCode).toContain(
 			"import { i18nRecord } from './i18n'",
 		)
-		// No `lang` authored at the site, so the child's authored default
-		// (ADR 0009 sub-design 3's precedence) is the record's locale.
+		// No `lang` authored at the site, so the child's authored default  is the record's locale.
 		expect(component.serverCode).toContain(
 			'i18n: i18nRecord("basic-i18n-child", "en")',
 		)
@@ -254,11 +233,7 @@ describe('the reserved `i18n` parameter (ADR 0009 sub-design 2)', () => {
 	})
 
 	test("a site without a lang arg inherits the i18n parent's own locale (LT-191)", () => {
-		// Compose-graph inheritance: the parent's `lang` binding is the
-		// ambient locale at its sites — the SSR analog of the DOM ancestor
-		// walk. The child's authored default follows the parent; only a
-		// NON-i18n parent leaves the child's default in charge (the test
-		// above).
+		// Compose-graph inheritance: the parent's `lang` binding is the ambient locale at its sites — the SSR analog of the DOM ancestor walk. Only a non-i18n parent leaves the child's authored default in charge (the test above).
 		const child = compileComponent(
 			i18nChildSource,
 			'examples/child/basic-i18n-child.tsrx',
@@ -278,8 +253,6 @@ describe('the reserved `i18n` parameter (ADR 0009 sub-design 2)', () => {
 		)
 	})
 })
-
-/* === The effective locale renders onto the root `lang` attribute === */
 
 describe('the root `lang` attribute (ADR 0009 sub-design 3)', () => {
 	const langBindingSource = `
@@ -315,12 +288,10 @@ export function C({ lang = 'en', i18n: { t } }: { lang?: string; i18n: I18n })
 		</c-el>
 }`)
 		if (!component) throw new Error('must compile')
-		// Exactly ONE lang render — the authored root attribute.
+		// Exactly one lang render — the authored root attribute.
 		expect(component.serverCode.match(/attr\('lang', lang\)/g)).toHaveLength(1)
 	})
 })
-
-/* === The translation census (ADR 0009 sub-design 5, LT-173 step 4) === */
 
 describe('the translation census', () => {
 	test('rides the census channel with missing, stale, and orphaned records', () => {
@@ -343,28 +314,20 @@ describe('the translation census', () => {
 		expect(formatted).toContain('missing — no entry')
 		expect(formatted).toContain('stale — the source string changed')
 		expect(formatted).toContain('orphaned — nothing in the corpus declares')
-		// Census records never ride the warning channel (census.test.ts's pin,
-		// restated for the second kind).
+		// Census records never ride the warning channel (census.test.ts's pin, restated for the second kind).
 		expect(formatted).not.toContain('⚠️')
 	})
 })
 
-/* === Every locale carries the same key set (LT-251) === */
-
 describe('the census has no reachability carve-out (LT-251)', () => {
-	// A synthetic corpus entry — collectI18n reads only tag/i18nMessages
-	// off an entry. The catalogs are INJECTED (empty: the probe declares
-	// keys no catalog carries yet), so the synthetic corpus is the walk's
-	// whole world.
+	// A synthetic corpus entry — collectI18n reads only tag/i18nMessages off an entry. The catalogs are injected (empty), so the synthetic corpus is the walk's whole world.
 	const probe = {
 		tag: 'census-probe',
 		i18nMessages: { 'label.one': 'one', 'label.two': 'two' },
 	} as unknown as InternalRegistryEntry
 
 	test('every declared key is missing in every locale that lacks it', async () => {
-		// de's cardinal rules never select `two`; under the retired
-		// per-category model `label.two` was pruned there. One ICU pattern
-		// per key means every locale owes every key.
+		// De's cardinal rules never select `two`; under the retired per-category model `label.two` was pruned there. One ICU pattern per key means every locale owes every key.
 		const { gaps } = await collectI18n(
 			[probe],
 			injectedCatalogs({ de: {}, cy: {} }),
@@ -376,9 +339,7 @@ describe('the census has no reachability carve-out (LT-251)', () => {
 	})
 
 	test('the committed corpus is gap-free', async () => {
-		// The committed catalogs carry every declared key, and i18n:sync
-		// keeps the manifest hashes fresh. Any entry here is a real
-		// regression.
+		// The committed catalogs carry every declared key, and i18n:sync keeps the manifest hashes fresh. Any entry here is a real regression.
 		const registry = JSON.parse(
 			readFileSync(`${generated.path}/registry.internal.json`, 'utf8'),
 		) as InternalComponentRegistry
@@ -391,12 +352,8 @@ describe('the census has no reachability carve-out (LT-251)', () => {
 	})
 })
 
-/* === Orphaned catalog keys — the census's inverse walk (LT-196) === */
-
 describe('orphaned catalog keys (LT-196)', () => {
-	// A synthetic probe with INJECTED catalogs — collectI18n takes the
-	// catalog facts as a second argument so the inverse walk is testable
-	// without touching the committed files.
+	// A synthetic probe with injected catalogs — collectI18n takes the catalog facts as a second argument, so the inverse walk is testable without touching the committed files.
 	const probe = {
 		tag: 'census-probe',
 		i18nMessages: { 'label.one': 'one', 'label.two': 'two' },
@@ -433,8 +390,7 @@ describe('orphaned catalog keys (LT-196)', () => {
 	})
 
 	test('an undeclared key is orphaned in every locale, unconditionally (LT-251)', async () => {
-		// No plural-category set shelters a key any more: `stray.few` reports
-		// in de (whose rules never select `few`) and in cy (whose do) alike.
+		// No plural-category set shelters a key any more: `stray.few` reports in de (whose rules never select `few`) and in cy (whose do) alike.
 		for (const locale of ['de', 'cy']) {
 			const { gaps } = await collectI18n(
 				[probe],
@@ -447,8 +403,6 @@ describe('orphaned catalog keys (LT-196)', () => {
 	})
 })
 
-/* === The generated record runtime (ADR 0009 sub-designs 2+5) === */
-
 const generated = createGeneratedDir('i18n')
 afterAll(() => generated.cleanup())
 
@@ -459,9 +413,7 @@ const i18nModule = await (async () => {
 
 describe('the generated i18n module', () => {
 	test('a key resolves in exactly one place: source fallback first', () => {
-		// The page locale is 'en' — the source locale, which has no override
-		// file by construction — so every key resolves to its inline
-		// source-locale string (ADR 0009 sub-design 5's fallback).
+		// The page locale is `en` — the source locale, which has no override file — so every key resolves to its inline source-locale string.
 		const record = i18nModule.i18nRecord('module-todo')
 		expect(record.lang).toBe('en')
 		expect(record.t.remaining({ count: 0 })).toBe('Well done, all done!')
@@ -484,17 +436,12 @@ describe('the generated i18n module', () => {
 	})
 
 	test('the committed catalogs resolve through the generated module (LT-192 pin)', () => {
-		// The end-to-end path the render fixtures bypass: catalog json →
-		// OVERRIDES embedded in the generated module → i18nRecord. Dropping
-		// the override pipeline (or the de.json catalog) fails here.
+		// The end-to-end path the render fixtures bypass: catalog json → OVERRIDES embedded in the generated module → i18nRecord. Dropping the override pipeline (or the de.json catalog) fails here.
 		const de = i18nModule.i18nRecord('module-todo', 'de')
 		expect(de.t.remaining({ count: 0 })).toBe('Alles erledigt!')
 		expect(de.t.remaining({ count: 1 })).toBe('1 Aufgabe verbleibend')
 		expect(de.t.remaining({ count: 3 })).toBe('3 Aufgaben verbleibend')
-		//: the plural arms live inside each locale's ONE pattern, and
-		// the record formats under that locale's own rules — Welsh's dual
-		// mutation, Arabic's dual and Polish's few/many come from the catalog
-		// value itself (module-todo's `remaining` since ).
+		// The plural arms live inside each locale's one pattern, and the record formats under that locale's own rules — Welsh's dual mutation, Arabic's dual and Polish's few/many come from the catalog value itself.
 		const cy = i18nModule.i18nRecord('module-todo', 'cy')
 		expect(cy.t.remaining({ count: 2 })).toBe('2 dasg ar ôl')
 		expect(cy.t.remaining({ count: 4 })).toBe('4 tasgiau ar ôl')
@@ -508,11 +455,7 @@ describe('the generated i18n module', () => {
 	})
 
 	test("the corpus's accessibility strings resolve at de (LT-195 fixture)", () => {
-		//  routed the corpus's component-owned aria-labels/placeholder/
-		// visually-hidden text through the catalog; the de translations are
-		// real (not source echoes) and pinned here per component. A changed
-		// expectation here means either a source string moved (re-run
-		// `i18n:sync`, check the census) or a translation was reworked.
+		// The de translations are real (not source echoes) and pinned per component. A changed expectation means a source string moved (re-run `i18n:sync`, check the census) or a translation was reworked.
 		expect(i18nModule.i18nRecord('form-combobox', 'de').t.clearInput).toBe(
 			'Eingabe leeren',
 		)
@@ -533,8 +476,7 @@ describe('the generated i18n module', () => {
 		expect(i18nModule.i18nRecord('form-tokenbox', 'de').t.remove).toBe(
 			'Entfernen',
 		)
-		// the ticket's event-time messages: argument messages format through the
-		// shared evaluator, placeholders preserved in the translation.
+		// Event-time messages: argument messages format through the shared evaluator, placeholders preserved in the translation.
 		const tokenbox = i18nModule.i18nRecord('form-tokenbox', 'de').t
 		expect(tokenbox.added({ token: 'rot' })).toBe('Token hinzugefügt: rot')
 		expect(tokenbox.removed({ token: 'rot' })).toBe('Token entfernt: rot')
@@ -547,21 +489,14 @@ describe('the generated i18n module', () => {
 	})
 
 	test("an i18n:sync placeholder ('' override) resolves the source string (LT-195)", () => {
-		// Locales still awaiting a translation carry "" entries for the new
-		// keys — the placeholder must fall back to the source string, or an
-		// untranslated locale would render EMPTY aria-labels (strictly worse
-		// than the English fallback). Pinned at pl, which carries "" for the
-		//  keys; a translator filling it updates this pin with the
-		// landed string, exactly like the zh pin above.
+		// Locales awaiting translation carry empty-string entries — the placeholder must fall back to the source string, or an untranslated locale would render empty aria-labels (strictly worse than the English fallback). Pinned at pl; a translator filling it updates this pin with the landed string.
 		expect(i18nModule.i18nRecord('form-textbox', 'pl').t.clearInput).toBe(
 			'Clear input',
 		)
 	})
 
 	test('the de catalog renders into the served markup (LT-195 fixture)', async () => {
-		// The render half of the fixture: the record a page render supplies
-		// reaches the emitted attribute — the end-to-end claim "the de build
-		// serves Eingabe leeren" rides on this plus the resolution pins.
+		// The render half of the fixture: the record a page render supplies reaches the emitted attribute — the end-to-end claim "the de build serves Eingabe leeren" rides on this plus the resolution pins.
 		const mod = (await import(
 			pathToFileURL(`${generated.path}/form-textbox.server.ts`).href
 		)) as Record<string, (args: unknown) => string>
@@ -577,10 +512,7 @@ describe('the generated i18n module', () => {
 	})
 
 	test('the de catalog bakes into the extracted list template (LT-215 fixture)', async () => {
-		// The tokenbox remove button is the corpus's first server-static
-		// interpolation inside a reactive-list body: the translated label must
-		// reach BOTH the initial (server-rendered) pills AND the served
-		// `<template>` the client clones for pills added after connect.
+		// The tokenbox remove button is the corpus's first server-static interpolation inside a reactive-list body: the translated label must reach both the initial (server-rendered) pills and the served `<template>` the client clones for pills added after connect.
 		const mod = (await import(
 			pathToFileURL(`${generated.path}/form-tokenbox.server.ts`).href
 		)) as Record<string, (args: unknown) => string>
@@ -592,25 +524,20 @@ describe('the generated i18n module', () => {
 			value: 'one, two',
 			i18n: i18nModule.i18nRecord('form-tokenbox', 'de'),
 		})
-		// Initial items carry the folded value through the ordinary
-		// server-attr path.
+		// Initial items carry the folded value through the ordinary server-attr path.
 		expect(html).toContain('aria-label="Entfernen"')
 		const templateStart = html.indexOf('<template data-list="0">')
 		const templateEnd = html.indexOf('</template>')
 		expect(templateStart).toBeGreaterThan(-1)
 		const template = html.slice(templateStart, templateEnd)
-		// The template itself carries the folded value, not a slot for it —
-		// cloned pills announce the translation without any client catalog.
+		// The template itself carries the folded value, not a slot for it — cloned pills announce the translation without any client catalog.
 		expect(template).toContain('aria-label="Entfernen"')
-		// The item text bakes empty: the item mount writes it .
+		// The item text bakes empty: the item mount writes it.
 		expect(template).not.toContain('<slot></slot>')
 	})
 
 	test('the de catalog rides the client-message attribute as parsed patterns (LT-219 fixture)', async () => {
-		// Event-time strings cannot fold: the browser formats them. The de
-		// render serializes exactly the client-referenced keys, translated
-		// and PARSED — the placeholder survives as an `arg` node, never as
-		// pattern text the client would need a parser for.
+		// Event-time strings cannot fold: the browser formats them. The de render serializes exactly the client-referenced keys, translated and parsed — the placeholder survives as an `arg` node, never as pattern text the client would need a parser for.
 		const attributeOf = async (tag: string, args: Record<string, unknown>) => {
 			const mod = (await import(
 				pathToFileURL(`${generated.path}/${tag}.server.ts`).href
@@ -637,22 +564,15 @@ describe('the generated i18n module', () => {
 		expect(await attributeOf('form-colorgraph', {})).toEqual({
 			outOfGamut: 'Farbe außerhalb des Farbraums',
 		})
-		// The retired carrier span (the ticket's interim idiom): the increment
-		// label now rides the attribute, and no hidden span carries it.
+		// The increment label rides the attribute; no hidden span carries it.
 		expect(await attributeOf('form-spinbutton', { name: 'q' })).toEqual({
 			increment: 'Erhöhen',
 		})
 	})
 })
 
-/* === The committed catalogs against the inverse walk (LT-196) === */
-
 describe('orphaned keys over the real corpus (LT-196)', () => {
-	// The falsification that demonstrated the gap (the ticket's context): the
-	// two foreign keys planted in de.json reported "0 gap(s)" before the
-	// inverse walk existed. Injected here over the REAL catalogs — so this
-	// also pins that the committed catalogs carry no orphans of their own:
-	// any entry beyond the two plants is a real residue finding.
+	// Injected over the real catalogs: this also pins that the committed catalogs carry no orphans of their own — any entry beyond the two plants is a real residue finding.
 	const asStringRecord = (value: unknown): Record<string, string> =>
 		typeof value === 'object' && value !== null
 			? Object.fromEntries(
@@ -699,12 +619,8 @@ describe('orphaned keys over the real corpus (LT-196)', () => {
 	})
 })
 
-/* === Pattern-integrity walks (ADR 0009 s5, LT-219) === */
-
 describe('the census pattern-integrity walks (LT-219)', () => {
-	// A synthetic entry with injected catalogs (the ticket's pattern). `flat` is
-	// client-referenced, so its translations answer to the narrowed client
-	// evaluator, which carries only `arg` for this component.
+	// A synthetic entry with injected catalogs. `flat` is client-referenced, so its translations answer to the narrowed client evaluator, which carries only `arg` for this component.
 	const probe = {
 		tag: 'census-probe',
 		i18nMessages: {
@@ -855,12 +771,8 @@ describe('the census pattern-integrity walks (LT-219)', () => {
 	})
 })
 
-/* === Non-string catalog values (LT-249) === */
-
 describe('non-string catalog values are malformed (LT-249)', () => {
-	// The  review falsification: a group nested "under the component"
-	// instead of the flat `<tag>.<key>` compound was silently dropped — 0
-	// census gaps, nothing listed by sync, residue in the catalog forever.
+	// A group nested "under the component" instead of the flat `<tag>.<key>` compound was once silently dropped — 0 census gaps, nothing listed by sync, residue in the catalog forever.
 	const probe = {
 		tag: 'census-probe',
 		i18nMessages: { greet: 'Hello, {name}!' },
@@ -920,8 +832,7 @@ describe('non-string catalog values are malformed (LT-249)', () => {
 			['census-probe', 'malformed'],
 			['census-probe.greet', 'malformed'],
 		])
-		// Neither malformed entry is pruned, filled, or confirmed; the flat
-		// orphan twin is pruned as before.
+		// Neither malformed entry is pruned, filled, or confirmed; the flat orphan twin is pruned as before.
 		expect(result.pruned).toEqual(['census-probe.stray.few'])
 		expect(result.written).toBe(0)
 		expect(result.catalog).toEqual({
@@ -999,8 +910,6 @@ describe('non-string catalog values are malformed (LT-249)', () => {
 	})
 })
 
-/* === Unreadable catalog files (LT-356) === */
-
 describe('an unreadable catalog file is one census record (LT-356)', () => {
 	const probe = {
 		tag: 'census-probe',
@@ -1049,8 +958,6 @@ describe('an unreadable catalog file is one census record (LT-356)', () => {
 		expect(catalogs.unreadable?.size).toBe(0)
 	})
 })
-
-/* === An unreadable staleness manifest (LT-430) === */
 
 describe('an unreadable manifest is one census record and no stale (LT-430)', () => {
 	const probe = {
@@ -1129,8 +1036,6 @@ describe('an unreadable manifest is one census record and no stale (LT-430)', ()
 	})
 })
 
-/* === ICU MessageFormat patterns (LT-250, ADR 0009 s4) === */
-
 const ICU_DECL = `export const i18n = {
 	tasks: '{count, plural, one {# task} other {# tasks}}',
 	greeting: 'Hello, {name}!',
@@ -1146,7 +1051,7 @@ describe('LTC055 — ICU patterns and their call sites (LT-250)', () => {
 		)
 
 	test('the extraction result carries every key’s argument signature', () => {
-		// The front end's own result — the ComponentIR  reads.
+		// The front end's own result.
 		const { component, diagnostics } = compileSource(
 			catalogSource(`{t.done}`, ICU_DECL),
 			'examples/x/c-i18n.tsrx',
@@ -1274,8 +1179,7 @@ export function CIcuFold({ count, i18n: { t } }: { count: number; i18n: I18n })
 						'{count, plural, one {# Aufgabe} other {# Aufgaben}}',
 					[`${tag}.done`]: 'Erledigt',
 				},
-				// A translator's typo: falls back to the source pattern, never
-				// fails the build (ADR 0009 s5).
+				// A translator's typo: falls back to the source pattern, never fails the build.
 				cy: { [`${tag}.tasks`]: '{count, plural, one {# tasg}' },
 			}),
 		),
@@ -1350,8 +1254,7 @@ export function ${name}({ count, i18n: { t } }: { count: number; i18n: I18n<type
 		`<span title={t.done}>{t.tasks({ count })}</span>`,
 	)
 	const typo = build('CTypo', 'c-typo', `<span title={t.fliter}>x</span>`)
-	//: a plain `{x}` takes a string or a number; a select selector
-	// stays a string.
+	// A plain `{x}` takes a string or a number; a select selector stays a string.
 	const plain = build(
 		'CPlain',
 		'c-plain',
@@ -1370,10 +1273,7 @@ export function ${name}({ count, i18n: { t } }: { count: number; i18n: I18n<type
 		),
 	)
 	const typecheck = (file: string) => {
-		// A per-file project extending the ROOT tsconfig, not bare CLI
-		// flags: the emitted module chains into `runtime.ts`, whose
-		// runtime-library import ('@zeix/le-truc') resolves through
-		// the root config's `paths` entry — `--ignoreConfig` cannot see it.
+		// A per-file project extending the root tsconfig, not bare CLI flags: the emitted module chains into `runtime.ts`, whose runtime-library import resolves through the root config's `paths` entry — `--ignoreConfig` cannot see it.
 		const project = dir.emit(
 			`tsconfig.${file}.json`,
 			JSON.stringify({

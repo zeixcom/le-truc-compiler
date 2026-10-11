@@ -1,52 +1,22 @@
-/**
- * Source-level runtime-neutrality gate (ADR 0016 s2).
- *
- * `server/compiler/`'s own sources — both front ends and the shared
- * machinery — are pure computation over strings: no `Bun` global, no
- * `import.meta` (every member a runtime offers there is a module location or
- * a runtime extension), and no built-in module beyond the portable
- * `node:path`. Third-party dependencies are out of scope: what a package
- * requires at load is a dependency fact, not the compiler's.
- *
- * Since  (D-32) the directory also owns a FILE-SYSTEM seam — the
- * corpus entry point discovers sources and writes artifacts — and that seam
- * may import the portable `node:` built-ins it needs (`node:fs`,
- * `node:fs/promises`, `node:crypto`), exactly as ADR 0016's runtime seam
- * always could. The carve-out is per module and deliberate: a new `node:`
- * import anywhere else still fails, and widening the seam's list is a
- * review-visible decision, not a drive-by.
- *
- * The scan parses every non-test `.ts` under the directory and runs the
- * shared estree walk (`walkNodes`), so a static import, a re-export, an
- * `import x = require(…)`, a `require(…)` call and a dynamic `import(…)` are
- * all seen as nodes, whatever their formatting. A specifier must be a static
- * string, or name a module-level `const` bound to one (the simulation
- * resolver's driver specifier is held in a variable on purpose, ADR 0013
- * s4); anything else can't be checked and fails too.
- *
- * Browser loadability is NOT this gate's property — that belongs to ADR 0025
- * s6, which builds its own bundle gate if accepted.
- */
+/** Runtime-neutrality gate over `src/`: its sources are pure computation over strings — no `Bun` global, no `import.meta`, no built-in beyond the portable allowlist. The file-system seam's `node:` imports are a per-module carve-out; a new `node:` import anywhere else still fails, and widening the seam's list is a review-visible decision. The scan parses every non-test `.ts` and walks the AST, so static imports, re-exports, `import x = require(…)`, `require(…)` and dynamic `import(…)` are all seen whatever their formatting; a specifier must be a static string or name a module-level `const` bound to one. Browser loadability is NOT this gate's property. */
 import { describe, expect, test } from 'bun:test'
 import { readdirSync, readFileSync } from 'node:fs'
 import { builtinModules } from 'node:module'
 import * as path from 'node:path'
 import { parse } from '@typescript-eslint/typescript-estree'
-import type { AstNode } from '../src/ast-node'
-import { identifierName, isNode, walkNodes } from '../src/ast-utils'
+import {
+	type AstNode,
+	identifierName,
+	isNode,
+	walkNodes,
+} from '../src/ast-utils'
 
 const COMPILER_DIR = path.resolve(import.meta.dir, '../src')
 
 /** The one built-in every compiler module may import. */
 const ALLOWED_BUILTINS: ReadonlySet<string> = new Set(['node:path'])
 
-/**
- * The file-system seam's own built-ins (D-32): the corpus entry
- * point's discovery and artifact writes live behind `fs.ts` and the catalog
- * pipeline (`i18n-catalog.ts`), and only these modules may reach past
- * `node:path`. Every member is a portable `node:` API — implemented by Bun,
- * Node and Deno alike — which is the neutrality this gate guards.
- */
+/** The file-system seam's own built-ins: the corpus entry point's discovery and artifact writes live behind `fs.ts` and the catalog pipeline (`i18n-catalog.ts`), and only these modules may reach past `node:path`. Every member is a portable `node:` API — the neutrality this gate guards. */
 const SEAM_MODULE_BUILTINS: Readonly<Record<string, readonly string[]>> = {
 	'fs.ts': ['node:fs', 'node:fs/promises'],
 	'i18n-catalog.ts': ['node:crypto'],

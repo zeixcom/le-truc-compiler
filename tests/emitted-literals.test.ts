@@ -1,14 +1,4 @@
-/**
- * Emitted string-literal safety (LT-221 §1.2): every author-supplied string
- * that reaches the generated client module — `first()`/`all()` reasons and
- * selectors, class/style map keys, attribute and event names — must be
- * emitted as a properly quoted JS literal. An apostrophe, backslash, or
- * quote character in author data must produce escaped source, never a
- * syntax error on generated code (surfacing as an unmapped tsc failure) or
- * an injection channel into the build output. The shared `jsString()`/
- * `CodeBuilder` consolidation is ; these pins hold the point-fix to
- * the same bar.
- */
+/** Emitted string-literal safety: every author-supplied string reaching the generated client module — `first()`/`all()` reasons and selectors, class/style map keys, attribute and event names — must be emitted as a properly quoted JS literal. An apostrophe, backslash or quote in author data must produce escaped source, never a syntax error on generated code or an injection channel into the build output. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 

@@ -1,25 +1,5 @@
-/**
- * `@zeix/le-truc-compiler/macros` — the compile-time markers an authored
- * source imports (ADR 0012 s1). A marker is a call the compiler
- * consumes and never runs: it recognizes the call by this module's
- * specifier and the imported name (an alias resolves, a same-named local
- * never matches) and strips the import from both generated modules. The
- * exports here are typed stubs for `tsc` and editors; each throws when a
- * source reaches it uncompiled.
- *
- * In the published package this file is the `./macros` subpath () —
- * it must resolve without loading any of the compiler's dependencies, so
- * it stays import-free. In-repo, the specifier resolves to this source
- * through a `paths` entry in each tsconfig that checks authored `.tsx`
- * sources.
- */
+/** `@zeix/le-truc-compiler/macros` — the compile-time markers an authored source imports: calls the compiler consumes and never runs, typed as stubs that throw when a source runs uncompiled. */
 
-/**
- * A `harvest()` entry: reads a field's raw value from the item's markup. A
- * `Parser` of the field's type fits (`asNumber()`, `asParser(…)`); an
- * optional field's entry may also return `undefined`, which a `Parser`
- * cannot.
- */
 export type FieldParser<V> = (value: string | null | undefined) => V
 
 /** The message a marker stub throws when its source ran uncompiled. */
@@ -29,13 +9,7 @@ const uncompiled = (name: string): Error =>
 	)
 
 /**
- * The CSS template tag (): `<style>{css`…`}</style>` is the default
- * spelling for a component's stylesheet — editors highlight a `css`-tagged
- * template literal as CSS out of the box. The tag is compile-consumed:
- * evaluated by nothing, and a `${}` substitution inside is rejected by the
- * compiler (typed `never` here so authored code hears the same thing from
- * tsc). A bare template literal still works, but `css` is what the profile
- * teaches.
+ * The CSS template tag: `<style>{css`…`}</style>` is the default spelling for a component's stylesheet.
  *
  * @throws {Error} Always — reached only when the source was not compiled.
  */
@@ -47,16 +21,7 @@ export const css = (
 }
 
 /**
- * The per-field parsers of a list seeded from server args (ADR 0024 s7,
- * ): `createList(harvest(items, { due: asDate() }), …)`. The client
- * rebuilds each server-rendered item field by field from the item's markup,
- * and reads each field through a parser. The compiler infers a parser from
- * a same-file item type (`string` → `asString`, `number` → `asNumber`,
- * `boolean` → `asBoolean`); an entry here overrides that, and declares the
- * parser of a field it cannot infer (a `Date`, a field of an imported
- * type). For an item type the compiler cannot read, the map's keys are the
- * field list. Recognized only as the seed argument of `createList`; the
- * server reads `seed` through unchanged.
+ * The per-field parsers of a list seeded from server args.
  *
  * @param seed - The server-side seed, an array of items from server args
  * @param parsers - A parser per field, each typed against its field
@@ -68,16 +33,7 @@ export function harvest<T extends object>(
 	parsers: { [K in keyof T]?: FieldParser<T[K]> },
 ): T[]
 /**
- * The parser of a scalar signal seed (ADR 0024 s7):
- * `createState(harvest(price, asNumber()))`. A seed whose type the
- * compiler cannot read (an alias, a union, a `Date`) would otherwise
- * harvest from its render site as a string; this declares the parser the
- * client reads the site through. The compiler infers a parser from the
- * bare `string`/`number`/`boolean` keywords, so the marker is required
- * exactly there — a resolvable seed may still declare one to be explicit.
- * Recognized only as the seed argument of a scalar signal constructor
- * (`createCell`, `createState`, `createStore`); the server reads `seed`
- * through unchanged.
+ * The parser of a scalar signal seed.
  *
  * @param seed - The server-side seed, from server args
  * @param parser - The parser the client reads the render site through

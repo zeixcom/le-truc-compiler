@@ -61,7 +61,7 @@ if (files.length === 0) {
 	process.exit(1)
 }
 
-// Count what the corpus runner reports (LT-168): the runner owns the warning
+// Count what the corpus runner reports: the runner owns the warning
 // format and prints each warning once per compilation pass, so the baseline
 // is captured here and deduped across the passes instead of remembered. The
 // wave-4 regression signal's first number must be a counted figure — the
@@ -187,7 +187,7 @@ if (remapped > 0 || unmapped > 0)
 		`\n${remapped} diagnostic(s) mapped to source, ${unmapped} unmapped.`,
 	)
 
-// The standing corpus compile warnings, counted (LT-168). Printed even at
+// The standing corpus compile warnings, counted. Printed even at
 // zero — an absent line is indistinguishable from an uncounted one, and
 // zero is the gate-wave target state. Test fixtures under `examples/test/`
 // pin warned forms on purpose (css-probe's LTC087/LTC088), so their
@@ -210,7 +210,7 @@ console.log(
 		`${new Set(fixtureLines).size} unique.`,
 )
 
-// The tier census (ADR 0029 sub-design 6, LT-165 step 6): a build-report
+// The tier census: a build-report
 // record, NOT a warning — its own section below, never merged into the
 // counted baseline above. Read from the compile's own record (the
 // registry.internal.json sidecar, LT-480: the public registry.json carries
@@ -240,7 +240,7 @@ const i18nGaps = await collectI18n(
 	config.i18nDir,
 )
 
-// The translation census (ADR 0030 sub-design 5, LT-173 step 4): the same
+// The translation census: the same
 // channel and the same reasoning as the tier census above — a missing
 // translation is the translator's work, not author-fixable, so it is a
 // census record and never a compile warning. Zero locales ⇒ zero entries.

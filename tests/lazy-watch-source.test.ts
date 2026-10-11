@@ -1,9 +1,4 @@
-/**
- * Tests for lazy-child `watch()`-source lowering (): a lazy child
- * whose expression is neither a signal identifier nor a string prop-name
- * lowers to an arrow thunk automatically, so `watch()`'s overload
- * resolution succeeds without the author needing to hand-wrap it.
- */
+/** Lazy-child `watch()`-source lowering: a lazy child whose expression is neither a signal identifier nor a string prop-name lowers to an arrow thunk automatically, so `watch()`'s overload resolution succeeds without hand-wrapping. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 

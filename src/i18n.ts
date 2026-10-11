@@ -1,22 +1,5 @@
-/**
- * The reserved `i18n` parameter's compiler-side vocabulary (ADR 0009,
- * ). Two concerns live here, both pure:
- *
- * - `readI18nDecl` — extraction of `export const i18n = { key: 'Source', … }`,
- *   the component's own message keys with their source-locale strings inline
- *   (ADR 0009 sub-design 4: no per-component catalog file — a sibling file
- *   would reintroduce the three-file drift ADR 0005 cures). Same extraction
- *   posture as `readConfig` (config.ts), one module-level statement per file.
- *   Each value is an ICU MessageFormat 1 pattern (), parsed here so the
- *   extraction result carries every key's argument signature.
- * - `langBindingOf` / `langArgDefaultOf` — where the component's EFFECTIVE
- *   locale is bound and what its authored `lang` default is (ADR 0009
- *   sub-design 3's precedence: an authored `lang` arg, or one supplied at a
- *   compose site, wins over the record's locale).
- */
-
-import type { AstNode } from './ast-node'
 import {
+	type AstNode,
 	asArray,
 	collectBoundNames,
 	forEachChild,
@@ -36,12 +19,7 @@ const messagesKey = (node: unknown): string | null => {
 	return null
 }
 
-/**
- * Unwrap the `as const` the authored spelling carries (): the literal
- * types are what `I18n<typeof i18n>` reads per key, so the assertion is part
- * of the declaration's shape, not a computed value. Any other assertion is
- * returned as-is and fails the object-literal check.
- */
+/** Unwrap the `as const` the authored spelling carries; any other assertion is returned as-is and fails the object-literal check. */
 const constAssertedObject = (init: AstNode): AstNode => {
 	if (init.type !== 'TSAsExpression' || !isNode(init.expression)) return init
 	const annotation = init.typeAnnotation
@@ -56,26 +34,9 @@ const constAssertedObject = (init: AstNode): AstNode => {
 export type I18nDecl = {
 	/** Message key → source-locale pattern, verbatim. */
 	messages: Record<string, string>
-	/**
-	 * Message key → the arguments its source pattern takes (): empty
-	 * for an argument-less message (`t.<key>` is a string), else the names
-	 * and kinds a call site must pass (`t.<key>({ … })`). A key whose source
-	 * pattern failed to parse is absent — LTC055 already reported it.
-	 */
 	args: Record<string, readonly MessageArg[]>
 }
 
-/**
- * Extract and validate `export const i18n = { key: 'Source string', … }` —
- * the component's message keys with their source-locale strings inline
- * (ADR 0009 sub-design 4). Values must be string literals: the source
- * string IS the fallback every locale resolves against, so a computed value
- * would have no stable bytes for the staleness manifest to hash. Null when
- * the statement is not an i18n declaration; a MALFORMED one reports
- * LTC008 (source shape) and still returns null. Each value must parse as an
- * ICU MessageFormat 1 pattern — the source locale has no fallback to fall
- * to, so an unparseable source pattern is LTC055 ().
- */
 export const readI18nDecl = (
 	ctx: ExtractContext,
 	stmt: AstNode,
@@ -127,15 +88,6 @@ export const readI18nDecl = (
 	return { messages, args }
 }
 
-/**
- * The identifier the component's parameter pattern binds for `lang`, or
- * null. Searched at the top level of the pattern and inside a nested
- * `i18n` destructuring (`i18n: { lang }` — ADR 0009's example shape), so
- * either spelling gives the emitter a render-scope name for the effective
- * locale (the root `lang` attribute needs it).
- * A component binding `lang` in BOTH places cannot compile (duplicate
- * binding), so first match wins is unambiguous.
- */
 export const langBindingOf = (paramsNode: AstNode | null): string | null => {
 	if (!paramsNode || paramsNode.type !== 'ObjectPattern') return null
 	for (const prop of asArray(paramsNode.properties)) {
@@ -164,12 +116,6 @@ export const langBindingOf = (paramsNode: AstNode | null): string | null => {
 	return null
 }
 
-/**
- * The component's authored `lang` default (`lang = 'en'` in the parameter
- * pattern), or null. This is ADR 0009 sub-design 3's precedence anchor: at
- * a compose site the record's locale is the site's own `lang` arg when one
- * is authored, else this default, else the build's page locale.
- */
 export const langArgDefaultOf = (paramsNode: AstNode | null): string | null => {
 	if (!paramsNode || paramsNode.type !== 'ObjectPattern') return null
 	for (const prop of asArray(paramsNode.properties)) {
@@ -189,11 +135,6 @@ export const langArgDefaultOf = (paramsNode: AstNode | null): string | null => {
 	return null
 }
 
-/**
- * Whether the parameter pattern declares the reserved `i18n` parameter
- * (top-level property named `i18n` — `collectBoundNames` sees only leaf
- * bindings, so the reserved name itself has to be looked up by key).
- */
 export const declaresI18nOf = (paramsNode: AstNode | null): boolean => {
 	if (!paramsNode || paramsNode.type !== 'ObjectPattern') return false
 	return asArray(paramsNode.properties).some(
@@ -201,11 +142,6 @@ export const declaresI18nOf = (paramsNode: AstNode | null): boolean => {
 	)
 }
 
-/**
- * The names a parameter pattern binds for the reserved record's `t`
- * (`i18n: { t }`, `i18n: { t: tr }`) and for the whole record (`{ i18n }`,
- * read as `i18n.t.<key>`) — the two spellings a message site can take.
- */
 export const messageBindingsOf = (
 	paramsNode: AstNode | null,
 ): { tNames: Set<string>; recordNames: Set<string> } => {
@@ -230,14 +166,6 @@ export const messageBindingsOf = (
 	return { tNames, recordNames }
 }
 
-/**
- * The client message channel's one admission rule (ADR 0009 s9,
- * ): the declared keys `node` reads through the `t` binding `tName`
- * — a static read (`t.hi`, `t['a.b']`) of a key `declaredKeys` carries —
- * or null if any read is not one (a computed key, a bare `t`, an
- * undeclared key). Shared by the client-position check (`analysis/plan.ts`)
- * and the client-only setup-statement gate (`setup-extraction.ts`).
- */
 export const staticMessageReads = (
 	node: AstNode,
 	tName: string,
@@ -289,24 +217,6 @@ export const staticMessageReads = (
 const argList = (names: readonly string[]): string =>
 	names.map(name => `\`${name}\``).join(', ')
 
-/**
- * Check every `t.<key>` site in the component function against the key's
- * parsed source pattern (ADR 0009 s4) — LTC055. Runs in the shared
- * post-lowering pass so the rule cannot drift between the two authored
- * surfaces: it walks the function's ESTree (parameters and body), which
- * both front ends produce, rather than either surface's lowered template.
- *
- * - An argument message (`args` non-empty) must be CALLED with one object
- *   literal naming exactly its arguments — no spread, no computed key: the
- *   build checks the record statically, and a record it cannot see is one
- *   it cannot check. A bare read renders a function.
- * - An argument-less message is a string; calling it is an error.
- *
- * A key with no entry in `args` (undeclared — the TypeScript channel's,
- *  — or unparseable, already LTC055) is skipped, and so is a
- * computed `t[key]` whose key is not a string literal. Shadowing is not tracked: a local named like the `t`
- * binding would be checked too, which no corpus component does.
- */
 export const reportMessageCallSites = (
 	ctx: ExtractContext,
 	componentFn: AstNode,
@@ -317,8 +227,7 @@ export const reportMessageCallSites = (
 	if (tNames.size === 0 && recordNames.size === 0) return
 	const keyOf = (member: AstNode): string | null => {
 		if (member.type !== 'MemberExpression') return null
-		// A string-literal computed key (`t['task.one']`) is as static as a
-		// dotted one; any other computed key is not a site this can check.
+		// A string-literal computed key (`t['task.one']`) is as static as a dotted one; any other computed key is not a site this can check.
 		const property = member.property
 		const key = !member.computed
 			? identifierName(property)
@@ -428,14 +337,13 @@ export const reportMessageCallSites = (
 					: null
 			check(node, key, call)
 		}
-		// Type positions are skipped: a message read is a member expression,
-		// which never occurs in one.
+		// Type positions are skipped: a message read is a member expression, which never occurs in one.
 		forEachChild(node, child => visit(child, node))
 	}
 	visit(componentFn.body, componentFn)
 }
 
-/** The TypeScript type a message argument of each kind accepts (LT-308). */
+/** The TypeScript type a message argument of each kind accepts. */
 const ARG_KIND_TYPES: Record<MessageArgKind, string> = {
 	number: 'number',
 	date: 'Date',
@@ -445,12 +353,6 @@ const ARG_KIND_TYPES: Record<MessageArgKind, string> = {
 
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/
 
-/**
- * The exact per-key `t` record a component's messages resolve to ():
- * an argument-less message is `string`, one with arguments a function of
- * exactly its argument names — `{ filter: string; tasks: (args: { count:
- * number }) => string }`.
- */
 export const messagesRecordType = (
 	args: Record<string, readonly MessageArg[]>,
 ): string => {
@@ -466,14 +368,6 @@ export const messagesRecordType = (
 	return members.length ? `{ ${members.join('; ')} }` : '{}'
 }
 
-/**
- * The server module's parameter text with the authored
- * `I18n<typeof i18n>` annotation rewritten to the exact inline record
- * (): the server module imports only the `I18n` type, never the
- * component's `i18n` const, so `typeof i18n` would not resolve there — and
- * the inline record keeps generated modules self-contained. Unchanged when
- * the component declares no messages or spells no such annotation.
- */
 export const i18nAnnotated = (
 	paramsText: string,
 	args: Record<string, readonly MessageArg[]> | null | undefined,

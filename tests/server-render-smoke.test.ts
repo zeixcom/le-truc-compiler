@@ -1,26 +1,4 @@
-/**
- * Server-render smoke gate ().
- *
- * `server.golden.test.ts` asserts byte-exact markup, but only for the
- * six tags it names — so a generated `render*()` that THROWS the
- * moment it is called shipped unnoticed for the whole corpus. It did:
- * every component following the children-are-data rule
- * (HOST_PROFILE § data account bullet 2) seeds its props by
- * reading a `first()`-bound ref inside `expose()`, and `emit-server.ts`
- * used to declare those refs as `undefined` — so `renderFormSpinbutton()`
- * and `renderFormColorgraph()` both threw `undefined is not an object`
- * at HEAD (fixed by the `refStub` null-object; see runtime.ts).
- *
- * This gate is deliberately NOT a snapshot: it compiles the corpus the
- * way the build does, calls every generated render function, and
- * asserts only that it returns markup for its own tag without
- * throwing. A new component therefore joins the coverage by existing,
- * rather than by someone remembering to add an expectation.
- *
- * A component whose args are required (`name: string`) may legitimately
- * need a value to render at all — `ARGS` carries those; everything else
- * renders from `{}`, which is also what proves the defaults work.
- */
+/** Server-render smoke gate: compiles the corpus the way the build does, calls every generated render function, and asserts only that it returns markup for its own tag without throwing — deliberately not a snapshot, so a new component joins coverage by existing. `ARGS` carries the components whose contract has genuinely required fields; everything else renders from `{}`, which also proves the defaults work. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import * as path from 'node:path'
 import { isVoidElement } from '../src/core'
@@ -40,12 +18,7 @@ const renderName = (tag: string): string =>
 		.map(part => part.charAt(0).toUpperCase() + part.slice(1))
 		.join('')}`
 
-/**
- * Args for the components whose contract has genuinely required
- * fields — and, since the  i18n round, the reserved `i18n`
- * records (an omitted record throws at the `i18n: { t }` destructure).
- * Everything absent here renders from `{}` on purpose.
- */
+/** Args for the components whose contract has genuinely required fields — and the reserved `i18n` records (an omitted record throws at the `i18n: { t }` destructure). Everything absent here renders from `{}` on purpose. */
 const ARGS: Record<string, Record<string, unknown>> = {
 	'form-spinbutton': {
 		name: 'quantity',
@@ -126,12 +99,12 @@ const ARGS: Record<string, Record<string, unknown>> = {
 	},
 }
 
-// The CONFIGURED corpus scan () — the same source set the build
+// The CONFIGURED corpus scan — the same source set the build
 // compiles, not a hand-rolled single-extension glob.
 const corpus = async () => await collectCorpusSources(resolveCorpusConfig(ROOT))
 
 // The REAL corpus runner writes every generated module; a per-run directory
-// keeps that out of the build pipeline's own output (). Render happens
+// keeps that out of the build pipeline's own output. Render happens
 // through `info.serverModulePath`, so the redirect is transparent.
 const generated = createGeneratedDir('render-smoke')
 afterAll(() => generated.cleanup())
@@ -158,20 +131,7 @@ describe('server render smoke — every corpus tag renders (LT-121)', () => {
 	}
 })
 
-/**
- * `reconcile()`'s template root count (ADR 0007 sub-design 5).
- *
- * `InvalidTemplateError` is the one entry in ADR 0007's inventory that gets
- * no diagnostic and needs none: `emit-server.ts`'s `listTemplateLines` calls
- * `shape(loop.output, …)` on a SINGLE element node, so the emitted
- * `<template>` has exactly one root element by construction. There is
- * nothing for a rule to decide — the shape the runtime rejects is not
- * expressible in compiled output.
- *
- * "By construction" is a claim about code that can be edited, though, so it
- * is pinned here rather than only written down. If someone ever teaches
- * `@for` to emit a fragment, this fails before the runtime throw does.
- */
+/** `InvalidTemplateError` gets no diagnostic and needs none: `emit-server.ts` shapes a `<template>` from a SINGLE element node, so exactly one root by construction — pinned here so teaching `@for` to emit a fragment fails before the runtime throw does. */
 describe('@for templates have exactly one root element (LT-157c)', () => {
 	/** Root-level element count of a `<template>`'s content. */
 	const rootElementCount = (content: string): number => {

@@ -90,8 +90,7 @@ form-radiogroup {
 	}
 
 	&.split-button {
-		/* The variant owns its hiding presentation (LT-494) — same
-		   declarations as the shared `.visually-hidden` utility. */
+		/* The variant owns its hiding presentation — same declarations as the shared `.visually-hidden` utility. */
 		& legend,
 		& input[type="radio"] {
 			position: absolute;

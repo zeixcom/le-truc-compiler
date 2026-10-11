@@ -1,14 +1,5 @@
-/**
- * The component function's params contract, shared by both front ends
- * (ADR 0010 sub-design 6: the anti-drift half of the dual
- * front-end contract): exactly one destructured args object (LTC008)
- * plus, per the  convention, an optional author-annotated
- * factory-context parameter. Front-end-neutral like the other front-end
- * stage modules: no parser values, only the loose `AstNode` type.
- */
-
-import type { AstNode } from './ast-node'
 import {
+	type AstNode,
 	asArray,
 	collectBoundNames,
 	identifierName,
@@ -26,36 +17,13 @@ import { CONTEXT_NAMES, FACTORY_CONTEXT_MEMBERS } from './vocabulary'
 export type ComponentParams = {
 	paramsNode: AstNode | null
 	paramNames: Set<string>
-	/**
-	 * The authored second (factory-context) parameter, when present — the
-	 * `.tsx` precision convention (LT-209; `.tsrx` keeps the ambient
-	 * vocabulary). Already validated by `extractParams`: a destructured
-	 * object whose bound names are all factory-context vocabulary. The
-	 * generated factory destructures the SAME names from its own context,
-	 * so body lowering is unchanged. `annotationName` is the written type's
-	 * name when it names `FactoryContext`/`FormFactoryContext` — the input
-	 * to LTC050's surface check (which needs `config`, known later).
-	 */
 	contextParam: {
 		names: ReadonlySet<string>
 		annotationName: 'FactoryContext' | 'FormFactoryContext' | null
-		/**
-		 * The written type reference, when `annotationName` names one of
-		 * the two checked types  — LTC050 reports its range.
-		 */
 		annotation: AstNode | null
 	} | null
 }
 
-/**
- * Validate the component function's parameter list: exactly one destructured
- * args object (LTC008) — plus, per the  convention, an optional
- * second, author-annotated factory-context parameter. Pushes the diagnostic
- * and returns null otherwise. A destructured default paired with a
- * non-optional type is LTC032 (CHECKLIST §10): the type annotation is what
- * callers see, and it says the prop is required, so the default is
- * unreachable for any external caller.
- */
 export const extractParams = (
 	ctx: ExtractContext,
 	filename: string,
@@ -84,19 +52,12 @@ export const extractParams = (
 				diagnostic.defaultOnRequiredProp(ctx.source, prop, bindingName),
 			)
 	}
-	//  (ADR 0012 s4): the reserved `i18n` record yields only the
-	// declared page-ambient members.
+	// The reserved `i18n` record yields only the declared page-ambient members.
 	ctx.diagnostics.push(...ambientRecordViolations(ctx.source, paramsNode))
 	ctx.handlerArgs = readHandlerArgs(ctx, paramsNode)
 	ctx.childrenContract = readChildrenContract(ctx, paramsNode)
 
-	// The factory-context parameter : the author's opt IN to precise
-	// context typing. Names shadow the profile ambients at function scope;
-	// the compiler only validates the vocabulary — the generated factory
-	// destructures the same names, so body lowering is unchanged. Type-only
-	// imports of the annotation never reach generated output
-	// (`parseLeTrucImports` skips type-only statements; LTC037 keeps the
-	// vocabulary out of value imports).
+	// The factory-context parameter is the author's opt-in to precise context typing: names shadow the profile ambients at function scope, and the compiler only validates the vocabulary — the generated factory destructures the same names, and type-only imports of the annotation never reach generated output.
 	let contextParam: ComponentParams['contextParam'] = null
 	const contextNode = (params[1] as AstNode | undefined) ?? undefined
 	if (contextNode !== undefined) {
@@ -129,17 +90,7 @@ export const extractParams = (
 	return { paramsNode, paramNames, contextParam }
 }
 
-/**
- * The written type's name for the factory-context parameter's annotation —
- * `FactoryContext`/`FormFactoryContext` when the annotation names either
- * (bare or generic), null for anything else (an inline type literal, an
- * alias the compiler cannot see through — nothing to check against, the
- * same don't-flag-what-you-can't-see posture as `isOptionalBinding`).
- * `annotation` is the written type, for LTC050's range .
- *
- * Both parsers keep an estree-shaped `typeAnnotation` on the parameter
- * pattern.
- */
+/** The written type's name for the factory-context parameter's annotation — `FactoryContext`/`FormFactoryContext` when the annotation names either, null otherwise; `annotation` is the written type, for LTC050's range. */
 const contextAnnotationName = (
 	contextNode: AstNode,
 ): {
@@ -161,14 +112,7 @@ const contextAnnotationName = (
 	return { annotationName: null, annotation: null }
 }
 
-/**
- * The handler args of the args pattern , binding name → arg name:
- * every top-level arg named `on` plus a capital letter. Its type is read
- * syntactically from the parameter annotation — an inline type literal, a
- * same-file alias or interface, an intersection of those — with no checker;
- * one that is not a function type (optionally `| undefined`), or that
- * cannot be read, is LTC081 and declares no handler arg.
- */
+/** The handler args of the args pattern, binding name → arg name: every top-level arg named `on` plus a capital letter, typed syntactically from the parameter annotation (a non-function or unreadable type is LTC081 and declares no handler arg). */
 const readHandlerArgs = (
 	ctx: ExtractContext,
 	paramsNode: AstNode,
@@ -247,21 +191,8 @@ const argTypeOf = (
 	}
 }
 
-/**
- * The declared contract of the component's `children` arg (ADR 0026 s2,
- * ), read from its `Children<Roles, Model>` annotation: the roles the
- * child may address the passed content through and the declared content
- * model. The shape is the IR's `ChildrenContractIR` — the record rides the
- * IR for the analysis layer (LTC083's deferred-reference leg).
- */
 export type ChildrenContract = ChildrenContractIR
 
-/**
- * The `Children<…>` type reference in `type`, or null: an inline
- * reference, or a same-file alias resolving to one (the same
- * can't-read-it-don't-invent-it posture as `isFunctionType` — tsc owns
- * everything the compiler cannot see).
- */
 const childrenReferenceOf = (
 	ctx: ExtractContext,
 	type: AstNode | null,
@@ -297,13 +228,7 @@ const rolesLiteralOf = (
 	return null
 }
 
-/**
- * The model argument as a string literal: the inline literal, or its
- * same-file alias — the same readable shape `rolesLiteralOf` accepts.
- * Anything else (an imported name, a union) reads null: tsc owns it, the
- * `Model` union constraint rejects anything but `'any'`/`'non-interactive'`
- * at authored typecheck .
- */
+/** The model argument as a string literal: the inline literal, or its same-file alias; anything else reads null — tsc owns it. */
 const modelLiteralOf = (
 	ctx: ExtractContext,
 	arg: AstNode | undefined,
@@ -336,12 +261,7 @@ export const readChildrenContract = (
 ): ChildrenContract | null => {
 	const member = argTypeOf(ctx, paramsNode.typeAnnotation, 'children')
 	const reference = childrenReferenceOf(ctx, member)
-	// An annotation the compiler cannot see through — an imported alias of
-	// `Children`, a qualified name, an imported custom type — may still
-	// declare roles the author wrote ( review): recorded as
-	// `unreadable`, so LTC083's copy does not name a role the author
-	// declared. A readable non-reference (`children?: string`) declares no
-	// roles and keeps the plain read.
+	// An annotation the compiler cannot see through — an imported alias of `Children`, a qualified name, an imported custom type — may still declare roles the author wrote: recorded as `unreadable`, so LTC083's copy does not name a role the author declared. A readable non-reference declares no roles and keeps the plain read.
 	if (!reference)
 		return member?.type === 'TSTypeReference'
 			? { roles: new Map(), model: 'any', unreadable: true }
@@ -353,10 +273,7 @@ export const readChildrenContract = (
 	)
 	const roles = new Map<string, string | null>()
 	const rolesLiteral = rolesLiteralOf(ctx, typeArgs[0] as AstNode | undefined)
-	// A roles argument that is present but unreadable — an imported name,
-	// a union, anything but an inline type literal or its same-file alias —
-	// is the same recorded unreadability ( review). An ABSENT
-	// argument declares no roles and reads plain.
+	// A roles argument present but unreadable — an imported name, a union, anything but an inline type literal or its same-file alias — is the same recorded unreadability; an ABSENT argument declares no roles and reads plain.
 	const unreadable = rolesLiteral === null && typeArgs[0] !== undefined
 	if (rolesLiteral)
 		for (const memberNode of asArray(rolesLiteral.members)) {
@@ -387,21 +304,12 @@ export const readChildrenContract = (
 	const model =
 		modelValue === 'any' || modelValue === 'non-interactive'
 			? modelValue
-			: // A model argument present but unreadable — an imported name, a
-				// union, anything but the inline literal or its same-file alias —
-				// is not a declaration the compiler can act on : tsc
-				// owns it, and the absence of a readable 'non-interactive'
-				// keeps the compose-site check off.
-				modelValue === null && modelArg !== undefined
+			: modelValue === null && modelArg !== undefined
 				? null
 				: 'any'
 	return unreadable ? { roles, model, unreadable } : { roles, model }
 }
 
-/**
- * Is `type` a function type: a function type literal, a union of one with
- * `undefined`/`null`, or a same-file alias of either?
- */
 const isFunctionType = (
 	ctx: ExtractContext,
 	type: AstNode,

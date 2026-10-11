@@ -1,17 +1,3 @@
-/**
- * Ambient type shim for the pinned `css-tree` dependency.
- *
- * The package ships no TypeScript declarations at all, and the compiler
- * uses one narrow slice of it: the declaration-grammar lexer behind
- * LTC065 (ADR 0011 s9). css.ts imports the package's prebuilt
- * `dist/csstree.esm.js` bundle — the entry loads its dictionary patch
- * through a runtime `createRequire`, which cannot ride the portability
- * check's self-contained module graph (ADR 0016). This shim is that
- * import specifier's type side: exactly the functions and the loose AST
- * shape the grammar pass uses, so a css-tree upgrade only ever touches
- * `css.ts` and this file. Runtime resolution is unaffected — Bun loads
- * the real bundle.
- */
 declare module 'css-tree/dist/csstree.esm' {
 	/** A source position css-tree records with `positions: true`. */
 	export type CssTreePosition = {
@@ -28,11 +14,6 @@ declare module 'css-tree/dist/csstree.esm' {
 		end: CssTreePosition
 	}
 
-	/**
-	 * The loose AST node shape: css-tree's node types are structural
-	 * (`type` plus per-type fields); the grammar pass reads `loc`,
-	 * `property`, `value`, `children`, `block` and a Raw node's `value`.
-	 */
 	export type CssNode = {
 		type: string
 		loc?: CssTreeLocation
@@ -68,11 +49,6 @@ declare module 'css-tree/dist/csstree.esm' {
 
 	/** The spec-grammar lexer over the package's built-in dictionary. */
 	export const lexer: {
-		/**
-		 * Match one declaration against its property's grammar. Resolves
-		 * vendor and hack prefixes itself; refuses custom properties and
-		 * values referencing `var()`.
-		 */
 		matchDeclaration(node: CssTreeDeclaration): {
 			/** The matched AST, or null when the declaration mismatches. */
 			matched: CssNode | null

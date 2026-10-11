@@ -1,24 +1,4 @@
-/**
- * Tests for lazy text children directly on the component ROOT ():
- * `emitTopEffects`'s root branch special-cased only `style-map`/`class-map`
- * attributes, so the root's lazy text children were never visited — the
- * generated client emitted no `watch(source, bindText(...))` at all and the
- * component rendered permanently empty on hydration-only pages (a silent
- * omission, no diagnostic; found cutting basic-number over, NOTES ).
- *
- * The fix mirrors the style-map/class-map root exemptions: the lazy child is
- * bound against the ambient `host`, with the same impure-ambient fold check
- * the nested path applies. Because `bindText` replaces the element's ENTIRE
- * textContent, a lazy root child is only emitable as the root's sole content
- * child — multiple lazy children (last-write-wins) and static text or element
- * siblings (wiped on first write) are rejected with diagnostics instead.
- *
- * Note: fixtures deliberately drive reactivity through `host.<prop>` reads
- * and `deriveCell` signals. A bare signal-IDENTIFIER lazy root child hits
- * the HARVEST pass's own root handling — fixed in  alongside the
- * `paramDomRead` root sites (see root-harvest.test.ts): the text harvest now
- * reads `host.textContent` instead of emitting `first('<own-tag>')`.
- */
+/** Lazy text children directly on the component ROOT: `emitTopEffects`'s root branch once visited only style-map/class-map attributes, so lazy root text was never bound and the component rendered permanently empty on hydration-only pages. The lazy child binds against the ambient `host` with the same impure-ambient fold check the nested path applies; because `bindText` replaces the element's ENTIRE textContent, a lazy root child is only emitable as the root's sole content child — other mixes are rejected with diagnostics. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 
@@ -208,7 +188,7 @@ export function C({}: {})
 	const pure = impure.replace('Date.now()', '1')
 
 	test('a would-have-folded child reading Date is omitted silently — the client corrects it (LT-165 step 5)', () => {
-		// ADR 0008 s1 limb b: the expression has no server answer in any tier,
+		// The expression has no server answer in any tier,
 		// so it is omitted and the client's first binding pass supplies it —
 		// unresolvability, not an author error, so no diagnostic.
 		const { component, diagnostics } = compileComponent(

@@ -1,11 +1,4 @@
-/**
- * Module-level type declarations reach both generated modules, exported or
- * not (). A module-local `type`/`interface` naming a setup
- * declaration's type — an item shape for `createList<Task, …>`, a plain
- * annotation — was dropped from the client and server module alike (only
- * `export`ed ones were carried), so the generated code named a type it never
- * declared. Pinned on both surfaces, under `check:corpus`'s tsc flags.
- */
+/** Module-level `type`/`interface` declarations reach both generated modules, exported or not: they were once dropped, leaving generated code naming a type it never declared. Pinned on both surfaces under `check:corpus`'s tsc flags. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import * as path from 'node:path'
 import { compileComponent } from '../src/frontend/tsrx'

@@ -1,16 +1,4 @@
-/**
- * Direct unit test for `reactivity.ts` (): the reactive-lift rule that
- * decides WHETHER A TEMPLATE CHILD IS REACTIVE. The line is *lexically
- * visible reactive read* vs. *read behind an opaque call boundary* — not
- * *single read* vs. *compound expression*.
- *
- * Pinned directly rather than only through goldens because both failure
- * modes are silent in a golden: an under-lift renders correct HTML that
- * never updates, and an over-lift renders correct HTML that updates
- * redundantly. Only the recorded `reactivity` class distinguishes them.
- * The dependency closure recorded beside it (ADR 0018 s7) is pinned
- * here too: no golden reads it yet.
- */
+/** Direct unit test for `reactivity.ts`: the reactive-lift rule — *lexically visible reactive read* vs. *read behind an opaque call boundary*, not *single read* vs. *compound expression*. Pinned directly rather than only through goldens because both failure modes are silent in a golden: an under-lift renders correct HTML that never updates, an over-lift renders correct HTML that updates redundantly. The recorded dependency closure is pinned here too: no golden reads it yet. */
 import { describe, expect, test } from 'bun:test'
 import { compileSource } from '../src/frontend/tsrx/compiler'
 import { markPositionallyReactive } from '../src/lower-shared'
@@ -268,9 +256,8 @@ describe('the retired &{} sigil', () => {
 	})
 
 	test("a literal & before an expression no longer swallows the '&'", () => {
-		// The old sigil detection matched any JSXText ending in '&', so
-		// `Q&{label}` silently ate the ampersand. It is now diagnosed rather
-		// than mis-parsed.
+		// The sigil detection matched any JSXText ending in '&', silently
+		// eating the ampersand; it is diagnosed instead.
 		const { diagnostics } = childOf('Q&{label}')
 		expect(diagnostics.map(d => d.code)).toContain('TSRX018')
 	})
@@ -307,10 +294,9 @@ describe('lazy destructuring in binding position', () => {
 			'c.tsrx',
 		).diagnostics
 
-	// @tsrx/core 0.2 dropped lazy destructuring from the grammar entirely, so
-	// `&{ … }`/`&[ … ]` no longer parse — the dedicated TSRX020 scan retired
-	// with the  pin bump and the rejection is the parser's own syntax
-	// error, surfaced as LTC008. Same tier-1 guarantee, one link earlier.
+	// Lazy destructuring no longer parses — the rejection is the parser's
+	// own syntax error, surfaced as LTC008. Same tier-1 guarantee, one link
+	// earlier than a dedicated scan.
 	test('&{ … } object pattern is a parse error (LTC008)', () => {
 		const d = compile('const obj = { a: 1 }\n\t\t\t\tconst &{ a } = obj')
 		expect(d.map(x => x.code)).toContain('LTC008')
@@ -330,9 +316,8 @@ describe('lazy destructuring in binding position', () => {
 	})
 
 	// The setup subset only sanctions NAMED single consts (setupInits maps
-	// name → init for rebinding); a destructuring pattern has no single name.
-	// The 0.1.63 parse silently tolerated the shape; the 0.2.3 parse reaches
-	// the subset check and rejects it honestly.
+	// name → init for rebinding); a destructuring pattern has no single name,
+	// so the subset check rejects it honestly.
 	test('a plain destructuring const is LTC005, not silently tolerated', () => {
 		const d = compile('const obj = { a: 1 }\n\t\t\t\tconst { a } = obj')
 		expect(d.map(x => x.code)).toEqual(['LTC005'])

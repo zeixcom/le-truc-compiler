@@ -1,22 +1,5 @@
-/**
- * Front-end-shared template lowering (ADR 0010 sub-design 6: the
- * anti-drift half of the dual front-end contract). Both surfaces lower into
- * the same `TemplateNode` IR; the pieces below are the surface-independent
- * core — condition validation, element/compose lowering, the expression-
- * child lift rule, positional reactivity — while each front end keeps its
- * own control-flow dispatch (`.tsrx`: `@if`/`@switch`/`@try`/`@for`
- * directive nodes; `.tsx`: ternaries, `.map()`, the switch IIFE,
- * `<truc:try>`).
- *
- * Front-end-neutral like the front-end stage modules (`setup-extraction.ts`
- * et al.): no parser values, only the loose
- * `AstNode` type. The recursion into `lowerChildren` arrives through the
- * `Lowering` interface — each front end passes its own dispatcher, since the
- * child-node vocabulary is the one genuinely surface-specific decision.
- */
-
-import type { AstNode } from './ast-node'
 import {
+	type AstNode,
 	asArray,
 	attrName,
 	collapseJsxText,
@@ -32,11 +15,7 @@ import {
 	classifyComposeAttribute,
 } from './classify-attributes'
 import { diagnostic, type Site } from './diagnostics'
-import {
-	containsImpureAmbient,
-	dependenciesOf,
-	isServerEvaluable,
-} from './evaluability'
+import { containsImpureAmbient } from './evaluability'
 import type { ExtractContext } from './extract-context'
 import {
 	collectMatchingElements,
@@ -86,17 +65,9 @@ export type Lowering = {
 
 /* === Condition validation === */
 
-/**
- * How a conditional lowers (ADR 0015): `server` when its test is server-known,
- * `reactive` when it reads a signal or `host`.
- */
 export type ConditionMode = 'server' | 'reactive'
 
-/**
- * Lower a loop body with the loop's bindings shadowing same-named signals.
- * `reactive` marks a reactive list's item and key: they are signals of their
- * own (ADR 0024 s3), so a condition reading one is reactive ().
- */
+/** Lower a loop body with the loop's bindings shadowing same-named signals; `reactive` marks a reactive list's item and key — signals of their own, so a condition reading one is reactive. */
 const lowerLoopBody = <T>(
 	ctx: ExtractContext,
 	names: ReadonlyArray<string | null | undefined>,
@@ -143,15 +114,7 @@ const readsSignalThroughAlias = (
 	return false
 }
 
-/**
- * Whether a setup const's initializer EAGERLY dereferences a signal — an
- * `X.get()` call whose `X` is a signal (or resolves to one through further
- * setup consts), or a bare alias of such a const. The snapshot is one
- * server value, so a condition reading it stays `server`, exactly as the
- * setup-const contract promises; only a LIVE alias (a function whose body
- * reads a signal or `host`, or a bare signal alias) goes stale under a
- * `server` classification and is refused instead.
- */
+/** Whether a setup const's initializer EAGERLY dereferences a signal — an `X.get()` call whose `X` is a signal (directly or through further setup consts), or a bare alias of such a const; the snapshot is one server value. */
 const eagerlyDereferencesSignal = (
 	ctx: ExtractContext,
 	signals: ReadonlyMap<string, SignalIR>,
@@ -185,20 +148,6 @@ const eagerlyDereferencesSignal = (
 	)
 }
 
-/**
- * Classify a control-flow condition (`@if` test / ternary test, `@switch`
- * discriminant). A test that reads a signal or `host` is reactive (ADR
- * 0037: its arms become template-cloned branches) — which names its client
- * thunk may read is the analysis's check, as for every client position,
- * and a loop binding shadows a same-named signal (). Any other test
- * must be server-known at render time (args, setup consts, globals); null
- * when it is not, after reporting why. A setup const that eagerly
- * dereferences a signal (`const snapshot = open.get()`) is one server
- * value and stays `server`; a live alias of a signal or `host` — a
- * function reading it, or a bare alias — would classify `server` and never
- * update, so it is refused (LTC005). The message names the surface's
- * spelling of the construct.
- */
 export const validateCondition = (
 	ctx: ExtractContext,
 	signals: ReadonlyMap<string, SignalIR>,
@@ -215,10 +164,7 @@ export const validateCondition = (
 			? boundReactive(ctx, name)
 			: signals.has(name) || name === 'host'
 	if ([...free].some(isSignal)) return 'reactive'
-	// A live setup alias of a signal (`const isOpen = () => open.get()`)
-	// would classify `server` and never update; refuse it rather than go
-	// stale. An eager snapshot (`const snapshot = open.get()`) is one server
-	// value — exempt.
+	// A live setup alias of a signal (`const isOpen = () => open.get()`) would classify `server` and never update; refuse it rather than go stale. An eager snapshot (`const snapshot = open.get()`) is one server value — exempt.
 	const alias = [...free].find(
 		name =>
 			!bound.has(name) &&
@@ -253,12 +199,6 @@ export const validateCondition = (
 
 /* === Shared arm/child helpers === */
 
-/**
- * The sole element child among a control-flow arm's children, or null. An
- * arm root may also be a compose site (): its rendered root is the
- * child's own element, so the arm-set shape rule ("exactly one root
- * element", ADR 0015 s4) is satisfied by a single composed element too.
- */
 export type ArmRootNode = TemplateNode & { kind: 'element' | 'compose' }
 
 export const singleRootOf = (children: TemplateNode[]): ArmRootNode | null => {
@@ -268,32 +208,6 @@ export const singleRootOf = (children: TemplateNode[]): ArmRootNode | null => {
 	return roots.length === 1 ? (roots[0] as ArmRootNode) : null
 }
 
-/**
- * Mark direct `{expr}` children of each root element reactive when they read
- * a name that is reactive *by position* rather than by declaration ().
- * Three such names exist, and all are already recognised structurally
- * downstream: a `@catch`/`err` arm's error parameter, a reactive loop body's
- * item binding (the slot fill), and — since items became Mount Scopes (ADR
- * 0046 s1) — nothing else needs marking here, but the descent now follows the
- * server-rendered control flow an item body may carry (a server-known
- * conditional's arms, a plain boundary's): a bare `{item}` is routinely
- * nested inside one (`<li>{ok ? <b>{item}</b> : null}</li>`), and the slot
- * marker the server bakes and the client binds must fire at that depth too.
- * None of the marked names is a declared signal, so the general lift rule in
- * `reactivity.ts` correctly classifies them static — the context that makes
- * them reactive lives here, in the construct that binds them.
- *
- * Recurses through element children, server-rendered control-flow arms,
- * matching the recursive walk `validateListBody` uses to count item reads —
- * a reactive loop's item is routinely nested, not a direct child of the
- * loop's output root. The boundary caller (`finishTry`) additionally
- * descends compose-site children (): a catch-parameter read inside a
- * composed callout's message element is a sanctioned lazy site — the arm
- * re-renders per activation with the parameter in scope, and the client's
- * err watch writes it. A list item's caller deliberately does not: an item
- * or key read inside composed content renders once into the extracted
- * `<template>`, outside the item's mount, and stays LTC075-refused.
- */
 export const markPositionallyReactive = (
 	nodes: TemplateNode[],
 	names: ReadonlySet<string>,
@@ -325,13 +239,7 @@ export const markPositionallyReactive = (
 	for (const node of nodes) visit(node)
 }
 
-/**
- * Whether a plain `{expr}` child lifts into a `watch()` (). The rule
- * and its rationale live in `reactivity.ts`; this wrapper only turns the
- * `opaque` verdict into a LTC017 diagnostic. The `{children}` insertion
- * point (ADR 0005 sub-design 10) is a server arg, so it classifies `static`
- * without a special case here.
- */
+/** Whether a plain `{expr}` child lifts into a `watch()` — the rule and its rationale live in `reactivity.ts`; this wrapper only turns the `opaque` verdict into a LTC017 diagnostic. */
 const liftsToReactive = (
 	ctx: ExtractContext,
 	signals: ReadonlyMap<string, SignalIR>,
@@ -339,9 +247,7 @@ const liftsToReactive = (
 	exprText: string,
 	container: AstNode,
 ): boolean => {
-	// `{'label'}` used to mean "watch the prop named label" — legible only
-	// because `&` marked it as not-text. Bare, it is the literal string, so
-	// the silent reading is a wrong component; demand `{host.label}`.
+	// `{'label'}` used to mean "watch the prop named label" — legible only because `&` marked it as not-text; bare, it is the literal string, so the silent reading is a wrong component — demand `{host.label}`.
 	if (
 		nodeType(expr) === 'Literal' &&
 		typeof expr.value === 'string' &&
@@ -368,25 +274,12 @@ const liftsToReactive = (
 		)
 		return false
 	}
-	// CHECKLIST §4 / LTC033 (error form): a `server` child renders ONCE,
-	// server-side, forever — there is no watch() to ever correct it, unlike
-	// a `reactive` child (which gets the WARNING form of this check in
-	// analysis/construct-effects.ts, since the client's first binding pass corrects
-	// an omitted fold there). An impure ambient here (`Date.now()`, a random
-	// id, `Intl`/`toLocaleString`) bakes one build-time reading into the
-	// page permanently with no safety net at all — hard error, not a warning.
+	// LTC033 (error form): a `server` child renders ONCE, server-side, forever — there is no watch() to ever correct it, unlike a `reactive` child (which keeps the warning form of this check in analysis/construct-effects.ts). An impure ambient here (`Date.now()`, a random id) bakes one build-time reading into the page permanently — hard error, not a warning.
 	if (verdict.kind === 'server' && containsImpureAmbient(expr))
 		ctx.diagnostics.push(diagnostic.impureStaticChild(ctx.source, expr))
 	return verdict.kind === 'reactive'
 }
 
-/**
- * The shared expression-child lowering: reactivity classification
- * (`bindsExposedArg`'s positional rule + the lift rule) and the
- * dependency closure, recorded once on the `expr` IR node (ADR 0018 s7). Both front ends' `lowerChildren` funnel every ordinary
- * `{expr}` child through here, so the lift rule cannot drift between
- * surfaces.
- */
 export const lowerExpressionChild = (
 	ctx: ExtractContext,
 	expr: AstNode,
@@ -394,11 +287,7 @@ export const lowerExpressionChild = (
 	signals: ReadonlyMap<string, SignalIR>,
 ): TemplateNode & { kind: 'expr' } => {
 	const exprText = text(ctx.source, expr)
-	//: `{label}`, where `label` is both a server arg
-	// and an exposed prop, is reactive BY POSITION the same
-	// way a `@catch` param or a loop item is — the arg is
-	// what the server renders, the prop is what the client
-	// rebinds against that render. `exprText` stays the arg.
+	// `{label}`, where `label` is both a server arg and an exposed prop, is reactive BY POSITION the same way a `@catch` param or a loop item is — the arg is what the server renders, the prop what the client rebinds; `exprText` stays the arg.
 	const bindsProp = bindsExposedArg(
 		expr,
 		ctx.argNames,
@@ -427,27 +316,6 @@ export const lowerExpressionChild = (
 
 /* === Composed elements === */
 
-/**
- * Composed-element children (ADR 0005 sub-design 10): the markup
- * between a composed element's opening/closing tags substitutes into the
- * child's own template wherever it writes a bare `{children}` expression —
- * compile-time content substitution into the string forwarded as the child's
- * `children` server arg. The content is the parent's own markup (ADR 0026
- * s1), so its statics and server expressions render into that string, its
- * `first()` references plan from the host (attached after lowering), and a
- * `truc:html` attribute is the parent's own sanitized binding ():
- * the data-reference form splices server-side through `sanitizeHtml`, the
- * reactive thunk plans as a host watch against the Children Region — but
- * only where the host walk reaches the site, so the scoped positions
- * (inside an arm, a list item or a server-rendered branch) are refused at
- * effect planning (`validateArmSetPlacement`), not here. Anything else that
- * would need CLIENT wiring — events, reactive/pass attributes, nested
- * control-flow, or further composition — has no meaning at a
- * content-substitution site, so it is diagnosed instead of silently
- * dropped or silently inert. The two message fragments naming the
- * offending shapes are surface vocabulary (the `.tsrx` sigil spelling vs.
- * the `.tsx` expression spelling).
- */
 export const validateComposedChildren = (
 	ctx: ExtractContext,
 	children: TemplateNode[],
@@ -457,12 +325,7 @@ export const validateComposedChildren = (
 		if (node.kind === 'text') return
 		if (node.kind === 'expr') {
 			if (node.reactivity === 'reactive') {
-				// A binding-scope read () is the one sanctioned lazy site
-				// in composed content: an async-boundary catch parameter — a
-				// positional name (`deps.bound`), not a declared signal — whose
-				// arm re-renders per activation and whose client watch writes
-				// the site. Anything else reactive (a declared signal, `host`)
-				// would render once, server-side, and never update.
+				// A binding-scope read is the one sanctioned lazy site in composed content: an async-boundary catch parameter — a positional name (`deps.bound`), not a declared signal — whose arm re-renders per activation and whose client watch writes the site; anything else reactive would render once, server-side, and never update.
 				const reads = [...freeIdentifiers(node.expr)].filter(
 					name => !JS_GLOBALS.has(name),
 				)
@@ -494,7 +357,7 @@ export const validateComposedChildren = (
 			if (
 				attr.kind === 'static' ||
 				attr.kind === 'server' ||
-				// The parent's own sanitized binding (ADR 0026 s1):
+				// The parent's own sanitized binding:
 				// server-spliced or host-planned, per `reactive`.
 				attr.kind === 'html'
 			)
@@ -514,15 +377,6 @@ export const validateComposedChildren = (
 	for (const child of children) walk(child)
 }
 
-/**
- * Lower a composed (PascalCase) element: resolve its tag against the file's
- * compose-import map (ADR 0005 sub-design 10), classify attributes as server
- * args (regardless of value shape), `ref`, or `pass={{ }}` (client-prop
- * interop), and lower any children into the reserved `children`
- * substitution () — validated to statics/server expressions only
- * (`validateComposedChildren` above). Classification
- * (`classify-attributes.ts`) is reused verbatim from the machinery.
- */
 export const lowerComposeElement = (
 	ctx: ExtractContext,
 	element: AstNode,
@@ -580,14 +434,6 @@ export const lowerComposeElement = (
 
 /* === Element lowering === */
 
-/**
- * Lower one plain element: classify its attributes
- * (`classify-attributes.ts`, reused verbatim), diagnose a PascalCase tag in
- * a non-child-list position (LTC011's sibling — the wording names the
- * surface's loop spelling), run the impure-server-attribute and textarea-
- * value checks (LTC033/LTC030), and recurse into children through the
- * front end's own dispatcher.
- */
 export const lowerElement = (
 	ctx: ExtractContext,
 	element: AstNode,
@@ -599,11 +445,7 @@ export const lowerElement = (
 	const opening = element.openingElement
 	const tagNode = isNode(opening) ? opening.name : null
 	const tag = jsxName(tagNode) ?? ''
-	// LTC053 (): a tag that is not a plain identifier — `.tsrx`'s
-	// dynamic `<{expr}>` container, `.tsx`'s namespaced or member name —
-	// has no static element to lower; `jsxName` returns null for all of
-	// them. The error fails the compile, so the `tag: ''` placeholder
-	// returned below never reaches an emitted component.
+	// LTC053: a tag that is not a plain identifier (`.tsrx`'s dynamic `<{expr}>`, `.tsx`'s namespaced or member name) has no static element to lower — the error fails the compile, so the `tag: ''` placeholder below never reaches an emitted component.
 	if (tag === '')
 		ctx.diagnostics.push(
 			diagnostic.unsupportedElementTag(
@@ -613,21 +455,12 @@ export const lowerElement = (
 				wording.conditionalTag,
 			),
 		)
-	// LTC056 ( rider): an authored `<script>` element is refused on
-	// both surfaces, whatever its `type` — it would pass verbatim into
-	// served HTML, and the page owns script loading. Raised here, the one
-	// plain-element funnel both front ends share, so a template target
-	// inherits the refusal for free. Like LTC053, the error fails the
-	// compile, so the lowered element below never reaches emitted output.
+	// LTC056: an authored `<script>` element is refused on both surfaces, whatever its `type` — it would pass verbatim into served HTML, and the page owns script loading; raised in this shared funnel, so a template target inherits the refusal and the error fails the compile.
 	if (tag === 'script')
 		ctx.diagnostics.push(
 			diagnostic.scriptElementInTemplate(ctx.source, element),
 		)
-	// LTC061 (): an authored `<template>` is refused on both surfaces —
-	// the compiler owns template extraction (reactive-list item templates,
-	// template-cloned arms), and the selector probe cannot see inside one
-	// (css-select's HTML mode skips `<template>` content). Raised in the same
-	// funnel as LTC056; the probe's own throw stays as the backstop.
+	// LTC061: an authored `<template>` is refused on both surfaces.
 	if (tag === 'template')
 		ctx.diagnostics.push(
 			diagnostic.templateElementInTemplate(ctx.source, element),
@@ -660,14 +493,7 @@ export const lowerElement = (
 				)
 				continue
 			}
-			// CHECKLIST §4 / LTC033 (error form): the attribute
-			// counterpart of the static-CHILD check in `liftsToReactive`.
-			// A `server` attribute is rendered once into the initial HTML and
-			// never bound client-side, so an impure ambient here bakes one
-			// build-time reading into the page permanently. The REACTIVE thunk
-			// form is deliberately NOT escalated — it keeps the warning verdict
-			// in analysis/construct-effects.ts, where the refused fold is corrected by
-			// the client's first binding pass.
+			// LTC033 (error form), the attribute counterpart of the static-child check in `liftsToReactive`: a `server` attribute renders once into the initial HTML and never binds client-side, so an impure ambient here bakes one build-time reading into the page permanently. The REACTIVE thunk form is deliberately NOT escalated — it keeps its warning verdict in analysis/construct-effects.ts, where the refused fold is corrected by the client's first binding pass.
 			if (
 				classified.kind === 'server' &&
 				containsImpureAmbient(classified.node)
@@ -682,16 +508,7 @@ export const lowerElement = (
 			attrs.push(classified)
 		}
 	}
-	// CHECKLIST §10 / LTC030: `value` is not a real HTML attribute on
-	// `<textarea>` — the browser ignores it, and with no compensating write
-	// the pre-hydration control renders empty. Only flags the STATIC/
-	// server-rendered forms (`value="x"`, `value={arg}`): those have no
-	// client-side correction at all, ever. A reactive-thunk mirror
-	// (`value={() => host.value}`) still renders the same dead attribute,
-	// but `bindProperty` corrects the live `.value` on connect, and pairing
-	// it with a static text-content child (`<textarea>{value}</textarea>`)
-	// covers the pre-hydration gap too — a legitimate pattern (see
-	// form-textbox.tsrx), not the footgun this rule targets.
+	// LTC030: `value` is not a real HTML attribute on `<textarea>` — the browser ignores it, and with no compensating write the pre-hydration control renders empty. Only the STATIC/server-rendered forms are flagged (no client-side correction at all); a reactive-thunk mirror is corrected by `bindProperty` on connect, and pairing with a static text child covers the pre-hydration gap too — a legitimate pattern, not the footgun this rule targets.
 	if (tag === 'textarea') {
 		const valueAttr = attrs.find(
 			a => (a.kind === 'static' || a.kind === 'server') && a.name === 'value',
@@ -712,25 +529,6 @@ export const lowerElement = (
 
 /* === Children skeleton === */
 
-/**
- * The children-lowering skeleton shared by both front ends. Text collapse,
- * expression containers, element dispatch (compose vs. plain, and the
- * `<style>` placeholder), and fragment recursion are surface-independent;
- * the front ends contribute:
- *
- * - `dispatchChild` — grammar-specific CHILD NODE TYPES outside the four
- *   universal shapes (`.tsrx`: `@for`/`@if`/`@switch`/`@try` directives,
- *   `JSXStyleElement`, `@for`-in; `.tsx`: the `<truc:try>` element). Consumes the child by pushing the lowered
- *   node into `out` and returning true.
- * - `dispatchControlFlow` — control-flow EXPRESSION SHAPES inside an
- *   expression container (`.tsx`: ternary/`&&`, `.map()`, the switch
- *   IIFE). Returns true when the expression was handled; false
- *   falls through to the ordinary expression-child lift.
- *
- * JSXText collapsing runs for both; the `.tsrx` retired-`&{}`-sigil check
- * rides the `onText` pre-scan hook (it needs the NEXT sibling — see
- * `lower-template.ts`).
- */
 export const lowerChildrenSkeleton = (
 	ctx: ExtractContext,
 	parent: AstNode,
@@ -738,17 +536,11 @@ export const lowerChildrenSkeleton = (
 	fors: Map<AstNode, ForIR>,
 	lowering: Lowering,
 	hooks: {
-		/** Pre-scan beside a JSXText child (the `.tsrx` retired-`&{}`-sigil
-		 * check needs the NEXT sibling — a diagnose-only hook). */
 		onText?: (
 			ctx: ExtractContext,
 			child: AstNode,
 			next: AstNode | undefined,
 		) => void
-		/** Grammar-specific child node types. Consume the child by pushing
-		 * the lowered node (or nothing, when diagnosed) into `out` and
-		 * returning true; return false to let the skeleton's universal
-		 * shapes handle it. */
 		dispatchChild?: (
 			ctx: ExtractContext,
 			child: AstNode,
@@ -756,10 +548,6 @@ export const lowerChildrenSkeleton = (
 			signals: ReadonlyMap<string, SignalIR>,
 			fors: Map<AstNode, ForIR>,
 		) => boolean
-		/** Control-flow expression shapes inside an expression container.
-		 * Consumes the expression by pushing the lowered node (or nothing,
-		 * when diagnosed) into `out` and returning true; return false to
-		 * lower it as an ordinary expression child. */
 		dispatchControlFlow?: (
 			ctx: ExtractContext,
 			expr: AstNode,
@@ -786,9 +574,7 @@ export const lowerChildrenSkeleton = (
 		if (hooks.dispatchChild?.(ctx, child, out, signals, fors)) continue
 		if (child.type === 'JSXExpressionContainer') {
 			const expr = child.expression
-			// A `{/* comment */}` child renders nothing: the `.tsx` front end
-			// already drops its `JSXEmptyExpression`, and as an `expr` child
-			// it would reach a typed text sink with no argument ().
+			// A `{/* comment */}` child renders nothing: the `.tsx` front end already drops its `JSXEmptyExpression`, and as an `expr` child it would reach a typed text sink with no argument.
 			if (!isNode(expr) || expr.type === 'JSXEmptyExpression') continue
 			if (hooks.dispatchControlFlow?.(ctx, expr, out, child, signals, fors))
 				continue
@@ -800,12 +586,7 @@ export const lowerChildrenSkeleton = (
 				isNode(child.openingElement) ? child.openingElement.name : null,
 			)
 			if (tag === 'style') {
-				// Style blocks become placeholder elements (tag 'style'); the
-				// CSS is extracted from the raw source, never rendered. The
-				// `.tsrx` parser produces these as dedicated JSXStyleElement
-				// nodes (handled in its own dispatcher), so this branch only
-				// engages for `.tsx` sources — where it is the ONLY path a
-				// `<style>` block can arrive by.
+				// Style blocks become placeholder elements (tag 'style'); the CSS is extracted from the raw source, never rendered. The `.tsrx` parser produces these as dedicated JSXStyleElement nodes (its own dispatcher), so this branch only engages for `.tsx` sources.
 				out.push({
 					kind: 'element',
 					tag: 'style',
@@ -830,21 +611,8 @@ export const lowerChildrenSkeleton = (
 	return out
 }
 
-/* === Loop empty arm (LT-212) === */
+/* === Loop empty arm === */
 
-/**
- * Validate a loop's empty arm (`.tsrx` `@empty { … }`, `.tsx`
- * `{xs.length === 0 ? <empty/> : xs.map(…)}`) and return it, or `null` when
- * a diagnostic was pushed. The arm is CLIENT-INERT: static markup plus
- * server-rendered expressions and attributes, optionally under a
- * server-known `@if`/`@switch`. Over server data the server alone decides
- * whether the arm renders, so a client construct inside it would bind to an
- * element that may not exist. Over a reactive List (ADR 0015 s5: the
- * toggle path) every root must be an element, because the client toggles
- * each root's `hidden` as the list empties and fills.
- *
- * The message names the surface's spelling of the arm.
- */
 export const validateEmptyArm = (
 	ctx: ExtractContext,
 	arm: TemplateNode[],
@@ -854,11 +622,7 @@ export const validateEmptyArm = (
 ): TemplateNode[] | null => {
 	const what = wordingOf(ctx).emptyArm
 	const outputs = new Set([...fors.values()].map(f => f.output))
-	// A reactive list's empty arm stays in the container on the toggle path,
-	// always rendered, so its elements bind in the scope that holds the
-	// list like any other element there (ADR 0024 s1): reactive
-	// attributes, class and style maps, events and lazy text. A server-data
-	// loop's arm renders conditionally, server-side, and binds nothing.
+	// A reactive list's empty arm stays in the container on the toggle path, always rendered, so its elements bind in the scope that holds the list like any other element there; a server-data loop's arm renders conditionally, server-side, and binds nothing.
 	const bindsInScope = (a: AttributeIR): boolean =>
 		kind === 'reconcile' &&
 		(a.kind === 'reactive' ||
@@ -880,8 +644,7 @@ export const validateEmptyArm = (
 				offending = node.node
 				return true
 			case 'element':
-				// A client construct, or any `truc:html` — the arm root renders
-				// through `emitElement`, which writes no inner HTML.
+				// A client construct, or any `truc:html` — the arm root renders through `emitElement`, which writes no inner HTML.
 				if (
 					outputs.has(node) ||
 					node.attrs.some(
@@ -923,8 +686,6 @@ export const validateEmptyArm = (
 			)
 			return null
 		}
-		// The compiler owns `hidden` and `data-unreconciled` on these roots
-		// (): an authored copy would be emitted twice beside its own.
 		for (const root of arm) {
 			if (root.kind !== 'element') continue
 			const owned = root.attrs.find(
@@ -948,17 +709,8 @@ export const validateEmptyArm = (
 	return arm
 }
 
-/* === Loops (LT-233: one program after the header) === */
+/* === Loops === */
 
-/**
- * A loop as its header parsed it. The two spellings — `.tsrx`'s `@for (const
- * item of items; index i; key k) { … }` and `.tsx`'s `{items.map((item, i)
- * => …)}` — genuinely differ only up to here: binding names, the iterable,
- * the body's statements and which of them is the output. Everything after
- * is `lowerLoop`, so a rule added to one surface's loops cannot miss the
- * other's (the COMPILER_REVIEW §1.1 and §2.3 drifts both lived in the
- * copied tail this replaced).
- */
 export type LoopSource = {
 	/** The loop node — the `ForIR` key (the directive / the `.map()` call). */
 	node: AstNode
@@ -969,11 +721,6 @@ export type LoopSource = {
 	iterable: AstNode
 	/** `.tsrx`'s `key` clause. */
 	key: AstNode | null
-	/**
-	 * `.tsx` only: the `.map()` callback's second parameter, which the
-	 * receiver's type routes (ADR 0024 s4) — over a declared List it is the
-	 * item's key and replaces `index`; over an Array it stays the index.
-	 */
 	keyOverList: AstNode | null
 	/** `.tsx` only: the `.map()` callback declares more than two parameters. */
 	extraParams: boolean
@@ -987,35 +734,7 @@ export type LoopSource = {
 	lowerEmptyArm: (kind: ForIR['kind']) => TemplateNode[] | null | false
 }
 
-/**
- * Validate a reactive-list body (ADR 0024 s1: the item is a Mount Scope).
- * Item content lowers through the arm emission — reactive attributes, class/
- * style maps, `truc:pass`, events, lazy text children over the item, and
- * key-derived attributes (a `server` attribute reading the `key` binding,
- * set once at clone because a key never changes) all bind in `bindItem`
- * against the item's own scope, and the server bakes item-dependent sites
- * empty in the extracted `<template>`. Arm sets and loops nest (ADR 0024 s1,
- * ): their content is walked under the same rules. What still has no
- * lowering inside an item: a plain `@try` boundary (neither emitter renders
- * one in an item template), a server-data loop over the item or key, a
- * composed child whose args or content read the item or key (LTC075 — the
- * child renders once into the template, its root `lang`/`i18n` baked at
- * the parent's locale; ADR 0009 s9), and any non-arrow expression or
- * attribute over the item or key — the item is the signal the List hands
- * out, so a client read takes the arrow form
- * (`() => item.get()`) and the bare `{item}` child is the signal shorthand.
- *
- * The slot-fill restrictions this walk used to enforce (one lazy hole,
- * server-static attributes only, no control flow, no client constructs) are
- * retired here (ADR 0007 lifecycle); the shape errors item content now hits
- * live in the shared arm/element machinery (`emitLazyTextChildren`'s
- * one-lazy-child gate and the server-only-name report), and the unmountable
- * constructs an arm set would collide with are `validateArmSetPlacement`'s.
- * (`ref={}` never reaches here — `classify-attributes.ts` retires it on
- * every element; a host-level `first()` into an item is refused in the
- * analysis, which is where the synthetic ref attrs exist for both raw and
- * composed targets.)
- */
+/** Validate a reactive-list body: item content binds in the item's mount scope, and what still has no lowering inside an item (a plain boundary, a server-data loop over the item, a composed child reading it, any non-arrow read of the item or key) is refused. */
 const validateListBody = (
 	ctx: ExtractContext,
 	output: TemplateNode & { kind: 'element' },
@@ -1026,9 +745,7 @@ const validateListBody = (
 ): void => {
 	const wording = wordingOf(ctx)
 	const { loop } = wording
-	// The item's own setup names (ADR 0024 s5) are per-item like the item:
-	// a const is a value fixed per item — set once at clone, like the key —
-	// and a signal or a ref is read in an arrow.
+	// The item's own setup names are per-item like the item: a const is a value fixed per item — set once at clone, like the key — and a signal or a ref is read in an arrow.
 	const consts = new Set<string>()
 	const live = new Set<string>([itemName])
 	for (const stmt of setup)
@@ -1042,8 +759,7 @@ const validateListBody = (
 		)
 	const walk = (node: TemplateNode): void => {
 		if (node.kind === 'expr') {
-			// The bare `{item}` identifier is the signal shorthand — reactive by
-			// position (`markPositionallyReactive`), the one sanctioned spelling.
+			// The bare `{item}` identifier is the signal shorthand — reactive by position (`markPositionallyReactive`), the one sanctioned spelling.
 			if (node.reactivity === 'reactive') return
 			const reads = itemRead(node.expr)
 			if (reads.length > 0)
@@ -1059,9 +775,7 @@ const validateListBody = (
 				)
 			return
 		}
-		// An async boundary is an arm set (ADR 0015 s4), a Mount Scope that
-		// nests in the item (ADR 0024 s1); its arms answer to the same
-		// item-read rules.
+		// An async boundary is an arm set — a Mount Scope nesting in the item; its arms answer to the same item-read rules.
 		if (node.kind === 'try' && node.pendingChildren !== null) {
 			for (const child of [
 				...node.children,
@@ -1071,8 +785,7 @@ const validateListBody = (
 				walk(child)
 			return
 		}
-		// A conditional's arms — server-rendered or an arm set — are item
-		// content too.
+		// A conditional's arms — server-rendered or an arm set — are item content too.
 		if (node.kind === 'conditional') {
 			for (const arm of node.arms) for (const child of arm.children) walk(child)
 			return
@@ -1088,10 +801,7 @@ const validateListBody = (
 			)
 			return
 		}
-		// A composed child renders once, into the extracted `<template>` —
-		// its root `lang` and `i18n` included (ADR 0009 s9) — so neither its
-		// args nor its content may read the item or key (LTC075).
-		// `truc:pass` is the per-item channel: the item's mount wires it.
+		// A composed child renders once, into the extracted `<template>` — its root `lang`/`i18n` included — so neither its args nor its content may read the item or key (LTC075); `truc:pass` is the per-item channel, wired by the item's mount.
 		if (node.kind === 'compose') {
 			for (const attr of node.attrs) {
 				if (attr.kind !== 'arg' || attr.node === null) continue
@@ -1109,8 +819,7 @@ const validateListBody = (
 					)
 			}
 			const content = (child: TemplateNode): void => {
-				// A reactive child in composed content is already LTC011's
-				// (`validateComposedChildren`).
+				// A reactive child in composed content is already LTC011's (`validateComposedChildren`).
 				const at =
 					child.kind === 'expr' && child.reactivity !== 'reactive'
 						? child.expr
@@ -1146,12 +855,7 @@ const validateListBody = (
 			if (reads.length === 0) continue
 			const signal = reads.find(n => live.has(n))
 			if (signal === undefined) {
-				// A key-only read is a key-derived attribute (ADR 0024 s1):
-				// set once at clone against the key binding, nothing to watch —
-				// and so is a read of the item's own consts (ADR 0024 s5), each
-				// a value fixed per item. Those names mixed with anything else
-				// have no clone-time meaning — the other names are server
-				// values no client phase can fold there.
+				// A key-only read is a key-derived attribute (set once at clone against the key binding, nothing to watch) — and so is a read of the item's own consts, each a value fixed per item; those names mixed with anything else have no clone-time meaning.
 				const free = [...freeIdentifiers(attr.node)]
 				if (free.every(n => cloneTime.has(n))) continue
 				const subject = reads.every(n => n === keyName)
@@ -1181,11 +885,7 @@ const validateListBody = (
 			)
 		}
 		for (const child of node.children) {
-			// A nested loop (ADR 0024 s1): a reactive list's item is a
-			// Mount Scope of its own, and a server-data loop lowers to a static
-			// query against the item — over server data. One whose iterable
-			// reads the item or key iterates per-item state the extracted
-			// template cannot render.
+			// A nested loop: a reactive list's item is a Mount Scope of its own, and a server-data loop lowers to a static query against the item — one whose iterable reads the item or key iterates per-item state the extracted template cannot render.
 			const inner = [...fors.values()].find(f => f.output === child)
 			if (inner?.kind === 'each') {
 				const reads = itemRead(inner.iterable)
@@ -1205,15 +905,7 @@ const validateListBody = (
 	walk(output)
 }
 
-/**
- * Resolve an item's `first()` references against the item's own content
- * (ADR 0024 s2): structurally, like a component's, but within the item. A
- * selector that names the item root resolves at build time to `bindItem`'s
- * element parameter — `first` searches descendants only. One that reaches
- * into a nested arm or a nested list's item is refused: those elements are
- * recreated while the item lives. A required reference whose only match
- * sits in a branch that may not render is optional in fact (LTC040).
- */
+/** Resolve an item's `first()` references against the item's own content, structurally: a selector naming the item root resolves to `bindItem`'s element parameter, and one reaching into a nested arm or list item is refused (those elements are recreated while the item lives). */
 const resolveItemRefs = (
 	ctx: ExtractContext,
 	output: TemplateNode & { kind: 'element' },
@@ -1230,9 +922,7 @@ const resolveItemRefs = (
 		const at = stmt.node
 		const { elements } = collectMatchingElements(output, stmt.selector)
 		if (elements.length === 0) {
-			// An optional reference may match markup the template does not
-			// render, and a custom-element tag may name a composed child,
-			// whose tag this pass cannot know: the client queries as authored.
+			// An optional reference may match markup the template does not render, and a custom-element tag may name a composed child whose tag this pass cannot know: the client queries as authored.
 			if (!stmt.required || namesCustomElementTag(stmt.selector)) continue
 			ctx.diagnostics.push(
 				diagnostic.firstSelectorNotFound(
@@ -1284,14 +974,7 @@ const resolveItemRefs = (
 	}
 }
 
-/**
- * The reactive-list loop over a declared `createList` or `deriveList`
- * (milestone 3, ADR 0024 s4): the reconcile plan. Index bindings stay gated
- * (keyed reconciliation). The body's statements before the output element
- * are the item's setup (ADR 0024 s5, `extractItemSetup`), classified while
- * the item and key are bound; their names stay bound, reactive by position,
- * while the output lowers.
- */
+/** The reactive-list loop over a declared `createList` or `deriveList`: the reconcile plan. Index bindings stay gated (keyed reconciliation); the body's statements before the output element are the item's setup, classified while the item and key are bound. */
 const lowerListLoop = (
 	ctx: ExtractContext,
 	loop: LoopSource,
@@ -1350,8 +1033,7 @@ const lowerListLoop = (
 		)
 		return null
 	}
-	// The body's statements are the item's setup (ADR 0024 s5); the output
-	// element is the one the body renders.
+	// The body's statements are the item's setup; the output element is the one the body renders.
 	let outputNode = loop.expressionOutput
 	const setupStmts: AstNode[] = []
 	for (const stmt of loop.statements) {
@@ -1376,15 +1058,13 @@ const lowerListLoop = (
 		[itemName, keyName],
 		() => {
 			const item = extractItemSetup(ctx, setupStmts, signals)
-			// The item's own names: per-item values, so a condition over one
-			// switches arms in the item's mount, like one over the item.
+			// The item's own names: per-item values, so a condition over one switches arms in the item's mount, like one over the item.
 			const names = item.setup
 				.filter(stmt => stmt.kind === 'const' || stmt.kind === 'signal')
 				.map(stmt => stmt.name as string)
 			const itemSignals = new Map(signals)
 			for (const signal of item.signals) itemSignals.set(signal.name, signal)
-			// A per-item function const is an event handler by identifier, like
-			// a setup const (`onClick={remove}`).
+			// A per-item function const is an event handler by identifier, like a setup const (`onClick={remove}`).
 			const outerInits = ctx.setupInits
 			const inits = new Map(outerInits)
 			for (const stmt of item.setup)
@@ -1405,9 +1085,7 @@ const lowerListLoop = (
 		true,
 	)
 	const { output, setup } = lowered
-	// The item binding is the slot fill — reactive by position, not a
-	// declared signal, so the lift rule alone would leave it static and
-	// `validateListBody` would then see no item reads to route.
+	// The item binding is the slot fill — reactive by position, not a declared signal, so the lift rule alone would leave it static and `validateListBody` would then see no item reads to route.
 	markPositionallyReactive([output], new Set([itemName]))
 	resolveItemRefs(ctx, output, setup, fors)
 	validateListBody(ctx, output, itemName, keyName, fors, setup)
@@ -1428,12 +1106,6 @@ const lowerListLoop = (
 	return output
 }
 
-/**
- * Lower a loop from its parsed header. Server-data iterables lower to
- * `each()`; a declared `createList` or `deriveList` to the reconcile plan; any
- * other reactive source stays gated (LTC001). The iterable's TYPE routes
- * the loop, never its spelling.
- */
 export const lowerLoop = (
 	ctx: ExtractContext,
 	loop: LoopSource,
@@ -1594,10 +1266,7 @@ export const lowerLoop = (
 
 /* === Conditionals and boundaries (the shared tails) === */
 
-/**
- * The initial winner a front end leaves on a fresh conditional: assembly
- * resolves it once the whole component is known (`resolveInitialWinners`).
- */
+/** The initial winner a front end leaves on a fresh conditional; assembly resolves it once the whole component is known (`resolveInitialWinners`). */
 const UNRESOLVED_INITIAL: InitialWinner = { fold: true }
 
 /** The `if` conditional, once a surface has lowered the test and both branches. */
@@ -1635,10 +1304,7 @@ export const finishIf = (
 	}
 }
 
-/**
- * A `@case` value a reactive switch can key an arm by: a string, number,
- * boolean or `null` literal, or a negated number. Null for anything else.
- */
+/** A `@case` value a reactive switch can key an arm by: a string, number, boolean or `null` literal, or a negated number. */
 const caseLiteral = (
 	test: AstNode,
 ): { value: string | number | boolean | null } | null => {
@@ -1662,13 +1328,6 @@ const caseLiteral = (
 	return null
 }
 
-/**
- * The `switch` conditional, once a surface has lowered the discriminant and
- * every arm. Arm keys are `case:<value>` and `default` (ADR 0015 s2). A
- * reactive switch keys its arms by literal case values only — a dynamic one
- * has no compile-time name for the server emit and the client to agree on,
- * so it is LTC062, with no fallback.
- */
 export const finishSwitch = (
 	ctx: ExtractContext,
 	node: AstNode,
@@ -1693,10 +1352,6 @@ export const finishSwitch = (
 				)
 				return null
 			}
-			// The literal's JSON (), not `String(value)`: the key must
-			// be value-typed so `@case 1` and `@case '1'` stay distinct, while
-			// `1` and `1.0` — the same literal value, as `===` says — share
-			// one key.
 			key = `case:${literal === null ? text(ctx.source, arm.test) : JSON.stringify(literal.value)}`
 		}
 		if (seen.has(key) && mode === 'reactive') {
@@ -1750,13 +1405,6 @@ export const reportEmptySwitch = (
 	)
 }
 
-/**
- * The boundary tail both spellings share (`@try`/`@pending`/`@catch`, `<truc:try
- * pending catch>`): with a pending arm it is an ASYNC boundary (ADR 0005
- * sub-design 13) whose three arms each need exactly one root element — each
- * is cloned from its template as the task settles (ADR 0015 s4) — and the
- * catch parameter is reactive by position in its arm.
- */
 export const finishTry = (
 	ctx: ExtractContext,
 	node: AstNode,
@@ -1805,11 +1453,6 @@ export const finishTry = (
 		)
 		return null
 	}
-	// The catch arm's error child reads the catch parameter, which is
-	// reactive by position — the async boundary re-renders the arm when the
-	// task rejects — but is not a declared signal. The mark descends into
-	// compose-site children (): the composed callout's message
-	// element reads the parameter, and the arm's value channel writes it.
 	if (catchParam !== null)
 		markPositionallyReactive(catchChildren, new Set([catchParam]), true)
 	return {

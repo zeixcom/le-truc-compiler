@@ -1,9 +1,4 @@
-/**
- * Tests for import-placement inference of plain (non-`.tsrx`) imports
- * (ADR 0005 sub-design 14): a plain top-level import's local
- * bindings are placed into the generated server module, client module, or
- * both, inferred from where they're actually used — no manual annotation.
- */
+/** Import-placement inference of plain (non-`.tsrx`) imports: a plain top-level import's bindings place into the server module, client module, or both, inferred from where they're actually used — no manual annotation. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 
@@ -85,7 +80,7 @@ describe('plain import used both server- and client-side', () => {
 	// is correctly static and the client would need no code at all. As a
 	// signal, the client re-emits the initializer to seed it, which is what
 	// pulls `bothHelper` into the client module.
-	// The seed carries the scalar `harvest()` marker (): an imported
+	// The seed carries the scalar `harvest()` marker: an imported
 	// callee's return type is one the compiler cannot read, so the direct-
 	// site harvest needs a declared parser. The setup statement still reads
 	// `bothHelper`, so the import places into both modules as before.
@@ -123,7 +118,7 @@ describe('plain import used only inside a bare (non-arrow) attribute expression'
 	// `helper(count)` classifies as a `'server'`-kind attribute (the
 	// classifier's fallback for any non-arrow `{…}` expression) — spliced
 	// verbatim and unconditionally into the server module by emit-server.ts,
-	// with no other usage site anywhere else in the template ().
+	// with no other usage site anywhere else in the template.
 	const source = `import { helper } from '../../_common/helper.ts'
 
 	export function C({ count }: { count: number })

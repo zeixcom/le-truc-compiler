@@ -34,9 +34,7 @@ form-textbox {
 		}
 	}
 
-	/* Native validity styling — replaces the old aria-invalid attribute hook.
-	   :user-invalid matches after user interaction (the right UX for required
-	   fields); :invalid would match immediately on page load. */
+	/* Native validity styling — replaces the old aria-invalid attribute hook. :user-invalid matches after user interaction (the right UX for required fields); :invalid would match immediately on page load. */
 	&:user-invalid input,
 	&:user-invalid textarea {
 		box-shadow: 0 0 var(--space-xxs) 2px var(--color-error-invalid);

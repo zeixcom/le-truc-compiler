@@ -1,47 +1,3 @@
-/**
- * The one structural `TemplateNode` visitor (regrouping move M3 of
- * LE_TRUC_COMPILER.md §7). Traversal — element/compose children, `@if`
- * branches, `@switch` arms, `@try` arms, and whether composed children are
- * entered — is encoded HERE, once; consumers express only what they collect
- * per node.
- *
- * `@pending` policy (one ruling for every walk): an async boundary's
- * pending arm is RENDERED markup — the live winner while the task has no
- * value, and template content otherwise (ADR 0015 s4) — so every walk
- * enters it, as it enters every conditional arm. The arm admits only static
- * and server markup (`handleAsyncBoundary` rejects client constructs
- * there), so a walk looking for client constructs finds nothing and pays
- * nothing; a walk collecting what the DOM contains (compose sites, ids,
- * rendered props) must see it. A composed element nested below the pending
- * root is valid authoring — the  probe only covered a compose site AS
- * the root. Exclusivity arithmetic follows the same fact: one arm of a
- * boundary is in the document at a time, with or without a pending arm
- * (max).
- *
- * Authorized exceptions — walks whose recursion IS the semantics, so they
- * keep their own descent (structural steps still go through `childNodes`
- * where they apply):
- * - probe materialization: `serializeNodes`
- *   (`analysis/probe.ts`, ) — the selector proof's
- *   serializer, whose recursion threads each element's exclusive-arm path
- *   (stamped as an attribute the aggregation reads: max over exclusive
- *   arms, sum over coexisting ones);
- * - path-context threading: `refBranchGuard` (guard conjunction),
- *   `inOptionalBranch` (optional-`@if` flag), `checkFoldInputs` (lexical
- *   scope per arm);
- * - element-chain-only searches that deliberately stop at control flow
- *   other than `@if`: `enclosingIfOf`/`enclosingIfIn`, `findMirror`,
- *   `findHoleParent`, `hasClientConstructs`,
- *   `markPositionallyReactive`, and the depth-guarded `hasDeepConstruct`;
- * - pass-interleaved walks: `recordSites` (harvest), `emitTopEffects`
- *   (effect planning) and the server emitter (`emit`, `shape`);
- * - front-end validation scoped to one construct: a reactive-list body
- *   and a composed element's content (`lower-shared.ts`).
- *
- * A new `TemplateNode` variant needs one `childNodes` case here plus edits
- * only in the modules that care about it.
- */
-
 import type {
 	AttributeIR,
 	ComponentIR,
@@ -53,7 +9,7 @@ import { attributeReactivity } from './reactivity'
 
 /* === Conditionals === */
 
-/** A conditional node (ADR 0021 s4), either construct, either mode. */
+/** A conditional node, either construct, either mode. */
 export type ConditionalNode = Extract<TemplateNode, { kind: 'conditional' }>
 /** An `@if`/`@else` (or `.tsx` ternary/`&&`): arms `then` and `else`. */
 export type IfNode = ConditionalNode & { construct: 'if' }
@@ -76,20 +32,10 @@ export const thenOf = (node: IfNode): TemplateNode[] =>
 export const elseOf = (node: IfNode): TemplateNode[] =>
 	node.arms[1]?.children ?? []
 
-/**
- * Does `node` switch its arms on the client through `reconcile()` (ADR
- * 0037) — a reactive conditional, or an async boundary (s4)?
- */
 export const hasArmSet = (node: TemplateNode): boolean =>
 	(node.kind === 'conditional' && node.mode === 'reactive') ||
 	(node.kind === 'try' && node.pendingChildren !== null)
 
-/**
- * An arm set's index: its position among the component's reactive
- * conditionals and async boundaries in document order. The server stamps it
- * on the arm templates (`data-arms`) and the client queries by it, so both
- * emitters derive it from the IR, never from emitter state.
- */
 export const armSetOf = (root: TemplateNode, target: TemplateNode): number => {
 	let index = -1
 	let found = -1
@@ -101,15 +47,6 @@ export const armSetOf = (root: TemplateNode, target: TemplateNode): number => {
 	return found
 }
 
-/**
- * A reactive list's index (ADR 0024 s2): its position among the component's
- * reconcile loops in document order (pre-order, so an outer list precedes
- * the lists nested in its item). The server stamps it on the
- * extracted item template (`data-list`), hoisted to the host's end, and the
- * client queries it from the host (`:scope > template[data-list="N"]`), so
- * both emitters derive it from the IR, never from emitter state — the same
- * rule as `armSetOf`, and what lifts the one-list-per-component limit.
- */
 export const listIndexOf = (
 	root: TemplateNode,
 	fors: ReadonlyMap<unknown, ForIR>,
@@ -128,12 +65,6 @@ export const listIndexOf = (
 	return found
 }
 
-/**
- * The reactive lists whose item holds `target`, outermost first (ADR 0024
- * s2): their item and key bindings are unbound wherever `target`'s list
- * template renders, because that template renders once, at the host's end.
- * A list is not counted as enclosing its own output.
- */
 export const enclosingLists = (
 	root: TemplateNode,
 	fors: ReadonlyMap<unknown, ForIR>,
@@ -158,17 +89,6 @@ export const enclosingLists = (
 	return search(root, []) ?? []
 }
 
-/**
- * The names one loop binds in the scope that renders it (TC-007): the
- * item; an `@each`'s index and hoisted consts; a reactive list's
- * item-setup names. The reconcile key is NOT here, on purpose — the render
- * scope binds it (the server loop opens `for (const [key, item] of …)`),
- * the factory scope does not (its loop never opens; the item mount does) —
- * so collectors add such extras themselves. The shared core of
- * `renderScopeNames` (emit-server.ts) and `factoryScopeNames`
- * (emit-client.ts), the shadow-alias policy's two name sets: whatever this
- * walk returns, both must agree on.
- */
 export const loopBindingNames = (loop: ForIR, into: Set<string>): void => {
 	into.add(loop.itemName)
 	if (loop.kind === 'each') {
@@ -177,14 +97,6 @@ export const loopBindingNames = (loop: ForIR, into: Set<string>): void => {
 	} else for (const stmt of loop.setup) if (stmt.name) into.add(stmt.name)
 }
 
-/**
- * Does `target` sit inside a Mount Scope other than the host (ADR 0024 s1)
- * — in an arm of an arm set, or inside a reactive-list item? Strict: an arm
- * set or a list is itself nested when its POSITION is, so a list whose
- * output sits in an arm is nested, and the item root is not counted as
- * inside its own item. A nested construct emits into its nearest enclosing
- * scope's mount (), never as a host-level query.
- */
 export const inNestedScope = (
 	root: TemplateNode,
 	fors: ReadonlyMap<unknown, ForIR>,
@@ -205,11 +117,6 @@ export const inNestedScope = (
 	return search(root, false) ?? false
 }
 
-/**
- * Immediate children of a node under the standard traversal, document order
- * preserved: element and compose children, every conditional arm, and all present `@try` arms (pending last, entered by
- * policy — see the module doc).
- */
 export const childNodes = (node: TemplateNode): readonly TemplateNode[] => {
 	switch (node.kind) {
 		case 'element':
@@ -229,13 +136,6 @@ export const childNodes = (node: TemplateNode): readonly TemplateNode[] => {
 }
 
 export type WalkOptions = {
-	/**
-	 * Recurse into composed children. Default true; the compose node itself
-	 * is always visited. Consumers that treat composition as a boundary
-	 * (compose-element collection) pass false. A compose site's content is
-	 * the composing component's markup (ADR 0026 s1), so `first()` element
-	 * collection enters it.
-	 */
 	intoCompose?: boolean
 }
 
@@ -259,11 +159,6 @@ export const walkTemplate = (
 	walk(node, null)
 }
 
-/**
- * Does `predicate` hold for any node under the standard traversal? Pre-order,
- * stopping at the first hit — the short-circuiting sibling of
- * {@link walkTemplate} for presence searches and first-offender validation.
- */
 export const someNode = (
 	node: TemplateNode,
 	predicate: (node: TemplateNode) => boolean,
@@ -277,12 +172,6 @@ export const someNode = (
 	return search(node)
 }
 
-/**
- * Every `element`-kind attribute in traversal order (compose attributes are
- * `ComposeAttrIR`, a different vocabulary — deliberately not included here;
- * `imports.ts`'s `clientExprNodes` walks compose `pass` thunks separately,
- * ).
- */
 export const collectAttrs = (
 	node: TemplateNode,
 	options?: WalkOptions,
@@ -298,18 +187,6 @@ export const collectAttrs = (
 	return out
 }
 
-/**
- * Every composed (PascalCase) element in a component's template, for
- * cross-file resolution against the corpus-wide registry (ADR 0005
- * sub-design 10). Traversal via `walkTemplate` (): composition is a
- * boundary (composed children are the child component's own template);
- * `@pending` arms are entered like every arm () — a compose site
- * nested below the pending root renders and must resolve.
- *
- * Lives at the machinery level (): a pure `ComponentIR` walk the
- * shared pipeline consumes, so the machinery does not depend on a front
- * end for it.
- */
 export const collectComposeElements = (
 	component: ComponentIR,
 ): Array<TemplateNode & { kind: 'compose' }> => {
@@ -323,16 +200,6 @@ export const collectComposeElements = (
 	return out
 }
 
-/**
- * Does this attribute carry a client construct — something the client
- * module binds or addresses (LT-231: the one answer; every "has its own
- * client construct" check derives from it)? Read off the recorded class
- * (ADR 0018 s7, none re-derives): a `reactive` value is bound — including
- * the ticket's arg-and-prop `server` attribute and a reactive `truc:html` — and
- * the kinds with no template value (event, `truc:pass`, ref) are addressed.
- * A `static` or `server` value — a non-reactive `truc:html={ref}` included
- * () — is render-only.
- */
 export const isClientConstructAttr = (a: AttributeIR): boolean => {
 	const reactivity = attributeReactivity(a)
 	return reactivity === 'reactive' || reactivity === null

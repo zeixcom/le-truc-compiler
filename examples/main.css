@@ -1,15 +1,4 @@
-/*
- * Page CSS. A folder whose served surface is compiled imports the
- * compiler's EMITTED stylesheet (ADR 0033 s10, LT-397); runtime-only
- * folders import their hand-written sheet. css-probe stays out (its spec
- * injects the emitted sheet itself).
- *
- * Page CSS comes first: `_global.css` before every component sheet. The
- * lowered emission has no scope proximity, so a tie native `@scope` breaks
- * by proximity falls to source order here, and page-first lets a component
- * win a tie with the page (ADR 0033 s4). The order between components is
- * unspecified — no order is right for every composition.
- */
+/* Page CSS. A folder whose served surface is compiled imports the compiler's emitted stylesheet; runtime-only folders import their hand-written sheet; css-probe stays out (its spec injects the emitted sheet itself). Page CSS comes first: `_global.css` before every component sheet — the lowered emission has no scope proximity, so a tie that native `@scope` would break by proximity falls to source order here, and page-first lets a component win a tie with the page. The order between components is unspecified — no order is right for every composition. */
 @import "./_global.css";
 @import "../server/generated/components/basic-blogmeta.css";
 @import "../server/generated/components/basic-button.css";
@@ -53,9 +42,7 @@
 @import "../server/generated/components/module-tabgroup.css";
 @import "../server/generated/components/module-ticker.css";
 @import "../server/generated/components/module-todo.css";
-/* section-menu cut over in LT-469: the folder's hand-written
-   section-menu.css stays as the twin-era sheet (unimported, like
-   module-todo.css); the page bundles the set's emitted stylesheet. */
+/* section-menu: the folder's hand-written section-menu.css stays as the twin-era sheet (unimported, like module-todo.css); the page bundles the set's emitted stylesheet. */
 @import "../server/generated/components/section-menu.css";
 @import "./section/hero/section-hero.css";
 @import "./section/menu/chapter-nav.css";

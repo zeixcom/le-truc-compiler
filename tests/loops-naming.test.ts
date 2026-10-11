@@ -1,11 +1,4 @@
-/**
- * Standalone unit tests for `analysis/loops.ts` (`runLoops` M5) and
- * `analysis/naming.ts` (): the same "hand-build a `PassShared`,
- * call one pass" granularity `analysis.test.ts` already gives
- * `runHarvest`/`runEffects`/the selector engine, extended to loop planning
- * and name allocation so a regression there fails locally instead of only
- * via a golden diff.
- */
+/** Unit tests for `analysis/loops.ts` and `analysis/naming.ts`: hand-build a `PassShared`, call one pass, so regressions fail locally instead of only via a golden diff. */
 import { describe, expect, test } from 'bun:test'
 import { runLoops } from '../src/analysis/loops'
 import { addQuery, uniqueName } from '../src/analysis/naming'
@@ -188,8 +181,7 @@ describe('uniqueName', () => {
 describe('addQuery', () => {
 	const component = {
 		tag: 'c-el',
-		//: `addQuery` consults this to keep an
-		// author-declared optional ref optional.
+		// `addQuery` consults this to keep an author-declared optional ref optional.
 		firstRefs: new Map(),
 	} as unknown as ComponentIR
 

@@ -1,26 +1,18 @@
-/**
- * `ir.ts` is a pure-data leaf (): type-only imports of the loose
- * `AstNode` and other data leaves, and no function-bearing type anywhere —
- * the front end's mutable `ExtractContext` lives in `extract-context.ts`.
- * A `ComponentIR` therefore stays a serializable data structure.
- */
+/** `ir.ts` is a pure-data leaf: type-only imports of the loose `AstNode` and other data leaves, and no function-bearing type anywhere — the front end's mutable `ExtractContext` lives in `extract-context.ts`, so a `ComponentIR` stays a serializable data structure. */
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import * as path from 'node:path'
 import { parse } from '@typescript-eslint/typescript-estree'
-import type { AstNode } from '../src/ast-node'
-import { walkNodes } from '../src/ast-utils'
+import { type AstNode, walkNodes } from '../src/ast-utils'
 
 const IR_PATH = path.resolve(import.meta.dir, '../src/ir.ts')
 
 /** The leaves `ir.ts` may import types from. */
 const ALLOWED_IMPORTS: ReadonlySet<string> = new Set([
-	'./ast-node',
+	'./ast-utils',
 	'./icu/parse',
 	'./surface',
-	// The parsed stylesheet's vendor type () — type-only, erased at
-	// runtime; the alias lives in ir.ts because `css.ts` is
-	// function-bearing and the ticket's leaves stay data.
+	// The parsed stylesheet's vendor type — type-only, erased at runtime; the alias lives in ir.ts because `css.ts` is function-bearing and the leaves stay data.
 	'lightningcss-wasm',
 ])
 

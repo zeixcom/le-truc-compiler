@@ -1,10 +1,3 @@
-/**
- * The shared glob machinery () — moved into the compiler package at
- * , where the semantics are owned (see `server/compiler/fs.ts`, the
- * package's file-system seam). This re-export keeps the runtime seam's
- * import graph stable: `bun.ts` and `node.ts` keep one translator, so a
- * consumer's corpus cannot match one file set under Bun and another under
- * Node.
- */
+/** The shared glob machinery, re-exported from the compiler package where the semantics are owned (`src/fs.ts`, the file-system seam). This keeps the runtime seam's import graph stable: `bun.ts` and `node.ts` share one translator, so a consumer's corpus cannot match one file set under Bun and another under Node. */
 
 export { globToRegExp, matchGlob, scanGlobSync } from '../../src/fs'

@@ -1,22 +1,3 @@
-/**
- * The corpus configuration surface (ADR 0012 sub-design 1).
- *
- * A corpus is "every authored component source a project wants compiled, and
- * where the generated artifacts go". This repo's docs build is ONE consumer of
- * that mechanism, not the mechanism itself: its `examples/**` globs and its
- * `server/generated/components/` output root are the DEFAULTS, and an
- * installing project overrides them from a `le-truc.config.json` at its own
- * root.
- *
- * This module is pure — types, defaults, validation, and path math. It reads
- * no files and calls no runtime-specific API (no `Bun.*`, no
- * `import.meta.dir`), so `server/compiler/` stays runtime-neutral (ADR 0016
- * s2; `node:path` is the one built-in allowed). Config LOADING and source
- * globbing live beside it in `corpus-scan.ts`, over the package's own
- * file-system seam (`fs.ts`). The emitter-facing subset lives one
- * level down in `emit-paths.ts`.
- */
-
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 import {
 	CSS_BROWSERS,
@@ -33,92 +14,24 @@ import {
 
 /** The config file an installing project puts at its own root. */
 export const CONFIG_FILENAME = 'le-truc.config.json'
-
-/**
- * Source globs, relative to the project root.
- *
- * BOTH authored extensions (ADR 0010 sub-design 6): the front end is chosen
- * per file by extension in `compileCorpus`. Before  the standalone
- * runner globbed `.tsrx` only while `check:corpus` and the build effect
- * globbed both, so a `.tsx` component was invisible to `build:cem` and
- * `typecheck` (VOCABULARY_LEDGER § 1, "Known gap"). One configured glob list
- * closes that as a side effect — there is now a single place to widen.
- */
 export const DEFAULT_SOURCES = ['examples/**/*.tsrx', 'examples/**/*.tsx']
-
-/**
- * Hand-written custom-element modules the corpus may address, relative to the
- * project root.
- *
- * These are components the compiler does NOT produce but must know about:
- * a reactive attribute on one of their tags lowers to `pass()` rather than
- * `bindProperty()`, and a generated client imports the module so the tag is
- * defined. Files are matched to tags by filename (`basic-button.ts` →
- * `basic-button`); a file whose stem is not a valid custom-element tag is
- * skipped, which is how helpers (`main.ts`) and tests stay out.
- */
 export const DEFAULT_SIBLING_MODULES = ['examples/**/*.ts']
-
-/**
- * Directory holding the committed per-locale translation catalogs, relative
- * to the project root (ADR 0009 sub-design 5).
- *
- * Configured for the same reason the sources are: a consumer's build that
- * read THIS repo's catalogs would census another project's translation keys
- * as orphans. A project with no such directory gets zero locales and zero
- * gaps, which is the correct answer for one that does not translate.
- */
 export const DEFAULT_I18N_DIR = 'i18n'
-
-/**
- * Locales the corpus builds for, first one the default page locale
- * (ADR 0009 sub-design 1) — the list the generated `i18n` module
- * enumerates (`I18N_LOCALES`) and the translation census walks.
- *
- * The default is this repo's own site locales, per the defaults rule above
- * (the defaults ARE this repo's paths). The list is deliberately NOT
- * derived from the catalogs on disk: the catalogs carry every LOCALE a
- * translator has ever filed (six today), while the site builds a chosen
- * subset (the source locale plus German), and the page tree — not the
- * catalog directory — is what decides that.
- */
 export const DEFAULT_LOCALES: readonly string[] = ['en', 'de']
-
 export { DEFAULT_OUT_DIR, DEFAULT_RUNTIME_IMPORT }
 
-/* === Variant surface selection (ADR 0017) === */
+/* === Variant surface selection === */
 
-/**
- * The authored surface a variant set serves, when the corpus folder carries
- * more than one spelling of one tag (ADR 0017).
- */
 export type VariantSurface = 'tsx' | 'tsrx'
 
-/**
- * The served surface for a variant set with no per-tag override: `.tsx`, the
- * ADR 0010 default surface — default by rule, not by practice (ADR 0017,
- * declining the explicit-selection alternative).
- */
 export const DEFAULT_VARIANT_SURFACE: VariantSurface = 'tsx'
 
 const VARIANT_SURFACES: readonly VariantSurface[] = ['tsx', 'tsrx']
 
-/**
- * A custom-element tag — the shape `variantOverrides` keys must have.
- * Mirrors the discovery rule in `compileCorpus`, which derives a source's
- * tag from its file stem the same way.
- */
 const TAG_PATTERN = /^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$/
 
 /* === Types === */
 
-/**
- * The config file's shape — every field optional, defaults as above.
- *
- * A `CorpusConfigInput` in hand is NOT proof one came from a trusted file:
- * the resolver validates the runtime value (), rejecting unknown keys
- * and mistyped fields instead of silently defaulting them.
- */
 export type CorpusConfigInput = {
 	/** Globs selecting authored `.tsx`/`.tsrx` component sources. */
 	sources?: string[]
@@ -128,31 +41,11 @@ export type CorpusConfigInput = {
 	outDir?: string
 	/** Translation-catalog directory, relative to the root. */
 	i18nDir?: string
-	/**
-	 * Locales the corpus builds for; the first is the default page locale
-	 * (ADR 0009 sub-design 1). Defaults to this repo's site locales.
-	 */
 	locales?: string[]
 	/** Specifier the generated server modules import the harness from. */
 	runtimeImport?: string
-	/**
-	 * Surface a variant set serves when no per-tag override applies
-	 * (ADR 0017). Defaults to `.tsx`.
-	 */
 	variantSurface?: VariantSurface
-	/**
-	 * Per-tag surface overrides for variant sets, keyed by custom-element
-	 * tag (ADR 0017).
-	 */
 	variantOverrides?: Partial<Record<string, VariantSurface>>
-	/**
-	 * The CSS target (ADR 0011 s5): minimum browser versions, keyed
-	 * by browser. Decides native `@scope` vs the flat-selector lowering and
-	 * feeds lightningcss's own lowering. A version is an integer major
-	 * (`118`) or a `"major.minor[.patch]"` string (`"17.4"`). A browser left
-	 * out imposes no constraint. Defaults to Baseline widely available
-	 * (`DEFAULT_CSS_TARGETS`).
-	 */
 	cssTargets?: { [browser in CssBrowser]?: number | string }
 }
 
@@ -166,28 +59,17 @@ export type CorpusConfig = {
 	i18nDir: string
 	/** Locales the corpus builds for; the first is the default page locale. */
 	locales: readonly string[]
-	/**
-	 * Specifier the generated server modules import the render harness from.
-	 * Optional in the hand-built form: omitted, the published package's own
-	 * `./runtime` subpath applies () — a consumer never sets it. The
-	 * loader always fills it, from the file's value or that same default.
-	 */
 	runtimeImport?: string
-	/** Surface a variant set serves with no override (ADR 0017). */
+	/** Surface a variant set serves with no override. */
 	variantSurface: VariantSurface
-	/** Per-tag variant-surface overrides (ADR 0017). */
+	/** Per-tag variant-surface overrides. */
 	variantOverrides: Readonly<Record<string, VariantSurface>>
-	/** The resolved CSS target (ADR 0011 s5, LT-304). */
+	/** The resolved CSS target. */
 	cssTargets: CssTargets
 }
 
 /* === Internal Functions === */
 
-/**
- * The keys `CorpusConfigInput` accepts, spelled for the unknown-key error.
- * Kept beside the type it mirrors; the validation test pins the list, so a
- * field added to the type without this list fails the suite.
- */
 const ACCEPTED_KEYS: readonly string[] = [
 	'sources',
 	'siblingModules',
@@ -210,18 +92,6 @@ const fail = (message: string): never => {
 	throw new Error(`${CONFIG_FILENAME}: ${message}`)
 }
 
-/**
- * Shape-check untrusted config JSON before any path math runs ().
- *
- * The config file is the entire surface a consumer touches at install time,
- * and until  it was parsed as trusted: a mis-cased key was silently
- * ignored and fell back to THIS repo's defaults — which, in a consumer
- * project, match nothing — and a string where an array belongs spread into
- * single-character globs. Every departure from the documented shape is
- * therefore a thrown startup error naming the file, the field, what was
- * received and what was expected (ADR 0014 s3's untiered corollary: the
- * message text IS the whole user experience — no `LTC` code applies).
- */
 const validateConfigInput = (input: CorpusConfigInput): void => {
 	if (typeof input !== 'object' || input === null || Array.isArray(input))
 		fail(
@@ -231,9 +101,6 @@ const validateConfigInput = (input: CorpusConfigInput): void => {
 		(input as Record<string, unknown>)[key]
 	for (const key of Object.keys(input)) {
 		if (ACCEPTED_KEYS.includes(key)) continue
-		// A mis-cased key ("outdir") is the worst silent case — it reads as
-		// configured and writes to the default. The did-you-mean is free:
-		// the key set is closed and tiny.
 		const suggestion = ACCEPTED_KEYS.find(
 			accepted => accepted.toLowerCase() === key.toLowerCase(),
 		)
@@ -275,10 +142,6 @@ const validateConfigInput = (input: CorpusConfigInput): void => {
 				`${where} must be one of: ${VARIANT_SURFACES.map(s => `"${s}"`).join(', ')} — received ${received(v)}.`,
 			)
 	}
-	/**
-	 * `"17.4"` — a `major.minor` (optionally `.patch`) version string; the
-	 * shape Safari's `@scope` support needs a key for.
-	 */
 	const VERSION_PATTERN = /^\d+(\.\d+){1,2}$/
 	const cssTargetsValue = (v: unknown): void => {
 		if (typeof v !== 'object' || v === null || Array.isArray(v))
@@ -297,9 +160,6 @@ const validateConfigInput = (input: CorpusConfigInput): void => {
 							: ''),
 				)
 			}
-			// Each component caps at 255: the packed encoding is
-			// `major << 16 | minor << 8 | patch`, and a component above 255
-			// bleeds into its neighbour's bits.
 			const ok =
 				(typeof version === 'number' &&
 					Number.isInteger(version) &&
@@ -319,8 +179,6 @@ const validateConfigInput = (input: CorpusConfigInput): void => {
 	stringArray('sources')
 	stringArray('siblingModules')
 	stringArray('locales')
-	// The first locale is the default page locale, so an empty list has no
-	// meaning — refuse it at load like an empty `sources` list.
 	const locales = value('locales')
 	if (Array.isArray(locales) && locales.length === 0)
 		fail(
@@ -352,11 +210,6 @@ const validateConfigInput = (input: CorpusConfigInput): void => {
 	if (value('cssTargets') !== undefined) cssTargetsValue(value('cssTargets'))
 }
 
-/**
- * Pack a validated `cssTargets` input into lightningcss's encoding —
- * integers are majors, `"17.4"` strings split into major/minor/patch.
- * Validation has already guaranteed the shape.
- */
 const resolveCssTargets = (
 	input: CorpusConfigInput['cssTargets'],
 ): CssTargets => {
@@ -377,30 +230,12 @@ const resolveCssTargets = (
 
 /* === Exported Functions === */
 
-/**
- * `../` once per segment of `outDir` below `root`.
- *
- * `server/generated/components` → `../../../`, the value this repo's layout
- * hard-coded before .
- */
 export const outDirPrefix = (root: string, outDir: string): string => {
 	const rel = relative(root, outDir)
 	const segments = rel.split(sep).filter(s => s.length > 0 && s !== '.')
 	return '../'.repeat(segments.length)
 }
 
-/**
- * Resolve a config file's contents (or nothing) against a project root.
- *
- * The input is untrusted JSON (): `validateConfigInput` throws on an
- * unknown key or a mistyped field before any of the semantic checks below
- * run. Relative path fields resolve against `root`; an absolute one is taken
- * as given. Throws on an output root outside the project root — the emitted
- * relative specifiers are expressed as "`../` back to the root, then a
- * root-relative path", a scheme that cannot address an output root the root
- * does not contain. That is a configuration mistake, not an authoring one, so
- * it is a thrown error rather than a compile diagnostic.
- */
 export const resolveCorpusConfig = (
 	root: string,
 	input: CorpusConfigInput = {},
@@ -424,9 +259,6 @@ export const resolveCorpusConfig = (
 			`${CONFIG_FILENAME}: "sources" must list at least one glob.`,
 		)
 	const locales = input.locales ?? DEFAULT_LOCALES
-	// Validation guarantees every present override value is a surface; the
-	// Partial type still admits undefined, so build the resolved map
-	// explicitly instead of spreading.
 	const variantOverrides: Record<string, VariantSurface> = {}
 	for (const [tag, surface] of Object.entries(input.variantOverrides ?? {}))
 		if (surface !== undefined) variantOverrides[tag] = surface
@@ -446,22 +278,6 @@ export const resolveCorpusConfig = (
 	}
 }
 
-/**
- * Reject a `variantOverrides` entry that points at no variant set ().
- *
- * Selection applies only WITHIN a set, so an override for a tag with one
- * authored source, or for no tag at all (a renamed or deleted component, a
- * tag-shaped typo), would be silently ignored — the ticket's "it compiled, but
- * nothing is where I asked". The sets are only known after the corpus scan,
- * so this runs there (after the LTC048 pre-check), not at config load; the
- * error is still a thrown configuration error, untiered like the's. No
- * `LTC` code applies: no component source is at fault.
- *
- * `sourcesByTag` maps each declared tag to its authored sources. A tag with
- * two or more sources that are NOT a set is LTC048's to report, not this
- * check's. A corpus-wide `variantSurface` with no set present is not an
- * error: it is a policy default, not a pointer.
- */
 export const validateVariantOverrides = (
 	config: CorpusConfig,
 	sourcesByTag: ReadonlyMap<string, readonly string[]>,
@@ -482,9 +298,6 @@ export const validateVariantOverrides = (
 /** The emitter-facing projection of a configuration. */
 export const emitPathsFor = (config: CorpusConfig): EmitPaths => ({
 	outDirPrefix: outDirPrefix(config.root, config.outDir),
-	// The hand-built form may omit `runtimeImport` (): the default is
-	// the published harness subpath, applied here rather than at every emit
-	// call site.
 	runtimeImport: config.runtimeImport ?? DEFAULT_RUNTIME_IMPORT,
 	cssTargets: config.cssTargets,
 })

@@ -1,19 +1,11 @@
-/**
- * The per-field harvest's front-end half (ADR 0024 s7): a
- * `createList` declaration's item type, read syntactically, and the
- * `harvest()` marker's parser map.
- *
- * The compiler has no type checker, so the item type is resolved from the
- * source alone: the declaring call's first type argument, else the element
- * type of the seed arg's annotation, followed through a same-file `type`
- * alias or an `interface` without `extends`. A field's parser is inferred
- * from its type (`string` and string-literal unions → `asString`, `number`
- * → `asNumber`, `boolean` → `asBoolean`); anything else has none, and only
- * a `harvest()` entry can declare it.
- */
-
-import type { AstNode } from './ast-node'
-import { asArray, identifierName, isNode, nodeType, text } from './ast-utils'
+import {
+	type AstNode,
+	asArray,
+	identifierName,
+	isNode,
+	nodeType,
+	text,
+} from './ast-utils'
 import type { ExtractContext } from './extract-context'
 import { claimMarker, markerOf } from './imports'
 import type {
@@ -40,12 +32,6 @@ const typeArgumentsOf = (call: AstNode): AstNode[] => {
 	return isNode(args) ? asArray(args.params) : []
 }
 
-/**
- * Follow a bare `TSTypeReference` to the same-file declaration it names: a
- * `type` alias's right-hand side, or an `interface` without `extends` (its
- * body). Anything else — a generic reference, an imported name, an
- * interface that extends — is returned unchanged.
- */
 const followAlias = (
 	node: AstNode,
 	types: ReadonlyMap<string, AstNode>,
@@ -73,7 +59,7 @@ const isStringLiteralType = (node: AstNode): boolean =>
 	isNode(node.literal) &&
 	typeof (node.literal as AstNode).value === 'string'
 
-/** The parser a field type infers (LT-440's mapping), or null. */
+/** The parser a field type infers, or null. */
 const parserForField = (
 	annotation: AstNode,
 	types: ReadonlyMap<string, AstNode>,
@@ -116,9 +102,7 @@ const fieldsOf = (
 		if (!name || !isNode(member.typeAnnotation)) continue
 		const annotation = member.typeAnnotation as AstNode
 		const authored = text(source, unwrapAnnotation(annotation))
-		// An optional field may be `undefined` on the server, which no
-		// inferred parser reproduces (an absent site reads the parser's
-		// fallback): only a `harvest()` entry declares its parser.
+		// An optional field may be `undefined` on the server, which no inferred parser reproduces (an absent site reads the parser's fallback): only a `harvest()` entry declares its parser.
 		fields.push(
 			member.optional
 				? { name, typeText: `${authored} | undefined`, parser: null }
@@ -132,7 +116,7 @@ const fieldsOf = (
 	return fields
 }
 
-/** An item type node's shape (ADR 0024 s7). */
+/** An item type node's shape. */
 const shapeOf = (
 	node: AstNode,
 	types: ReadonlyMap<string, AstNode>,
@@ -175,8 +159,7 @@ const elementTypeOf = (
 		if ((name === 'Array' || name === 'ReadonlyArray') && args.length === 1)
 			return args[0] as AstNode
 	}
-	// `rows?: T[]` arrives as the bare array type; an explicit
-	// `T[] | undefined` keeps its one array member.
+	// `rows?: T[]` arrives as the bare array type; an explicit `T[] | undefined` keeps its one array member.
 	if (resolved.type === 'TSUnionType') {
 		const members = asArray(resolved.types).filter(
 			m => m.type !== 'TSUndefinedKeyword' && m.type !== 'TSNullKeyword',
@@ -211,11 +194,6 @@ const argAnnotation = (
 	return null
 }
 
-/**
- * The field a `keyConfig` returns verbatim: `item => item.id`, or
- * `item => item['id']`. Any other key function derives the key, so no
- * field comes from `data-key`.
- */
 const keyFieldOf = (options: unknown): string | null => {
 	if (nodeType(options) !== 'ObjectExpression') return null
 	for (const prop of asArray((options as AstNode).properties)) {
@@ -256,8 +234,7 @@ export const collectModuleTypes = (
 		)
 			continue
 		const name = identifierName(decl.id)
-		// A merged interface (two declarations of one name) or a generic
-		// declaration is not one readable shape.
+		// A merged interface (two declarations of one name) or a generic declaration is not one readable shape.
 		if (!name || types.has(name) || isNode(decl.typeParameters)) {
 			if (name) types.set(name, { type: 'Unreadable' })
 			continue
@@ -267,11 +244,6 @@ export const collectModuleTypes = (
 	return types
 }
 
-/**
- * A `createList` call's item type (ADR 0024 s7): the first type argument,
- * else the element type of the seed arg's annotation (`seed` is the seed a
- * `harvest()` marker wraps, when there is one).
- */
 export const resolveListItem = (
 	ctx: ExtractContext,
 	call: AstNode,
@@ -297,11 +269,6 @@ export const resolveListItem = (
 	}
 }
 
-/**
- * Why a `harvest()` call cannot be read, or its seed and parser. The list
- * form is `harvest(seed, { field: parser, … })` with a literal map of
- * plain keys; the scalar form is `harvest(seed, parser)` ().
- */
 export type HarvestCall =
 	| {
 			form: 'list'
@@ -315,11 +282,6 @@ export type HarvestCall =
 	  }
 	| { form: 'malformed'; call: AstNode; what: string; fix: string }
 
-/**
- * Read a `harvest()` marker call. `node` is a call expression; null when
- * its callee is not the marker (ADR 0012 s1: resolved by binding, through
- * the enclosing scopes' declarations in `enclosing`).
- */
 export const harvestCallOf = (
 	ctx: ExtractContext,
 	node: unknown,
@@ -328,8 +290,7 @@ export const harvestCallOf = (
 	if (nodeType(node) !== 'CallExpression') return null
 	const call = node as AstNode
 	if (markerOf(ctx, call.callee, enclosing) !== 'harvest') return null
-	// Read here, refused or not: whatever the caller reports names it, so
-	// the unclaimed-marker sweep does not report it again.
+	// Read here, refused or not: whatever the caller reports names it, so the unclaimed-marker sweep does not report it again.
 	claimMarker(ctx, call.callee)
 	const [seed, second, ...rest] = asArray(call.arguments)
 	if (!seed || !second || rest.length > 0)

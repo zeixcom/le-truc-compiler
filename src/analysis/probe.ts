@@ -1,65 +1,3 @@
-/**
- * The materialized-probe selector engine ([ADR
- * 0045](../adr/0023-the-structural-uniqueness-proof-runs-on-a-materialized-probe.md);
- * promoted from the  spike). The structural-uniqueness proof does not
- * walk the template IR by hand — it serializes the template the compiler
- * renders to HTML, parses that with parse5, and answers matching, counting,
- * and match-existence with [css-select](https://github.com/fb55/css-select)
- * over one aggregation walk. The premise is unchanged: the compiler wrote
- * this HTML, so counting matches in the probe is counting matches in the
- * DOM — and per ADR 0023 Decision 2 the probe is BROWSER-FAITHFUL: it
- * counts what a browser's parse of the emitted markup builds, not what the
- * authored nesting says. Valid authoring never diverges; the one divergence
- * class (content-model-violating nesting, e.g. `<p><div>…</div></p>`) is
- * pinned as documentation in `server/tests/compiler/
- * probe-differential.test.ts`.
- *
- * The serialization encodes the branch-exclusivity arithmetic in an
- * ATTRIBUTE on every element, not in wrapper elements (ADR 0023
- * rider). Each element carries `data-lt-probe-arm`, the path of the
- * mutually exclusive arms it sits in (`<group>:<arm>` segments joined by
- * `/`, outermost first; absent at top level). An `@if`, an `@switch` and a
- * `@try` without `@pending` open a group; a `@try` WITH `@pending` opens
- * none — its arms coexist and sum, as the DOM does (the ticket's recorded
- * `@pending` policy). A count aggregates the matched elements' paths: sum
- * within an arm, MAX over the arms of a group. Wrapper elements were the
- * first design () and HTML tree correction defeated them: parse5
- * foster-parents an unknown element out of table context and drops it
- * inside `<select>`, so the arms lost their group and summed. An attribute
- * travels with its element through every tree-correction move, so the
- * arithmetic survives whatever the browser builds. An element the parser
- * implies carries no path of its own and takes its nearest ancestor's (an
- * implied `<tbody>` exists exactly when its `<table>` does); one implied
- * outside any annotated ancestor (the trailing `<p>` of an invalid
- * `<p><div>`) counts at top level.
- *
- * Compose sites never enter the parse: a compose site has no DOM existence
- * until render, so it contributes 0 to raw-element counts, and its
- * source-keyed count runs the same path aggregation over the arm paths the
- * serializer recorded for it — matched by plain string equality, no
- * selector escaping involved.
- *
- * Matching itself — the drift-prone half of the hand cascades
- * (COMPILER_REVIEW §2.4) — is delegated to css-select entirely. The
- * selector POLICY (candidate order, compose clause algebra, the
- * element-chain searches) stays in `analysis/selectors.ts`; this module is
- * the engine those policy functions query.
- *
- * css-select v7 gotchas pinned by the spike, all handled here: the Adapter
- * interface lost `findAll`/`findOne`/`existsOne`/`getParents`/
- * `nextElementSibling` (the adapter below is the small replacement);
- * `getAttributeValue` returns `undefined`, not `null`; `isTag` must be a
- * TS type predicate; traversal skips non-tag roots (queries run against the
- * fragment's element children) and — in HTML mode — ignores the CONTENTS
- * of `<template>` elements. An authored `<template>` is LTC061 (),
- * raised in lowering on both surfaces, so a component carrying one never
- * compiles; the analysis still runs to collect further diagnostics, so the
- * materializer serializes the template's CONTENT in place (no `<template>`
- * element for css-select to skip) rather than throw.
- *
- * Pure functions only; no analysis state beyond the fragment caches.
- */
-
 import * as cssSelect from 'css-select'
 import { parseFragment } from 'parse5'
 import type { TemplateNode } from '../ir'
@@ -176,23 +114,12 @@ type Serializer = {
 	composes: Array<{ node: ComposeNode; path: string }>
 	/** Next group id; ids are unique per serialization. */
 	nextGroup: number
-	/**
-	 * Serialize each compose site's content in place: the content is the
-	 * composing component's markup, rendered into the child's Children
-	 * Region (ADR 0026 s1).
-	 */
 	regions: boolean
 }
 
 const armPath = (path: string, group: number, arm: number): string =>
 	`${path ? `${path}/` : ''}${group}:${arm}`
 
-/**
- * Materialize `nodes` into an HTML fragment string. Static attrs only —
- * a synthesized/authored selector the proof counts is static, and a
- * dynamic attribute never matches one. `path` is the exclusive-arm path of
- * the enclosing position; see the module doc.
- */
 const serializeNodes = (
 	nodes: readonly TemplateNode[],
 	path: string,
@@ -208,16 +135,11 @@ const serializeNodes = (
 	for (const node of nodes) {
 		switch (node.kind) {
 			case 'element': {
-				// An authored <template> is LTC061 (the compile fails); its
-				// content is serialized in place so the analysis that still
-				// runs answers from a tree css-select fully traverses.
 				if (node.tag === 'template') {
 					serializeNodes(node.children, path, ser)
 					break
 				}
 				const attrs: string[] = []
-				// The probe owns its arm attribute; an authored one would
-				// corrupt the path arithmetic.
 				for (const attr of node.attrs)
 					if (attr.kind === 'static' && attr.name !== ARM_ATTR)
 						attrs.push(
@@ -227,27 +149,18 @@ const serializeNodes = (
 						)
 				if (path) attrs.push(`${ARM_ATTR}="${path}"`)
 				out.push(`<${node.tag}${attrs.length ? ' ' : ''}${attrs.join(' ')}>`)
-				// A browser reparents a void tag's children to following
-				// siblings; the probe matches browser reality either way.
 				serializeNodes(node.children, path, ser)
 				if (!VOID_TAGS.has(node.tag)) out.push(`</${node.tag}>`)
 				break
 			}
 			case 'compose':
-				// No DOM existence until render: recorded, never emitted. Its
-				// content is, in the region probe, at the site's position — the
-				// child's own markup around it is the registry's to account.
 				ser.composes.push({ node, path })
 				if (ser.regions) serializeNodes(node.children, path, ser)
 				break
 			case 'conditional':
-				// One arm renders, in either mode: a reactive conditional's
-				// other arms are inert template content (ADR 0015).
 				exclusive(node.arms.map(arm => arm.children))
 				break
 			case 'try':
-				// One arm renders: body XOR catch, and an async boundary's
-				// other arms are inert template content (ADR 0015 s4).
 				exclusive([
 					node.children,
 					node.catchChildren,
@@ -270,12 +183,6 @@ const materialize = (nodes: readonly TemplateNode[], regions = false): Frag => {
 	}
 }
 
-/**
- * Fragments are cached per root: `resolveSelectorIn` counts every candidate
- * against the same tree, and branch/child arrays are stable IR references
- * (a fresh array from a caller just misses the array cache and
- * re-serializes).
- */
 const fragByNode = new WeakMap<TemplateNode, Frag>()
 const fragByArray = new WeakMap<readonly TemplateNode[], Frag>()
 
@@ -315,11 +222,6 @@ type ArmTrie = { hits: number; groups: Map<string, Map<string, ArmTrie>> }
 
 const trieNode = (): ArmTrie => ({ hits: 0, groups: new Map() })
 
-/**
- * Aggregate hit paths into a count: sum within an arm, max over the arms of
- * a group — the exclusivity arithmetic, independent of where tree
- * correction put each element.
- */
 const aggregate = (paths: readonly string[]): number => {
 	const root = trieNode()
 	for (const path of paths) {
@@ -357,12 +259,7 @@ type CompiledQuery = ReturnType<typeof compileQuery>
 
 const queryCache = new Map<string, CompiledQuery | null>()
 
-/**
- * A compiled query, or `null` when css-what cannot parse the selector. A
- * querySelector would THROW on such a string, so it matches nothing in any
- * valid DOM — `null` counts as zero matches / no existence, the same answer
- * the hand grammar's "unparsed" path gave before .
- */
+/** A compiled query, or `null` when css-what cannot parse the selector — a querySelector would throw on it, so it matches nothing in any valid DOM. */
 const queryOf = (selector: string): CompiledQuery | null => {
 	if (!queryCache.has(selector)) {
 		try {
@@ -374,12 +271,6 @@ const queryOf = (selector: string): CompiledQuery | null => {
 	return queryCache.get(selector) ?? null
 }
 
-/**
- * The arm paths of every element in `frag` the query matches. An element
- * without its own path — one the parser implied, like the `<tbody>` of a
- * `<table>` of bare rows — takes its nearest ancestor's: it exists exactly
- * when that ancestor does.
- */
 const matchedPaths = (frag: Frag, query: CompiledQuery): string[] => {
 	const paths: string[] = []
 	const visit = (node: P5Node, inherited: string): void => {
@@ -402,11 +293,6 @@ export const probeCount = (root: TemplateNode, selector: string): number => {
 	return aggregate(matchedPaths(fragOfRoot(root), query))
 }
 
-/**
- * `probeCount` over the probe that also materializes every compose site's
- * content — the count for an element inside a Children Region, whose query
- * re-includes the composing component's regions (ADR 0026 s1).
- */
 export const probeCountWithRegions = (
 	root: TemplateNode,
 	selector: string,
@@ -426,12 +312,6 @@ export const probeExists = (
 	return matchedPaths(fragOfNodes(nodes), query).length > 0
 }
 
-/**
- * `countComposeBySource` — the same path aggregation over the compose
- * sites whose source equals `source` (plain string equality: a compose
- * site is never a parsed element, so no selector escaping is involved and
- * a source can never collide with raw markup).
- */
 export const probeCountCompose = (root: TemplateNode, source: string): number =>
 	aggregate(
 		fragOfRoot(root)
@@ -439,11 +319,5 @@ export const probeCountCompose = (root: TemplateNode, source: string): number =>
 			.map(entry => entry.path),
 	)
 
-/**
- * `allComposeNodes` — the IR compose nodes in document order, compose-site
- * children not entered (composition is a boundary), every `@try` arm
- * entered per the `@pending` policy — the serializer's own record, so
- * `composeNodesBySource`'s identity answers are exact.
- */
 export const probeComposeNodes = (root: TemplateNode): ComposeNode[] =>
 	fragOfRoot(root).composes.map(entry => entry.node)

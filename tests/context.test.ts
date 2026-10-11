@@ -1,8 +1,4 @@
-/**
- * Tests for the Web Components Community Protocol in `.tsrx` (ADR
- * 0024 sub-design 15): `requestContext()` on the consumer side,
- * `provideContexts()` on the provider side.
- */
+/** The Web Components Community Protocol in `.tsrx`: `requestContext()` on the consumer side, `provideContexts()` on the provider side. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 
@@ -30,19 +26,16 @@ describe('requestContext() — consumer side', () => {
 			new Set(),
 		)
 		expect(diagnostics.filter(d => d.severity === 'error')).toEqual([])
-		// Server: no ancestor DOM to walk — renders the fallback directly, via
-		// a substituted createCell(fallback), never the real requestContext call.
+		// Server: no ancestor DOM to walk — renders the fallback directly, via a substituted createCell(fallback), never the real requestContext call.
 		expect(component?.serverCode).toContain(
 			"const motion = createCell('unknown')",
 		)
 		expect(component?.serverCode).not.toContain('requestContext')
-		// Client: the real call, watched exactly like any other signal.
 		expect(component?.clientCode).toContain(
 			"const motion = requestContext(MEDIA_MOTION, 'unknown')",
 		)
 		expect(component?.clientCode).toContain('watch(motion, bindText(')
-		// requestContext is a FactoryContext member, destructured in the
-		// factory signature — never imported from '@zeix/le-truc'.
+		// requestContext is a FactoryContext member, destructured in the factory signature — never imported from '@zeix/le-truc'.
 		expect(component?.clientCode).toMatch(/\(\{[^}]*requestContext[^}]*\}\)/)
 		expect(component?.clientCode).not.toMatch(
 			/import \{[^}]*requestContext[^}]*\} from '@zeix\/le-truc'/,
@@ -125,9 +118,7 @@ describe('requestContext() — misuse diagnostics', () => {
 	})
 
 	test('requestContext nested inside a plain setup const is a routing signal (LT-165 step 5)', () => {
-		// ADR 0008 s5: a setup const the harness cannot evaluate routes the
-		// component Simulated instead of erroring — the realm runs the client
-		// module, where `requestContext` resolves for real.
+		// A setup const the harness cannot evaluate routes the component Simulated instead of erroring — the realm runs the client module, where `requestContext` resolves for real.
 		const source = `export function C({}: {})
 		@{
 			const wrapped = [requestContext('motion', 'unknown')]

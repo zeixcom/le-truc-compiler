@@ -1,24 +1,4 @@
-/**
- * The scalar `harvest(seed, parser)` marker and the LTC077 refusal (ADR
- * 0046 s7), on both surfaces:
- *
- * - a signal whose seed type the compiler cannot read (an alias, a union —
- *   anything but the bare `string`/`number`/`boolean` keyword) is refused
- *   LTC077 at the seed when its render site would harvest it, on every
- *   route the parser applies to (a direct text or attribute site, an arg's
- *   substituted DOM read, a membership value read);
- * - `harvest(price, asNumber())` declares the parser: spliced into the
- *   client as authored around the harvest read, the server reading the
- *   seed through — an aliased `number` connects as a number, a `Date`
- *   round-trips through an authored parser;
- * - a signal that never harvests is never refused (no raw render site, a
- *   Parser-exposed prop), and a marker whose parser would never run (a
- *   literal seed the client re-evaluates) is refused rather than silently
- *   ignored;
- * - the marker is recognized only in a scalar constructor's seed, matched
- *   against its form (`createList` takes the map), and its parser's free
- *   names must resolve on the client.
- */
+/** The scalar `harvest(seed, parser)` marker and the LTC077 refusal, on both surfaces: a signal whose seed type the compiler cannot read is refused at the seed when its render site would harvest it; the marker declares the parser, spliced into the client as authored around the harvest read while the server reads the seed through; a signal that never harvests is never refused, and a marker whose parser would never run is refused; the marker is recognized only in a scalar constructor's seed, matched against its form (`createList` takes the map), with its parser's free names resolving on the client. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import * as path from 'node:path'
 import { pathToFileURL } from 'node:url'

@@ -1,24 +1,4 @@
-/**
- * The jsdom simulation driver, as the seam sees it (ADR 0006;
- * report channel ; seam ).
- *
- * This module is the driver's whole published surface. `patch-table.ts`
- * holds the per-runtime applier data, `realm.ts` applies it, `boundary.ts`
- * enforces the hermetic-quiescence serialization boundary, and
- * `classifications.ts` names the standing notices this substrate emits.
- *
- * {@link simulationProvider} is what `../simulation/resolve.ts` reaches for
- * — the only entry point the compiler uses. Everything else exported here
- * is for the driver's own tests and the cross-runtime portability probe,
- * which legitimately know jsdom.
- *
- * ADR 0013 sub-design 4 keeps this inside `@zeix/le-truc-compiler` for 3.0
- * and designs the boundary so the later `@zeix/le-truc-simulation` split is
- * a resolver-specifier change, not a breaking one. The realm's PUBLIC type
- * is now `SimulationRealm` from the contract and names no jsdom type; the
- * wider `JsdomSimulationRealm` stays behind the seam, where the substrate
- * is known.
- */
+/** The jsdom simulation driver's published surface: the seam provider (the only entry point the compiler imports) plus the driver's pieces for its own tests and the portability probe. */
 
 import {
 	SIMULATION_SEAM_VERSION,

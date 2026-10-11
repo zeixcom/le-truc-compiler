@@ -1,22 +1,14 @@
-/**
- * The shared estree child enumeration (): `forEachChild`/`walkNodes`
- * take their child keys from `eslint-visitor-keys`, fall back to every
- * non-bookkeeping key for node types it doesn't know (TS nodes, TSRX
- * directives, CSS), and follow one explicit type-position policy.
- *
- * The convergence block pins the sites whose answer changed when they moved
- * onto the walk's `'skip'` default: each used to descend into type
- * positions, so a name in an annotation counted as a runtime read.
- */
 import { describe, expect, test } from 'bun:test'
-import type { AstNode } from '../src/ast-node'
-import { forEachChild, type TypePositions, walkNodes } from '../src/ast-utils'
+import {
+	type AstNode,
+	forEachChild,
+	type TypePositions,
+	walkNodes,
+} from '../src/ast-utils'
 import { parseModule } from '../src/core.ts'
 import { impureAmbientCauses } from '../src/evaluability'
 import { classifyChild } from '../src/reactivity'
 import { stubbedApiRead } from '../src/tier.ts'
-
-/* === Helpers === */
 
 /** Parse a bare expression and return its node. */
 const expr = (code: string): AstNode => {
@@ -41,8 +33,6 @@ const names = (node: AstNode, types?: TypePositions): string[] => {
 	)
 	return out
 }
-
-/* === Tests === */
 
 describe('forEachChild — the key policy', () => {
 	test('type positions are skipped by default', () => {

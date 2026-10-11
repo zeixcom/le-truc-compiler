@@ -1,21 +1,4 @@
-/**
- * Handler args (): an `on`-prefixed function arg the child places on
- * an owned element lowers to a parent-side `on()`.
- *
- * - the child emits nothing for the arg, on either half, and publishes the
- *   placement on its registry entry (`handlerArgs`);
- * - the event comes from the placement, not the arg name;
- * - the parent's compose site binds the handler with `on()` against the
- *   site's selector joined with the placement's, in the site's Mount Scope:
- *   the host, an arm (root or descendant), a reactive-list item;
- * - a forwarded arg resolves through the registry, the selector descending
- *   through both boundaries;
- * - the handler's `{ prop: value }` return updates the PARENT's host: it is
- *   the parent factory's own `on`;
- * - the parent's server render never forwards the arg.
- *
- * LTC081's cases are pinned on both surfaces in `tsx/diagnostic-parity`.
- */
+/** Handler args: an `on`-prefixed function arg the child places on an owned element lowers to a parent-side `on()`. The child emits nothing for the arg, on either half, and publishes the placement on its registry entry (`handlerArgs`); the event comes from the placement, not the arg name; the parent's compose site binds the handler with `on()` against the site's selector joined with the placement's, in the site's mount scope (host, arm, reactive-list item); a forwarded arg resolves through the registry, the selector descending through both boundaries; the handler's `{ prop: value }` return updates the parent's host; the parent's server render never forwards the arg. */
 import { describe, expect, test } from 'bun:test'
 import ts from 'typescript'
 import { compileComponent } from '../src/frontend/tsrx'
@@ -237,8 +220,7 @@ describe('the parent half: one on() per placement, in the site’s scope', () =>
 			registry,
 		)
 		expect(parent.clientCode).toContain("const ALPHA = 'ABC'")
-		// The generated module declares every name it reads: no TS2304. Its
-		// imports stay unresolved here, which is TS2307, not TS2304.
+		// The generated module declares every name it reads: no TS2304. Its imports stay unresolved here, which is TS2307, not TS2304.
 		const file = 'basic-parent.ts'
 		const host = ts.createCompilerHost({ noEmit: true })
 		const getSourceFile = host.getSourceFile

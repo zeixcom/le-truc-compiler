@@ -1,12 +1,4 @@
-/**
- * The server-evaluation tier classifier (ADR 0008).
- *
- * These tests exercise `tier.ts` directly against parsed expressions and
- * synthetic signal sets, so they pin the ROUTING RULE rather than any
- * particular corpus component's current shape. Corpus-level tier pins live
- * with the compiler's own goldens, where a component moving between tiers
- * shows up as a golden diff.
- */
+/** The server-evaluation tier classifier: these tests exercise `tier.ts` directly against parsed expressions and synthetic signal sets, so they pin the ROUTING RULE rather than any particular corpus component's current shape. Corpus-level tier pins live with the compiler's own goldens, where a component moving between tiers shows up as a golden diff. */
 
 import { describe, expect, test } from 'bun:test'
 import { parseModule } from '../src/core.ts'
@@ -72,9 +64,9 @@ describe('limb (a) — the patch table decides what the realm cannot answer', ()
 	})
 
 	test('ARIA members are deliberately absent from the capability rows', () => {
-		// ADR 0026 §2's amendment: internals is not one unanswerable row. Since
-		//  `bindAria()`'s attribute fallback makes the served HTML carry
-		// the value, so ARIA expressions ARE realm-answerable.
+		// Internals is not one unanswerable row: `bindAria()`'s attribute
+		// fallback makes the served HTML carry the value, so ARIA expressions
+		// ARE realm-answerable.
 		expect(stubbedApiRead(expr('internals.ariaExpanded'))).toBeNull()
 		expect(
 			CAPABILITY_PATCHES.some(patch => patch.member.startsWith('aria')),
@@ -99,14 +91,14 @@ describe('limb (b) — inputs that are not server-side facts', () => {
 
 	test('Date.UTC is pure, so it does not route away (LT-165 step 5)', () => {
 		// The UTC conversion reads no clock and no timezone — the one `Date`
-		// form limb (b) admits (ADR 0009 s2's prescribed blogmeta shape).
+		// form limb (b) admits.
 		expect(
 			resolutionOf(expr('Date.UTC(y, m - 1, d)'), new Set(['y', 'm', 'd'])).by,
 		).toBe('realm')
 	})
 
 	test('a server-known locale is resolvable, so Intl does not route away', () => {
-		// the ticket's split: the locale decides. A literal or an in-scope server
+		// The locale decides: a literal or an in-scope server
 		// arg keeps the component Folded-tier-eligible.
 		expect(
 			resolutionOf(expr('new Intl.PluralRules("en").select(n)'), new Set()).by,
@@ -130,7 +122,7 @@ describe('limb (b) — inputs that are not server-side facts', () => {
 	})
 
 	test('a DOM-read locale is realm-answerable, not unresolvable', () => {
-		// The middle case of the ticket's three-way split: the realm executes the
+		// The middle case of the three-way split: the realm executes the
 		// ancestor walk against a real simulated element, so this is a
 		// Simulated-tier routing signal rather than limb (b).
 		expect(

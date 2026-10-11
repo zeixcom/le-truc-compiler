@@ -4,7 +4,7 @@
  * The queue board dev server — the task queue's live view (owner ruling
  * 2026-10-10).
  *
- *   bun run queue:serve        (default http://127.0.0.1:8433, PORT to override)
+ *   bun run queue:serve (default http://127.0.0.1:8433, PORT to override)
  *
  * The board replaces the TODO.md view the source repo generated: the
  * queue/TC-NNN.md files stay the source of truth, and this server renders

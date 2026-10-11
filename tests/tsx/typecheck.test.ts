@@ -1,30 +1,4 @@
-/**
- * The typed `.tsx` ambient gate (): tsc over the authored
- * `.tsx` sources against `host-profile.d.ts`.
- *
- * The POSITIVE config (`tests/fixtures/tsx/tsconfig.json`)
- * must compile clean — the synthetic fixtures under the precise
- * `FactoryContext` parameter convention and the branded
- * `IntrinsicElements['truc:try']` arms (ADR 0019). The NEGATIVE config (`fixtures/tsx/tsconfig.neg.json`) must fail with exactly the mistyped-arm
- * diagnostics the ambients exist to surface, at native positions on the
- * authored files (the ADR 0010 s3 dividend — no span remapping needed).
- *
- * The EXAMPLES config (`examples/tsconfig.json`) typechecks
- * every `.tsx` source in `examples/`. A `.tsx` without a twin joins through
- * the `**\/*.tsx` include glob, with no manual step (). A twin pair is
- * listed in `files` as BOTH members, side by side: tsc silently drops a
- * wildcard match whose base name a higher-priority extension already
- * claims as a `files` literal (`.ts` outranks `.tsx`), so a twin listed
- * alone would push its `.tsx` sibling out of the program and still compile
- * green. The membership test below guards that drop: every
- * `examples/**\/*.tsx` on disk must appear in the program's file list.
- * Under ADR 0017 s4 every member declares its own `HTMLElementTagNameMap`
- * entry, so this program is the cross-spelling Props-drift gate: a `.tsx`
- * Props type diverging from the twin's fails with TS 2717 here.
- *
- * This is the standing CI form of the  spike's manual
- * `tsconfig.neg.json` probes; `check:corpus` is the corpus-side analog.
- */
+/** The typed `.tsx` ambient gate: tsc over the authored `.tsx` sources against `host-profile.d.ts`. The POSITIVE config must compile clean; the NEGATIVE config (`fixtures/tsx/tsconfig.neg.json`) must fail with exactly the mistyped-arm diagnostics the ambients exist to surface, at native positions on the authored files — no span remapping needed. The EXAMPLES config typechecks every `.tsx` source under `examples/`: a twin pair is listed in `files` as BOTH members, side by side, because tsc silently drops a wildcard match whose base name a higher-priority extension already claims as a `files` literal (`.ts` outranks `.tsx`) — the membership test below guards that drop. Every member declares its own `HTMLElementTagNameMap` entry, so the program is the cross-spelling Props-drift gate: a `.tsx` Props type diverging from the twin's fails with TS 2717 here. */
 import { describe, expect, setDefaultTimeout, test } from 'bun:test'
 import { spawnSync } from 'node:child_process'
 import * as path from 'node:path'
@@ -61,8 +35,8 @@ describe('the .tsx host profile typecheck (LT-208, LT-209)', () => {
 
 	test('the negative probes fail at native positions on the authored file', () => {
 		const { status, output } = runTsc(path.join(FIXTURES, 'tsconfig.neg.json'))
-		// The string `pending` arm: the branded JSX.Element rejects it — the
-		// generic-`T` shape the ruling rejected would have union-absorbed it.
+		// The string `pending` arm: the branded JSX.Element rejects it — a
+		// generic-`T` shape would have union-absorbed it.
 		expect(output).toContain(
 			"async-bad-arms.tsx(24,14): error TS2322: Type 'string' is not assignable to type 'Element'",
 		)
@@ -74,11 +48,11 @@ describe('the .tsx host profile typecheck (LT-208, LT-209)', () => {
 		expect(output).toContain(
 			"async-bad-arms.tsx(24,57): error TS2339: Property 'message' does not exist on type 'string'",
 		)
-		// A repeated arm: attributes make arm uniqueness tsc's ().
+		// A repeated arm: attributes make arm uniqueness tsc's job.
 		expect(output).toContain(
 			'async-bad-arms.tsx(27,46): error TS17001: JSX elements cannot have multiple attributes with the same name',
 		)
-		// The typed context parameter (): a typo'd host read and a
+		// The typed context parameter: a typo'd host read and a
 		// mistyped expose() key — the free P-drift check — are errors at
 		// native positions in the ordinary tsconfig.
 		expect(output).toContain(
@@ -87,7 +61,7 @@ describe('the .tsx host profile typecheck (LT-208, LT-209)', () => {
 		expect(output).toContain(
 			"bad-host-typo.tsx(33,29): error TS2339: Property 'cout' does not exist on type 'FormAssociatedValueElement & BadHostProps'",
 		)
-		// Per-key `t` (): an undeclared key, a bare argument message
+		// Per-key `t`: an undeclared key, a bare argument message
 		// in an attribute, a call on an argument-less one, a catalog without
 		// `as const`, and a possibly-undefined attribute are all errors.
 		expect(output).toContain(
@@ -105,7 +79,7 @@ describe('the .tsx host profile typecheck (LT-208, LT-209)', () => {
 		expect(output).toContain(
 			`i18n-bad-reads.tsx(35,5): error TS2375: Type '{ children: string; type: "button"; "aria-label": string | undefined; }' is not assignable to type 'button'`,
 		)
-		// The discriminated compose site (): the distributive
+		// The discriminated compose site: the distributive
 		// `LibraryManagedAttributes` keeps `collapsed: true ⇒ id` required —
 		// a plain `Omit<P, 'i18n'>` would flatten the union and pass this.
 		// Only the missing-key compose (line 27) fails; the correct one on
@@ -114,10 +88,10 @@ describe('the .tsx host profile typecheck (LT-208, LT-209)', () => {
 			"discriminated-compose.tsx(27,4): error TS2322: Type '{ collapsed: true; }' is not assignable to type 'LibraryManagedAttributes<",
 		)
 		expect(output).not.toContain('discriminated-compose.tsx(26,')
-		// `harvest()` : the parser reads the field's (or the
-		// scalar seed's) type. Since the scalar overload joined the set,
-		// both overloads fail together and tsc reports TS2769, whose
-		// matching-overload clause carries the substance.
+		// `harvest()`: the parser reads the field's (or the
+		// scalar seed's) type — both overloads fail together and tsc
+		// reports TS2769, whose matching-overload clause carries the
+		// substance.
 		expect(output).toContain(
 			'harvest-bad-parser.tsx(15,4): error TS2769: No overload matches this call.',
 		)
@@ -130,7 +104,7 @@ describe('the .tsx host profile typecheck (LT-208, LT-209)', () => {
 		expect(output).toContain(
 			"Argument of type 'Parser<string>' is not assignable to parameter of type 'FieldParser<number>'",
 		)
-		// Compose-site children against a string `children` arg ():
+		// Compose-site children against a string `children` arg:
 		// elements and text translate (`string-children-compose.tsx` is
 		// clean), but a function child and a missing required `children`
 		// still fail.
@@ -145,10 +119,9 @@ describe('the .tsx host profile typecheck (LT-208, LT-209)', () => {
 
 	test('the examples variant-set members typecheck — every member declares the tag-map entry (LT-285, LT-237, ADR 0017 s4)', () => {
 		// basic-counter's twin and `.tsx` each declare the entry in one
-		// program. Verified live (temporary divergence): structurally
-		// IDENTICAL entries merge silently, and the moment the spellings'
-		// Props types diverge, the second fails with TS 2717 naming the
-		// offending member.
+		// program: structurally IDENTICAL entries merge silently, and the
+		// moment the spellings' Props types diverge, the second fails with
+		// TS 2717 naming the offending member.
 		const { status, output } = runTsc(path.join(ROOT, 'examples/tsconfig.json'))
 		expect(output).toBe('')
 		expect(status).toBe(0)

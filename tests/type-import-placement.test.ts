@@ -1,10 +1,4 @@
-/**
- * An `import type` is placed in every generated module whose carried
- * declarations name it (). context-media's `ContextMediaProps` names
- * the value types it imports from `media-contexts.ts`. Only type
- * declarations used them, so placement found no use: LTC014 fired and both
- * generated modules referenced types they never imported.
- */
+/** An `import type` is placed in every generated module whose carried declarations name it: context-media's `ContextMediaProps` named the value types it imports from `media-contexts.ts`, only type declarations used them, so placement found no use — LTC014 fired and both generated modules referenced types they never imported. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 

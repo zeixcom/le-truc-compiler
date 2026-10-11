@@ -1,11 +1,4 @@
-/**
- * A context member read only from a setup declaration still reaches the
- * generated client's factory destructure (). module-lazyload reads
- * `host` inside its `createTask` callback and in a plain const's
- * initializer, and nowhere else. Neither position is an effect position
- * `collectAmbient` walks, so the client factory destructured no `host` and
- * the task threw a ReferenceError at connect.
- */
+/** A context member read only from a setup declaration still reaches the generated client's factory destructure: neither a `createTask` callback nor a plain const's initializer is an effect position `collectAmbient` walks, so the factory used to destructure nothing and the task threw a ReferenceError at connect. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 

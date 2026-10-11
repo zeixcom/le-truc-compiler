@@ -1,16 +1,4 @@
-/**
- * The simulation seam holds (ADR 0013 sub-designs 3 and 4).
- *
- * `bun run check:nosubstrate` proves the same property properly — it
- * typechecks the compiler with jsdom uninstalled — but only when jsdom is
- * genuinely absent, which a developer's tree and this test suite never are.
- * So the edge is also read directly here, where it costs milliseconds and
- * fails the moment someone reaches behind the seam.
- *
- * The rule: **nothing compiler-side may import the driver or its substrate.**
- * The one permitted edge is `simulation/resolve.ts`'s dynamic import, whose
- * specifier is a variable precisely so the typechecker does not follow it.
- */
+/** The simulation seam holds. `bun run check:nosubstrate` proves the same property properly — it typechecks the compiler with jsdom uninstalled — but only when jsdom is genuinely absent, which a developer's tree and this test suite never are, so the edge is also read directly here. The rule: **nothing compiler-side may import the driver or its substrate.** The one permitted edge is `simulation/resolve.ts`'s dynamic import, whose specifier is a variable precisely so the typechecker does not follow it. */
 
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
@@ -20,12 +8,7 @@ import { Glob } from 'bun'
 const ROOT = join(import.meta.dir, '..')
 const COMPILER = join(ROOT, 'src')
 
-/**
- * Every module on the compiler side of the seam — the whole compiler with
- * the driver's own directory excluded. (The source repo also scans its
- * build effects — `effects/simulate.ts`, the seam's one real consumer —
- * which are docs-pipeline modules that do not exist in this repo.)
- */
+/** Every module on the compiler side of the seam — the whole compiler with the driver's own directory excluded. */
 const compilerSources = (): string[] => [
 	...[...new Glob('**/*.ts').scanSync(COMPILER)]
 		.filter(file => !file.startsWith('sim/'))

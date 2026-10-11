@@ -24,11 +24,6 @@ declare module '@tsrx/core' {
 	/** True for `<style>` elements; their stylesheet is retrievable below. */
 	export function isStyleElement(node: unknown): boolean
 
-	/**
-	 * Stylesheet of a `<style>` element. `.source` is the verbatim CSS text
-	 * (including original indentation); `renderStylesheets()` class-hashing is
-	 * deliberately NOT used (ADR 0005 sub-design 2).
-	 */
 	export function getStyleElementStylesheet(node: TsrxNode): {
 		source: string
 	} | null

@@ -1,40 +1,6 @@
-/**
- * Template-literal-safe line classification for verbatim-slice reindentation
- * ().
- *
- * `reindent` and `appendWithSpans` — both in `spans.ts`, the reindentation
- * family's home — strip the source's common leading indentation from
- * continuation lines of verbatim slices (emit-server and emit-client import
- * them from there). Inside a multi-line template literal that leading
- * whitespace is STRING CONTENT — stripping it silently changes the rendered
- * value (a validity message carrying `Min length is ${n}\nPlease enter…`
- * loses the second line's indentation). Both consult `lineStartsInTemplate`
- * and leave interior lines byte-identical, including their indentation.
- * `commonIndent` () is their one shared common-indentation answer.
- *
- * The scanner is a conservative single-pass lexer over the slice: strings,
- * template literals with `${ … }` interpolation (nested templates included),
- * line and block comments, and escapes. Regex literals are not lexed — a
- * backtick inside a regex would confuse it; none appears in the sanctioned
- * client-code shapes, and the failure mode is over-conservative passthrough,
- * never corruption.
- */
+/** Template-literal-safe line classification for verbatim-slice reindentation. */
 
-/* === Internal Functions ===
-
-Mode meaning:
-- code         — JS/TS source; backtick opens a template, quotes open strings
-- lineComment  — `// …` to end of line
-- blockComment — block comment (can span lines; never inside a template,
-                 where it would be content)
-- single/double — quoted strings
-- template     — inside the innermost template literal; `${` pushes to code
-                 with a fresh interpolation brace depth, its matching `}`
-                 pops back
-
-`templateDepth` counts open template literals — interpolation code of an
-outer template is still "inside" it for line-mask purposes.
-*/
+/* === Internal Functions === */
 type Mode =
 	| 'code'
 	| 'lineComment'
@@ -45,17 +11,10 @@ type Mode =
 
 /* === Exported Functions === */
 
-/**
- * For each line of a verbatim slice: does the line BEGIN inside an open
- * template literal? Such lines (including the line that eventually closes the
- * literal — everything before its closing backtick is content) must pass
- * through reindentation untouched.
- */
 export const lineStartsInTemplate = (lines: string[]): boolean[] => {
 	const mask: boolean[] = new Array(lines.length).fill(false)
 	let mode: Mode = 'code'
-	// Brace depth inside each open `${ … }`, innermost last. Non-empty means
-	// we are inside template interpolation(s).
+	// Brace depth inside each open `${ … }`, innermost last. Non-empty means we are inside template interpolation(s).
 	const interpDepths: number[] = []
 	let templateDepth = 0
 	let escaped = false
@@ -135,13 +94,6 @@ export const lineStartsInTemplate = (lines: string[]): boolean[] => {
 	return mask
 }
 
-/**
- * The common leading indentation of `lines`' significant lines (
- * shared by `spans.ts`'s two reindent computations). A line is skipped
- * when blank, when it starts inside a template literal (`mask`),
- * when `skipFirst` excludes line 0 (a caller-positioned first line), or
- * when `skipDocContinuations` excludes a `*`-led JSDoc continuation.
- */
 export const commonIndent = (
 	lines: readonly string[],
 	mask: readonly boolean[],

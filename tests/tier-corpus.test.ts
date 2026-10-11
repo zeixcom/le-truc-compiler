@@ -1,19 +1,4 @@
-/**
- * Corpus-level tier assignment (ADR 0008).
- *
- * `tier.test.ts` pins the routing RULE against synthetic inputs; this file
- * pins what the rule decides about the REAL corpus, which is the half that
- * can regress silently. A component drifting from the Folded tier to the
- * Simulated tier is a build-cost regression (ADR 0008 sub-design 6's whole
- * argument for the census); a component drifting the other way is a
- * correctness risk, since a false Folded classification ships wrong HTML
- * with no diagnostic.
- *
- * The full map is asserted rather than a sample: the acceptance criterion is
- * that the classifier assigns a tier to EVERY corpus component with a
- * recorded reason, and a partial assertion would let a new component land
- * unclassified.
- */
+/** Corpus-level tier assignment: `tier.test.ts` pins the routing RULE against synthetic inputs; this file pins what the rule decides about the REAL corpus, which is the half that can regress silently. A component drifting from the Folded tier to the Simulated tier is a build-cost regression; a component drifting the other way is a correctness risk, since a false Folded classification ships wrong HTML with no diagnostic. The full map is asserted rather than a sample: a partial assertion would let a new component land unclassified. */
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { tierCensus } from '../src/census'
@@ -47,8 +32,8 @@ describe('tier assignment over the migrated corpus', () => {
 
 	test('a non-Folded component always records why', () => {
 		// The census is only useful if the reason survives with the tier —
-		// "simulated, no reason given" is exactly the unexplained routing ADR
-		// 0029 sub-design 6 replaced the warning channel to avoid.
+		// "simulated, no reason given" is exactly the unexplained routing
+		// the census exists to avoid.
 		for (const entry of Object.values(registry)) {
 			if (entry.tier === 'folded') expect(entry.routingSignals).toHaveLength(0)
 			else expect(entry.routingSignals.length).toBeGreaterThan(0)
@@ -65,12 +50,11 @@ describe('tier assignment over the migrated corpus', () => {
 			expect(registry[tag]?.tier).toBe('folded')
 	})
 
-	// The  acceptance (basic-pluralize classifies Folded) moved with
-	// the retired component to the `c-plural` fixture in
-	// gate-wave-verification.test.ts .
+	// The basic-pluralize Folded acceptance moved with the retired
+	// component to the `c-plural` fixture in gate-wave-verification.test.ts.
 
 	test('contamination reached form-combobox through a compose READ', () => {
-		// The only corpus instance of sub-design 3 today: form-combobox reads
+		// The only corpus instance of a compose READ today: form-combobox reads
 		// its composed form-listbox rather than merely containing it.
 		const signals = registry['form-combobox']?.routingSignals ?? []
 		expect(signals.some(signal => signal.origin === 'compose-read')).toBe(true)
@@ -85,16 +69,16 @@ describe('tier assignment over the migrated corpus', () => {
 		for (const [tag, entry] of Object.entries(registry))
 			byTier[entry.tier]?.push(tag)
 		for (const tags of Object.values(byTier)) tags.sort()
-		//  (2026-10-02): form-spinbutton's Parser fallbacks read
+		// form-spinbutton's Parser fallbacks read
 		// `first()` refs (`asNumber(asNumber(0)(input.value))`) — no server
 		// truth to splice, so its host-prop thunks route off the fold
 		// (LTC034-origin signals, the realm answers) and it leaves the Folded
 		// tier. form-colorgraph and module-coloreditor follow through compose
-		// reads of it (sub-design 3), as form-combobox already did for
+		// reads of it, as form-combobox already did for
 		// form-listbox.
-		//  (2026-10-07): module-lazyload's task initializer reads
+		// module-lazyload's task initializer reads
 		// authored imports (`fetchWithCache`, `isValidURL`, …), which the
-		// client binds; its only routing signal was that LTC004 false firing,
+		// client binds; its only routing signal was an LTC004 false firing,
 		// so it folds. Its served HTML is unchanged: the realm never settled
 		// the task either, so both tiers serve the pending arm.
 		expect(byTier).toEqual({
@@ -132,7 +116,7 @@ describe('tier assignment over the migrated corpus', () => {
 				'module-tabgroup',
 				'module-ticker',
 				'module-todo',
-				//: section-menu joins Folded by design — no setup const
+				// section-menu joins Folded by design — no setup const
 				// holds a page-context value (the toggle lookups are inline
 				// call arguments), so it classifies without a routing signal.
 				'section-menu',
@@ -156,10 +140,10 @@ describe('tier assignment over the migrated corpus', () => {
 describe('the tier census (LT-165 step 6, ADR 0008 sub-design 6)', () => {
 	// Built from the registry the corpus runner wrote — which the fixpoint in
 	// `compileCorpus` updated BEFORE the write, so the census records
-	// POST-contamination tiers by construction (the architect ruling for
-	// step 6). Built inside each test, not eagerly at describe registration:
-	// the describe body runs before `beforeAll` has compiled the corpus, and
-	// the eager `tierCensus(Object.values(registry))` threw on the undefined
+	// POST-contamination tiers by construction. Built inside each test, not
+	// eagerly at describe registration: the describe body runs before
+	// `beforeAll` has compiled the corpus, and the eager
+	// `tierCensus(Object.values(registry))` threw on the undefined
 	// registry — bun surfaced it as one "error between tests" while this
 	// whole block silently never registered.
 	const censusOf = () => tierCensus(Object.values(registry))
@@ -182,7 +166,7 @@ describe('the tier census (LT-165 step 6, ADR 0008 sub-design 6)', () => {
 	})
 
 	test('form-combobox is recorded Simulated — the post-contamination tier, with its compose-read reason', () => {
-		// The step-6 ruling: emit receives the PRE-contamination tier (index.ts
+		// Emit receives the PRE-contamination tier (index.ts
 		// classifies before the corpus fixpoint runs), so form-combobox —
 		// Folded by its own signals, Simulated purely through its compose READ
 		// of form-listbox — must be census-recorded Simulated with the

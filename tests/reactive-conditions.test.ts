@@ -1,16 +1,4 @@
-/**
- * Reactive conditions as template-cloned arms (ADR 0015) and the
- * async boundary on the same mechanism (ADR 0015 s4), end to end:
- *
- * - both surfaces lower one authored conditional to byte-identical modules;
- * - the IR's initial winner (ADR 0021 s4) takes its three forms;
- * - the server renders the winner live beside inert `<template>` arms, and
- *   the skeleton is byte-identical across the three tiers (ADR 0008 s4);
- * - the generated client adopts the server's winner without touching it
- *   (the designed connect diff is empty), then switches arms as signals
- *   change — re-entry clones afresh, and arm effects die with their arm;
- * - placement and shape refusals.
- */
+/** Reactive conditions as template-cloned arms and the async boundary on the same mechanism, end to end: both surfaces lower one authored conditional to byte-identical modules; the server renders the winner live beside inert `<template>` arms, byte-identical across the three tiers; the client adopts the winner without touching it, then switches arms as signals change; plus placement and shape refusals. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import { pathToFileURL } from 'node:url'
 import { emitServerModule } from '../src/emit-server'
@@ -182,7 +170,7 @@ describe('both surfaces lower one reactive conditional identically', () => {
 	})
 })
 
-/* === The initial winner (ADR 0021 s4) === */
+/* === The initial winner === */
 
 describe('the initial winner', () => {
 	test('a literal initializer folds to a constant arm', () => {
@@ -211,7 +199,7 @@ describe('the initial winner', () => {
 	})
 
 	test('an initializer over server args selects with a portable `when`', () => {
-		//: pinned on a fixture the FULL pipeline accepts — a cell
+		// Pinned on a fixture the FULL pipeline accepts — a cell
 		// seeded from a server arg needs the arg's DOM site (`data-mode`),
 		// and a string comparison keeps the generated client typecheckable
 		// (the number-spelled `start > 2` seeded `(getAttribute() ?? '') > 2`,
@@ -235,7 +223,7 @@ describe('the initial winner', () => {
 		// The prop's server truth is the parser applied to the attribute's
 		// rendered value (`asBoolean()(open)`) — a call, so the portable
 		// rewrite refuses and the conditional folds through the value
-		// harness, whose spliced seed applies the parser. The pre-LT-386
+		// harness, whose spliced seed applies the parser. The raw-attribute
 		// `select: [{ when: '(open)' }]` answer substituted the RAW
 		// attribute expression — for `asInteger()` a string/number relation
 		// the server answers differently from the client's parsed prop.
@@ -267,7 +255,7 @@ export function C({ open }: { open?: boolean })
 				),
 			).root,
 		)
-		// Case keys are value-typed (): `case:` + the literal's JSON,
+		// Case keys are value-typed: `case:` + the literal's JSON,
 		// so `@case 1` and `@case '1'` stay distinct keys.
 		expect(node?.arms.map(arm => arm.key)).toEqual([
 			'case:"a"',
@@ -353,7 +341,7 @@ describe('the server renders the winner beside the inert arms', () => {
 	test('a test no server phase can evaluate renders no live arm and routes the component', async () => {
 		// The parser's fallback reads a `first()` ref (the HOST_PROFILE
 		// children-are-data idiom) — no server truth to splice, so the
-		// conditional routes off the host-derived fold (): an
+		// conditional routes off the host-derived fold: an
 		// LTC034-origin signal, never a wrong winner.
 		const { component, diagnostics } = compile(
 			tsrx(
@@ -384,7 +372,7 @@ describe('the server renders the winner beside the inert arms', () => {
 		)
 		expect(diagnostics).toEqual([])
 		const html = await render(component?.serverCode ?? '', 'C', {})
-		// String literals JSON-quote their key (); the attribute
+		// String literals JSON-quote their key; the attribute
 		// escapes the quotes.
 		expect(html).toBe(
 			'<c-el><p data-key="case:2">two</p>' +
@@ -412,9 +400,9 @@ describe('the server renders the winner beside the inert arms', () => {
 	})
 
 	test('a ternary test keeps its own parens in the key thunk (LT-385b)', () => {
-		// `() => (${test} ? 'then' : 'else')` let a ternary, comma or
+		// `() => (${test} ? 'then' : 'else')` would let a ternary, comma or
 		// assignment test bind into the branches and return a non-key; the
-		// emitted test is parenthesized now.
+		// emitted test is parenthesized.
 		const { component } = compile(
 			tsrx("@if (open.get() ? 'x' : 'y') { <p>a</p> } @else { <b>b</b> }", {
 				setup: 'const open = createCell(true)\n\t\texpose({ open: open.get })',
@@ -441,7 +429,6 @@ describe('the server renders the winner beside the inert arms', () => {
 		expect(html).toBe(
 			'<c-el><template data-arms="0" data-key="then"><p></p></template></c-el>',
 		)
-		// The live winner evaluates as before.
 		const resolved = compile(
 			tsrx('@if (user.get()) { <p>{() => user.get()!.name}</p> }', {
 				setup:
@@ -473,10 +460,9 @@ describe('the server renders the winner beside the inert arms', () => {
 	})
 
 	test('the skeleton is byte-identical across the three tiers (ADR 0008 s4)', async () => {
-		//: the same compiling fixture the `select` test pins — the
-		// retired `createCell(start > 2)` spelling is refused by a full
-		// compile (LTC005's server-only face: the initializer reads a server
-		// arg with no DOM site to seed from).
+		// The same fixture the `select` test pins — a `createCell(start > 2)`
+		// spelling is refused by a full compile (LTC005's server-only face:
+		// the initializer reads a server arg with no DOM site to seed from).
 		const source = tsrx(
 			'@if (open.get()) { <p class="a">a</p> } @else { <b>b</b> }',
 			{
@@ -500,13 +486,13 @@ describe('the server renders the winner beside the inert arms', () => {
 	})
 })
 
-/* === The initial winner agrees with the client's first key (LT-386) === */
+/* === The initial winner agrees with the client's first key === */
 
 describe('a Parser-backed seed folds through the parser (LT-386)', async () => {
-	// The  review's miscompile: the fold substituted the RAW attribute
+	// The miscompile this pins: the fold substituted the RAW attribute
 	// expression, folding `'3' === 3` to `else` while the client's parsed
 	// prop (`asInteger('3') === 3`) picks `then` — a replacement at connect
-	// on a component the census calls Folded. The spliced seed now applies
+	// on a component the census calls Folded. The spliced seed applies
 	// the parser, so both sides answer the same truth.
 	const { component, diagnostics } = compile(
 		tsrx(
@@ -555,8 +541,7 @@ describe('a Parser-backed seed folds through the parser (LT-386)', async () => {
 describe('a static expose() initializer folds to a constant (LT-386)', async () => {
 	// `#initSignals` evaluates the initializer once as the prop's client
 	// seed — the attribute never seeds a plain-value prop — so the
-	// initializer expression IS the prop's server truth. Pre- the
-	// conditional rendered no live arm AND routed the component Simulated.
+	// initializer expression IS the prop's server truth.
 	test('the initial winner is the constant arm, on a Folded component', async () => {
 		const [node] = conditionals(
 			irOf(
@@ -650,8 +635,8 @@ test('a reactive list beside an arm set queries its own item template', () => {
 		),
 	)
 	expect(diagnostics).toEqual([])
-	// The item template is stamped `data-list` and queried from the host
-	// (ADR 0024 s2) — `first('template')` could never
+	// The item template is stamped `data-list` and queried from the host —
+	// `first('template')` could never
 	// tell it from the arm template beside it.
 	expect(component?.clientCode).toContain(
 		'host.querySelector<HTMLTemplateElement>(\':scope > template[data-list="0"]\')!',
@@ -774,8 +759,8 @@ describe('the async boundary switches arms as its task settles (LT-276)', async 
 test('boundary templates bake their value sites empty while pending (LT-385c)', async () => {
 	// The boundary's grammar admits exactly one client-written site per arm
 	// — the recognized value child on the arm root (`emitArmRoot`); deeper
-	// constructs are LTC005.  already bakes that one site empty in the
-	// templates (the live winner writes it); this pins the emptiness — the
+	// constructs are LTC005. The compile already bakes that one site empty in
+	// the templates (the live winner writes it); this pins the emptiness — the
 	// pending task's `get()` must never be evaluated for a template.
 	const { component, diagnostics } = compile(
 		tsrx(
@@ -799,7 +784,7 @@ test('boundary templates bake their value sites empty while pending (LT-385c)', 
 })
 
 describe('two adjacent arm sets keep their templates to themselves (LT-385a)', async () => {
-	// The review's miscompile: the second set renders no live arm (b false),
+	// The miscompile this pins: the second set renders no live arm (b false),
 	// so its anchor's previousElementSibling is the FIRST set's template —
 	// adopted for its `data-key`, then removed when the key stayed null, and
 	// set 0's next flip threw NotFoundError from insertBefore.
@@ -853,7 +838,7 @@ describe('two adjacent arm sets keep their templates to themselves (LT-385a)', a
 
 		host().a = true
 		await settle()
-		// The flip that threw NotFoundError before the fix: set 0's arm must
+		// The flip that used to throw NotFoundError: set 0's arm must
 		// come back, with its template intact.
 		expect(frame().querySelector('p.one')).not.toBeNull()
 		expect(frame().querySelectorAll('template').length).toBe(2)
@@ -926,7 +911,7 @@ describe('placement and shape refusals', () => {
 	})
 })
 
-/* === Mode classification follows scope (LT-387) === */
+/* === Mode classification follows scope === */
 
 /** A one-file component around `body`, `.tsx` spelling. */
 const tsx = (

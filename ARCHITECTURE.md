@@ -99,7 +99,7 @@ churn:
 - **`.tsrx` pins `@tsrx/core`** (currently 0.2.3; ADR 0005 sub-design 2).
  `core.ts` is the **only** module importing its *values*; siblings import
  no types from it at all — the machinery walks its own `AstNode`
- (`ast-node.ts`). `core-shim.d.ts` is
+ (`ast-utils.ts`). `core-shim.d.ts` is
  the type side of that boundary — a pin upgrade touches `core.ts` and the
  shim only. The pin lags the upstream docs; when a construct the docs
  describe fails to parse, `frontend/tsrx/compiler.ts`'s `newerGrammarHint`
@@ -427,7 +427,7 @@ front-end modules, then the two front ends:
 | `frontend/tsx/index.ts` | `.tsx` front end: `compileComponentTsx` = `compileSourceTsx` + the shared pipeline (internal since the corpus-entry-point ruling — `contract.ts` publishes the corpus entry point instead) |
 | `ir.ts` | Pure-data type leaf: the whole IR vocabulary (`ComponentIR`, `TemplateNode`, `AttributeIR`, `SignalIR`, `ForIR`, `ConfigIR`, …) — no function-bearing types, so a `ComponentIR` is serializable (, pinned by `ir-leaf.test.ts`) |
 | `extract-context.ts` | The front end's mutable per-source state: `ExtractContext` and `createExtractContext` (, evicted from `ir.ts`) |
-| `ast-node.ts` | The machinery's own loose estree `AstNode` type both front ends normalize onto — no parser's types cross this leaf |
+| `ast-utils.ts` | The machinery's own loose estree `AstNode` type both front ends normalize onto — no parser's types cross this leaf |
 | `module-scans.ts` | Front-end-neutral whole-module scans: malformed selectors (LTC026), deferred collector calls (LTC045), `'@zeix/le-truc'` import mismatches (LTC036/037) |
 | `params.ts` | The params contract (`extractParams`): the destructured args object (LTC008) plus the factory-context parameter |
 | `setup-extraction.ts` | The setup-statement loop (`extractSetup`), its per-item twin for a reactive list's body (`extractItemSetup`, ADR 0024 s5) and context seeding (`seedExtractionContext`) |

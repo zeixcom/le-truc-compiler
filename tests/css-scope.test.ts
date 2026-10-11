@@ -10,8 +10,6 @@ import {
 } from '../src/css-scope'
 import { DEFAULT_CSS_TARGETS } from '../src/emit-paths'
 
-/* === Fixtures === */
-
 /** Parse a sheet and emit it; the one-call shape every test below uses. */
 const emit = (
 	sheetText: string,
@@ -35,18 +33,13 @@ const NATIVE: Record<string, number> = {
 	safari: (17 << 16) | (4 << 8),
 }
 
-/** The guard one limit adds (ADR 0011 s4), for tag `my-box`. */
+/** The guard one limit adds, for tag `my-box`. */
 const guardOf = (limit: string, root = 'my-box'): string =>
 	`:where(:not(:is(${root} ${limit}, ${root} ${limit} *):not(${root} ${limit} my-box, ${root} ${limit} my-box *, ${root} ${limit}:is(my-box), ${root} ${limit}:is(my-box) *)))`
 
 const PAD = ':not([data-truc-scope-pad])'
 
-/**
- * Specificity of a flat selector as [ids, classes, types]: `:where()` is
- * zero, `:is()`/`:not()` take their argument's maximum, a class, attribute
- * or pseudo-class counts as a class, a type as a type. Enough for the
- * selectors the emission writes.
- */
+/** Specificity of a flat selector as [ids, classes, types]: `:where()` is zero, `:is()`/`:not()` take their argument's maximum. Enough for the selectors the emission writes. */
 const specificity = (selector: string): [number, number, number] => {
 	const total: [number, number, number] = [0, 0, 0]
 	const add = (other: [number, number, number]) => {
@@ -114,8 +107,6 @@ const specificity = (selector: string): [number, number, number] => {
 const firstSelector = (css: string): string =>
 	css.slice(0, css.indexOf(' {')).trim()
 
-/* === The CSS target === */
-
 describe('scopeModeOf (ADR 0011 s7)', () => {
 	test('the default target lowers — @scope is not widely available there', () => {
 		expect(scopeModeOf(DEFAULT_CSS_TARGETS)).toBe('lowered')
@@ -136,8 +127,6 @@ describe('scopeModeOf (ADR 0011 s7)', () => {
 		expect(describeCssTargets({})).toBe('no named browser')
 	})
 })
-
-/* === The authored-form checks (ADR 0011 s6) === */
 
 describe('checkSheetContract', () => {
 	const findingsOf = (sheetText: string, tag = 'my-box') => {
@@ -313,8 +302,6 @@ describe('checkSheetLowering (LTC089)', () => {
 	})
 })
 
-/* === The lowered emission (ADR 0011 s4) === */
-
 describe('emitScopedSheet — lowered (the default targets)', () => {
 	test('bare selectors lead with :where(tag); :scope becomes the padded root compound', () => {
 		const css = emit(
@@ -326,8 +313,7 @@ describe('emitScopedSheet — lowered (the default targets)', () => {
 	})
 
 	test('specificity equals the native form, :scope included (0,1,0)', () => {
-		// The native specificity of each authored selector, `:where(:scope)`
-		// leading the implicit-descendant forms.
+		// The native specificity of each authored selector, `:where(:scope)` leading the implicit-descendant forms.
 		const cases: Array<[string, [number, number, number]]> = [
 			['.x', [0, 1, 0]],
 			[':scope', [0, 1, 0]],
@@ -336,8 +322,7 @@ describe('emitScopedSheet — lowered (the default targets)', () => {
 			[':scope.on .x', [0, 3, 0]],
 			[':scope:is(.a, .b) .x', [0, 3, 0]],
 			['p .x', [0, 1, 1]],
-			// The ADR 0011 s1 idiom: the host at zero, a variant at (0,1,0),
-			// a relative descendant under the implicit `:where(:scope)`.
+			// The idiom: the host at zero, a variant at (0,1,0), a relative descendant under the implicit `:where(:scope)`.
 			[':where(:scope)', [0, 0, 0]],
 			[':where(:scope).x', [0, 1, 0]],
 			[':where(:scope).x .y', [0, 2, 0]],
@@ -372,8 +357,7 @@ describe('emitScopedSheet — lowered (the default targets)', () => {
 	})
 
 	test('the re-include covers an own-tag instance the limit itself matches', () => {
-		// `<b-x><my-box>` under `to (b-x > *)`: native styles the inner
-		// <my-box> as its own scope root, so the guard must not exclude it.
+		// `<b-x><my-box>` under `to (b-x > *)`: native styles the inner <my-box> as its own scope root, so the guard must not exclude it.
 		expect(guardOf('b-x > *')).toContain(
 			'my-box b-x > *:is(my-box), my-box b-x > *:is(my-box) *',
 		)
@@ -516,8 +500,6 @@ describe('emitScopedSheet — lowered (the default targets)', () => {
 	})
 })
 
-/* === The native emission (ADR 0011 s3) === */
-
 describe('emitScopedSheet — native (@scope-capable targets)', () => {
 	const native = (sheetText: string) => emit(sheetText, { cssTargets: NATIVE })
 
@@ -596,8 +578,6 @@ describe('emitScopedSheet — native (@scope-capable targets)', () => {
 		expect(indented).toBe(flat)
 	})
 })
-
-/* === LT-398: the review defects, once per mode === */
 
 describe('emitScopedSheet — LT-398 review defects, both modes', () => {
 	const modes = [

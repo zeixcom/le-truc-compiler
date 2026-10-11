@@ -1,29 +1,3 @@
-/**
- * Selector engine (regrouping move M5 of LE_TRUC_COMPILER.md §7):
- * synthesis, structural uniqueness counting, and union addressing for the
- * element queries the generated client factory issues. Uniqueness is proven
- * structurally against the template the compiler itself renders — the
- * compiler wrote this HTML, so counting matches in the proof is counting
- * matches in the DOM. Pure functions only; no analysis state.
- *
- * Since  ([ADR
- * 0045](../adr/0023-the-structural-uniqueness-proof-runs-on-a-materialized-probe.md))
- * the ENGINE half of this module — matching, counting, match-existence —
- * runs on the materialized probe (`analysis/probe.ts`): the template is
- * serialized to HTML and queried with css-select over one aggregation walk,
- * replacing five hand cascades that each re-encoded the branch-exclusivity
- * arithmetic and carried a hand matcher that had to track the synthesizer
- * exactly or fail silently. What remains HERE is the POLICY the ADR keeps
- * in house: candidate order (role → bare tag → discriminator), the
- * authored-selector gate and its one-clause grammar, clean-before-excluded
- * emission, precision-first base choice among the exclusion-decorated
- * candidates (), the compose clause algebra, and the element-chain
- * searches.
- * The differential harness in `server/tests/compiler/
- * probe-differential.test.ts` permanently pins the probe's answers to the
- * hand cascades' record.
- */
-
 import * as cssWhat from 'css-what'
 import {
 	type ChildrenRegion,
@@ -68,13 +42,6 @@ export type ComposeNode = Extract<TemplateNode, { kind: 'compose' }>
 export const isElement = (n: TemplateNode): n is ElementNode =>
 	n.kind === 'element'
 
-/**
- * A node's `ref` attribute — its author-declared `first()` binding, on a
- * plain or composed element (LT-231: the one spelling of this lookup).
- * Since  (raw) and  (composed) every `{kind:'ref'}` attr in the
- * IR is one: the compiler attaches them from `first()` calls and nothing
- * else does.
- */
 export const refOf = <A extends { kind: string }>(node: {
 	attrs: readonly A[]
 }): Extract<A, { kind: 'ref' }> | undefined =>
@@ -92,22 +59,6 @@ export const staticAttrs = (
 	return map
 }
 
-/**
- * Selector synthesis, calibrated against the hand-written corpus:
- * 1. a `role` attribute is always the discriminator (it is the element's
- *    semantic contract; `div` tags drop the tag itself);
- * 2. otherwise the bare tag, upgraded to a `type`/`class`/`data-*`
- *    discriminator (`discriminatorCandidates`) only when the bare tag is
- *    structurally ambiguous.
- * Uniqueness is proven structurally — the compiler rendered this HTML.
- *
- * A third `'discriminator'` mode lived here until LT-124: a single-pick
- * variant of `discriminatorCandidates` that no caller had used since the
- * plural version landed, still carrying the exact-match `[class="…"]`
- * semantics  replaced. Deleted rather than updated — a second,
- * unreachable implementation of the discriminator rule is exactly the
- * drift  exists to remove.
- */
 const buildSelector = (
 	element: ElementNode,
 	mode: 'role' | 'bare',
@@ -121,26 +72,8 @@ const buildSelector = (
 	return null
 }
 
-/**
- * A class token or `id` safe to spell as a `.token` / `#id` clause. Anything
- * outside this shape (a Tailwind-style `w-1/2`, a leading digit, a token with
- * a `:` or an escape) would make the synthesized selector a `querySelector`
- * syntax error — a throw at activation, not a miss — so those fall back to
- * the exact-match `[attr="value"]` form.
- */
 const PLAIN_SELECTOR_TOKEN = /^[A-Za-z_-][\w-]*$/
 
-/**
- * How precise a synthesized base is, among exclusion-decorated candidates
- * (): there every candidate pays the same exclusion cost, so the base
- * decides. A `role` clause is the element's semantic contract and keeps its
- * first place; an `id` names one element outright; a `class`/`data-*` clause
- * is the author's addressing hook; the bare tag — and with it `type` and
- * `aria-*`, which are boilerplate and a last resort rather than hooks, and
- * keep their candidate-order places — narrows nothing and is the first form
- * to break when the template grows a same-tag sibling. Among equal ranks
- * candidate order stands.
- */
 const PRECISION = { role: 3, id: 2, hook: 1, bare: 0 } as const
 
 type Precision = (typeof PRECISION)[keyof typeof PRECISION]
@@ -150,44 +83,11 @@ type RankedBase = {
 	rank: Precision
 }
 
-/**
- * All discriminator candidates in priority order (`type`, each `class`
- * token, `id`, every `data-*` — the `class`-then-`id`-then-`data-*` tail
- * mirroring `composeDiscriminatorClause`'s — then every `aria-*` as a last
- * resort) — plural, because two sibling
- * `<button type="button">`s that only differ by `class` (decrement /
- * increment) share the same `type` clause: `resolveSelectorIn` needs every
- * candidate to fall through to, not just the first present one. Each rides
- * with its precision rank (`PRECISION`): among exclusion-decorated
- * candidates the `id` clause outranks the `class`/`data-*` hooks, which
- * outrank the bare tag, `type` and `aria-*`.
- *
- * Two clauses are spelled canonically rather than as attribute selectors.
- * `class` discriminates by TOKEN MEMBERSHIP (`span.label`), not by exact
- * value (), and `id` by the hash form (`input#name-input`). The two
- * are different KINDS of change: the class form deliberately matches wider
- * markup than `[class="label"]` did, while `#name-input` and
- * `[id="name-input"]` select exactly the same element — the id form is pure
- * canonicalization, carrying none of the widening discussed below.
- *
- * Exact match on `class` was wrong twice over: it made `class="a b"`
- * order-sensitive, and — since  made an unmatched optional ref a
- * silent no-op rather than a throw — it silently bound NOTHING when a page
- * enhanced the component's markup with an extra class (`class="label icon"`),
- * which is precisely the page-authored case optional refs exist to serve.
- * Token membership is also what `composeDiscriminatorClause` has always
- * emitted for compose sites; the two paths now agree on semantics, not just
- * on priority. Note this restores the contract the author wrote — the
- * authored selector in `basic-button.tsrx` is `span.label` — rather than
- * inventing a looser one.
- */
 const discriminatorCandidates = (element: ElementNode): RankedBase[] => {
 	const attrs = staticAttrs(element)
 	const prefix = element.tag === 'div' ? '' : element.tag
 	const exact = (name: string, value: string): string =>
 		`${prefix}[${name}="${value}"]`
-	// A Map, not an array: two unsafe tokens in one `class` value would
-	// otherwise push the same exact-match fallback twice.
 	const candidates = new Map<string, Precision>()
 	const type = attrs.get('type')
 	if (typeof type === 'string')
@@ -212,13 +112,6 @@ const discriminatorCandidates = (element: ElementNode): RankedBase[] => {
 	for (const [name, value] of attrs)
 		if (name.startsWith('data-') && typeof value === 'string')
 			candidates.set(exact(name, value), PRECISION.hook)
-	// Last resort (): a static `aria-*` value, for an element whose
-	// authored contract addresses it by ARIA semantics alone —
-	// module-dialog's opener is `button[aria-haspopup="dialog"]`, and
-	// page markup carries no class for it. Tail position means it is only
-	// reached when no earlier candidate is unique, so no element that
-	// resolved before changes its selector. A value holding `"` or `\`
-	// would need escaping, which the matchers above do not parse.
 	for (const [name, value] of attrs)
 		if (
 			name.startsWith('aria-') &&
@@ -229,123 +122,38 @@ const discriminatorCandidates = (element: ElementNode): RankedBase[] => {
 	return [...candidates].map(([base, rank]) => ({ base, rank }))
 }
 
-/**
- * The one-clause grammar the synthesizer emits, and — via
- * `authoredSelectorOf` — the gate deciding which AUTHORED `first()`
- * selectors the compiler can still verify (): an optional tag, then
- * at most one `[attr="value"]`, `.token` or `#id` clause. This is a
- * capability boundary, not a matcher: since  matching itself is
- * css-select's job (ADR 0023 Decision 1), nothing pairs against this
- * grammar any more, and widening the verifiable subset is the's
- * authoring-visible change to make.
- */
 const SELECTOR_GRAMMAR =
 	/^([a-z][a-z0-9-]*)?(?:\[([^\]="]+)="([^"]*)"\]|\.([A-Za-z_-][\w-]*)|#([A-Za-z_-][\w-]*))?$/
 
 /* === Exported Functions === */
 
-/**
- * Structural match count for a selector over the whole template — the
- * materialized probe's aggregation walk (`analysis/probe.ts`): mutually
- * exclusive arms take the max over branches, coexisting arms (a `@try`
- * with `@pending`) sum, compose sites contribute zero, and a
- * selector css-what cannot parse counts zero (a `querySelector` would
- * throw on it — it matches nothing in any valid DOM). Browser-faithful
- * counting per ADR 0023 Decision 2: what is counted is what the browser's
- * parse of the emitted markup builds.
- */
 export const countForSelector = (
 	node: TemplateNode,
 	selector: string,
 ): number => probeCount(node, selector)
 
-/**
- * `countForSelector` over the region probe: every raw element the
- * template can render, a compose site's content included — the elements
- * of a tag a host-level `first()` can reach (). Compose sites still
- * contribute zero; `countComposeBySource` counts those.
- */
 export const countRenderedForSelector = (
 	node: TemplateNode,
 	selector: string,
 ): number => probeCountWithRegions(node, selector)
 
-/**
- * Structural match count for composed elements over the whole template,
- * grouped by their resolved `.tsrx` source path — the proxy for "this
- * composed target is the sole possible instance" used by `pass={{ }}`
- * addressing (ADR 0005 sub-design 10). Exactly 1 is the fast path: no
- * discriminator needed at all. More than 1 no longer means unaddressable
- * outright () — `composeNodesBySource`/`composeDiscriminatorClause`
- * below can still tell same-source instances apart by a static `class`/`id`/
- * `data-*` on the compose site; this count only decides whether that search
- * is needed. Compose sites are matched on their source string verbatim;
- * the exclusivity arithmetic is the probe walk's.
- */
 export const countComposeBySource = (
 	node: TemplateNode,
 	source: string,
 ): number => probeCountCompose(node, source)
 
-/**
- * Every composed element over the whole template, regardless of source
- * () — the source-agnostic sibling of `composeNodesBySource`, used
- * for template-wide invariants on compose sites (today: duplicate static
- * `id`). A flat collection that does NOT take `@if`/`@switch` mutual
- * exclusivity into account: an `id` shared by two mutually-exclusive-branch
- * sites still renders two elements with that id across the component's
- * lifetime, so over-collecting here is the conservative direction for a
- * validity check. Document order, `@pending` arms entered ().
- */
 export const allComposeNodes = (root: TemplateNode): ComposeNode[] =>
 	probeComposeNodes(root)
 
-/**
- * Every composed element over the whole template sharing one `.tsrx` source
- * path, as the actual nodes rather than just a count (). A flat
- * collection — unlike `countComposeBySource`, it does NOT take `@if`/
- * `@switch` mutual exclusivity into account (that count stays the "is this
- * the sole POSSIBLE instance" fast path, unchanged); this is only consulted
- * once that count is already `> 1`, to search for a static discriminator
- * (`class`/`id`/`data-*`) that tells same-source instances apart. Treating
- * two mutually-exclusive-branch instances as needing a discriminator too
- * (when in principle they never coexist) is a strictly conservative
- * over-restriction, never an incorrect acceptance — the same trade this
- * compiler already makes elsewhere when a cheaper, sound check is preferred
- * over a more complete but heavier one.
- */
 export const composeNodesBySource = (
 	root: TemplateNode,
 	source: string,
 ): ComposeNode[] => allComposeNodes(root).filter(node => node.source === source)
 
-/**
- * Static (`Literal`-valued) `arg` attrs of a composed element, keyed by name
- * () — the compose-node analog of `staticAttrs` above, used to search
- * for a `class`/`id`/`data-*` discriminator among same-source siblings and,
- * since , to match an author's `first('child-tag.discriminator')`
- * selector against compose sites (`analysis/compose-refs.ts`).
- *
- * Server args to a composed child aren't guaranteed to render as real DOM
- * attributes (unlike a raw element's own `static` attrs), but `class` and
- * `id` ARE: `emit-server.ts` filters them out of the forwarded args and
- * splices them onto the child's rendered root via `composeHostAttrs`
- * (). That pass-through is now load-bearing rather than incidental —
- * addressing a compose site by `.class` is the only way to address it at
- * all — so it is an invariant, pinned by test, not an implementation
- * detail. `data-*` is spliced the same way (). A dynamic value of any
- * of the three renders but is never read here: only a literal can be
- * proven to discriminate.
- */
 export const composeStaticAttrs = (node: ComposeNode): Map<string, string> => {
 	const map = new Map<string, string>()
 	for (const attr of node.attrs) {
 		if (attr.kind !== 'arg') continue
-		// A bare `class="a"` (no `{}`) classifies with `node: null` — the
-		// value only survives as `exprText`, `JSON.stringify`-encoded
-		// (`classify-attributes.ts`), so it round-trips safely through
-		// `JSON.parse`. A braced `class={'a'}` keeps its real `node`, read
-		// directly like `staticAttrs` does for raw elements above.
 		if (attr.node === null) {
 			try {
 				const value = JSON.parse(attr.exprText)
@@ -361,12 +169,6 @@ export const composeStaticAttrs = (node: ComposeNode): Map<string, string> => {
 	return map
 }
 
-/**
- * What a compose site adds to the composed child's host (): its
- * static attributes (`composeStaticAttrs`) and the names of its dynamic
- * `class`/`id`/`data-*` ones — the names `emit-server.ts` splices onto the
- * child's root, the only dynamic args that render as attributes.
- */
 export const composeSiteAttrs = (
 	node: ComposeNode,
 ): { attrs: Record<string, string>; dynamic: string[] } => {
@@ -384,20 +186,6 @@ export const composeSiteAttrs = (
 	return { attrs, dynamic: [...dynamic] }
 }
 
-/**
- * A selector-clause discriminator (`.lightness`, `#foo`, `[data-axis="x"]`)
- * that uniquely picks `node` out among `siblings` (same-source composed
- * elements) — `class`/`id`/`data-*` priority, mirroring
- * `discriminatorCandidates`'s own priority order for raw elements. `class`
- * matches by token membership (a multi-class `class="a b"` site can be
- * discriminated by either token); `id`/`data-*` match by exact value. `null`
- * if no candidate is unique to `node`. `rejects` rules out a clause that
- * another element of the child's tag also matches (
- * `composeSiteAddress`): the query is the tag plus the clause, and that
- * element would take the site's place. The caller's one fallback is
- * `composeSharedPassClause` (), a query shared by sites with
- * identical `truc:pass` objects — never anything looser.
- */
 export const composeDiscriminatorClause = (
 	node: ComposeNode,
 	siblings: readonly ComposeNode[],
@@ -409,16 +197,6 @@ export const composeDiscriminatorClause = (
 			!rejects(candidate.clause),
 	)?.clause ?? null
 
-/**
- * The same-source sites one clause of `node` picks out, for the's
- * shared-query fallback: the first candidate (same priority order as
- * `composeDiscriminatorClause`) whose matching siblings ALL carry
- * `truc:pass` and would ALL reach this fallback themselves — no author
- * `first()` (`ref` attr) and no unique clause of their own ().
- * Otherwise a member addressed on its own path would either swallow the
- * group's one emission or be passed twice. `null` if no candidate
- * qualifies — the site stays unaddressable.
- */
 export const composeSharedPassClause = (
 	node: ComposeNode,
 	siblings: readonly ComposeNode[],
@@ -439,33 +217,6 @@ export const composeSharedPassClause = (
 	return null
 }
 
-/**
- * How a compose site is addressed from `scope` — the host root for a
- * host-level query, the item root for an item's, the arm root for an arm's
- * (LT-498: the one decision every compose-site query makes).
- *
- * `clause` is what follows the child's tag in the selector: the site's
- * discriminator, or `''` when the site is the scope's only one of its
- * source, then any exclusion. Two kinds of element besides the site can
- * match the tag plus a clause, and both rule a clause out:
- * - a raw element of the child's tag the scope renders, in a list item, an
- *   arm or a compose site's content (). With `childTag` null — the
- *   registry-discovery pass, which knows no composed child's tag — every
- *   raw custom element counts, whatever its tag;
- * - an element another composed child renders inside its own template.
- *   With `composed` known, the clause carries a `:not(<other-child> *)`
- *   exclusion for each child that could render one, the way raw `first()`
- *   refs do (), so a site unique in the served DOM is not refused; a
- *   child of unknown markup leaves no sound exclusion.
- *
- * `lone` decides when the bare tag is a candidate at all: by default the
- * scope composes the source once; the host's `first()`/`truc:pass` query
- * passes the exclusivity-aware count. `shared` asks for the ticket's fallback
- * — sites that share a clause and carry identical `truc:pass` objects —
- * when no clause of the site's own is unique; the caller still compares
- * the objects. A refusal carries the same-source sites, for its wording:
- * a lone site clashed with another element of the child's tag.
- */
 export type ComposeSiteAddress =
 	| { kind: 'unique'; clause: string }
 	| { kind: 'shared'; clause: string; members: ComposeNode[] }
@@ -527,12 +278,6 @@ export const composeSiteAddress = (
 	return { kind: 'refused', siblings }
 }
 
-/**
- * Could an element another composed child renders under `scope` match the
- * site's selector, `childTag` plus `clause`? The check for a clause chosen
- * without the child's tag — a forwarded handler arg's, recorded in the
- * registry-discovery pass — once the tag is known ().
- */
 export const composedChildMayMatch = (
 	scope: TemplateNode,
 	node: ComposeNode,
@@ -543,14 +288,6 @@ export const composedChildMayMatch = (
 	composedEmitter(scope, node, composed, node.source)(`${childTag}${clause}`)
 		?.clean !== true
 
-/**
- * The LTC007 wording for a refused compose site (): a lone
- * site clashed with another element of the child's tag, several sites
- * share every clause. `need` names what needs the target; `scope` is
- * `template`, `arm` or the list's item word; `tail` overrides the
- * several-sites fix. With `childTag` null (the registry-discovery pass) the
- * clash is with any raw custom element.
- */
 export const composeSiteRefusal = (
 	node: ComposeNode,
 	childTag: string | null,
@@ -622,35 +359,18 @@ const composeClauseMatches = (
 		return sibAttrs.get(name) === value
 	})
 
-/**
- * Could `selector` match an element of `shape`? The composed-shapes guard
- * of `selectorCandidates` — policy, per ADR 0023 Decision 4, but since
- *  the selector is PARSED by css-what instead of the hand grammar the
- * engine used to pair with (the parse was the drift-prone half). The
- * conservative rule is unchanged: a dynamic attribute may hold any value,
- * and anything the parse cannot settle — a combinator across the shape's
- * unknown ancestry, an attribute operator beyond equals/token-membership/
- * existence, a pseudo-class, an unparseable selector — is assumed to
- * match, since a false "no" binds an effect onto a child's element.
- */
 const mayMatchShape = (shape: RenderedShape, selector: string): boolean => {
 	if (shape.kind !== 'element') return true
 	let branches
 	try {
 		branches = cssWhat.parse(selector)
 	} catch {
-		// Assumed to match — the conservative direction, as before .
+		// Assumed to match — the conservative direction.
 		return true
 	}
 	return branches.some(branch => branchMayMatchShape(shape, branch))
 }
 
-/**
- * One complex selector against one shape: a predicate that DEFINITELY
- * fails makes the answer false; anything undecidable is skipped. Shapes
- * are flat single elements with no ancestry, so combinator entries never
- * disprove a match.
- */
 const branchMayMatchShape = (
 	shape: RenderedShape & { kind: 'element' },
 	branch: cssWhat.Selector[],
@@ -683,57 +403,14 @@ const branchMayMatchShape = (
 			)
 				return false
 		}
-		// universal matches anything; pseudo-classes/pseudo-elements and
-		// combinators are undecidable against one flat shape — skipped.
 	}
 	return true
 }
 
-/**
- * Resolution candidates for `element`, in priority order, each paired with
- * the selector to EMIT for it. A `first()`-referenced element's authored
- * selector comes first (): page-authored occurrences are addressed by
- * the author's contract, so a synthesized selector would silently narrow or
- * widen it. It still has to prove itself like any candidate — unique over
- * the tree, and exclusion-wrapped when a composed child could match.
- * Uniqueness is counted over the component's OWN template (`base`), but the
- * runtime query also descends into every
- * composed child's rendered markup. With `composed` known — the registry-aware pass — a
- * candidate no composed child's element could match is emitted as is; one
- * that some could is emitted with a `:not(<child-tag> *)` exclusion per
- * such child, and dropped when a child's tag is unknown. Clean candidates
- * come first, so the exclusion only appears where no clean one is unique;
- * among the decorated ones the most precise base wins () — every
- * candidate pays the same exclusion there, so the bare tag no longer beats
- * a discriminated form by arriving first in candidate order.
- *
- * The exclusion is sound because a composed child's markup is exactly its
- * root tag's descendants; it would also exclude an element of this
- * component that sat inside a same-tag ANCESTOR of the host, which no
- * composition produces.
- *
- * An element in content this component passes to a composed child sits in
- * that child's Children Region (ADR 0026 s1). Its candidates are counted
- * over the region probe, which adds every compose site's content, and the
- * exclusion re-includes this component's own regions
- * (`excludeUnlessOwned`): `:not(:is(C *):not(:is(R *):not(:is(R C *))))`
- * with `R` the region marker. A candidate that the child's own markup in
- * the region could match is dropped.
- */
 type Candidates = {
 	/** The structural count every candidate's `base` must prove itself in. */
 	count: (selector: string) => number
-	/**
-	 * The authored (when it resolved) and clean synthesized candidates, in
-	 * candidate order — every one of them is preferred over any
-	 * exclusion-decorated candidate.
-	 */
 	list: Array<{ base: string; emit: string }>
-	/**
-	 * The exclusion-decorated candidates, in candidate order paired with
-	 * their precision rank () — consulted only when nothing in `list`
-	 * is unique, most precise base first.
-	 */
 	excluded: Array<{ base: string; emit: string; rank: number }>
 }
 
@@ -769,9 +446,6 @@ const selectorCandidates = (
 			? [{ base, emit: emitted.emit, rank, clean: emitted.clean }]
 			: []
 	})
-	// The authored selector leads even when it needs the exclusion: it is
-	// the contract, and the exclusion only narrows it to this component's
-	// own markup.
 	const own = authored ? emitFor(authored) : null
 	return {
 		count,
@@ -785,26 +459,6 @@ const selectorCandidates = (
 	}
 }
 
-/**
- * The emitted form of a candidate `base` addressing `target` under `tree`,
- * given what each composed child renders (`selectorCandidates`' guard):
- * `base` itself when no composed child's markup could match it, else `base`
- * with a `:not(<child-tag> *)` exclusion per child that could — region-
- * aware when `target` sits in a compose site's content — and null when a
- * child of unknown markup could match, or the region re-include would admit
- * a match. `skipSource` leaves out the compose sites of one source: a
- * compose site's own child is the element addressed, not a clash ().
- *
- * A child's `children` shape — the content this component passes at the
- * child's sites (ADR 0026 s1) — counts as a clash only for a target in the
- * template proper: that target's count is the plain probe, which never sees
- * compose content, so the flat exclusion is the only thing keeping a
- * matching passed element out of the query. For a target in a compose
- * site's content the shape never clashes (owner ruling
- * 2026-10-09): the count is the region probe, which materializes the
- * content, and the region-form exclusion's re-include re-admits it — only
- * the child's own markup can clash there.
- */
 const composedEmitter = (
 	tree: TemplateNode,
 	target: TemplateNode,
@@ -823,14 +477,6 @@ const composedEmitter = (
 			},
 	)
 	const owner = region ? composed.get(region.source) : undefined
-	/**
-	 * An element inside a Children Region is reached through the re-include
-	 * clause, which admits everything in every region this component owns:
-	 * the content it passes (counted by the region probe) and whatever a
-	 * child renders there besides it. `base` is safe only when no such
-	 * markup could match it, and only when the element's own compose site
-	 * marks the region at all.
-	 */
 	const regionSafe = (base: string, site: ComposeNode): boolean =>
 		sites.every((node, index) => {
 			if (node.children.length === 0) return true
@@ -845,9 +491,6 @@ const composedEmitter = (
 				sites[index]?.source !== skipSource &&
 				(child.tag === null ||
 					child.shapes.some(
-						// The `children` shape is the passed content, not the
-						// child's markup: a clash only from the template proper
-						// (see the docstring).
 						shape =>
 							(shape.kind !== 'children' || !owner) &&
 							mayMatchShape(shape, base),
@@ -868,10 +511,6 @@ const composedEmitter = (
 	}
 }
 
-/**
- * The compose site whose content holds `element` under `tree`, or null —
- * the element then sits in that child's Children Region (ADR 0026 s1).
- */
 const enclosingComposeOf = (
 	tree: TemplateNode,
 	element: TemplateNode,
@@ -885,36 +524,14 @@ const enclosingComposeOf = (
 	return found
 }
 
-/**
- * The element's authored `first()` selector, when it parses in the
- * synthesized grammar () — the only selectors the structural counting
- * and the composed-shapes check can verify. Anything wider (a descendant
- * combinator, a selector list) falls back to synthesis.
- */
 const authoredSelectorOf = (element: ElementNode): string | null => {
 	const selector = refOf(element)?.selector?.trim()
 	return selector && SELECTOR_GRAMMAR.test(selector) ? selector : null
 }
 
-/**
- * The exclusion-decorated candidates, most precise base first ():
- * when no clean candidate is unique, every survivor carries the same
- * exclusion and the base decides — the bare tag narrows nothing and is the
- * first form to break when the template grows a same-tag sibling, where a
- * discriminated form survives. Stable within a rank (`sort` is), so
- * candidate order breaks ties.
- */
 const byPrecision = <T extends { rank: number }>(excluded: readonly T[]): T[] =>
 	[...excluded].sort((a, b) => b.rank - a.rank)
 
-/**
- * Resolve the selector for an element: try role, bare, then upgrade to a
- * discriminator; accept the first structurally unique candidate. Clean
- * candidates keep that order; when only exclusion-decorated candidates
- * remain, they are tried most precise base first (). Counting is
- * scoped to `tree` — the whole template, or a loop output subtree for
- * bindItem-scoped element queries.
- */
 export const resolveSelectorIn = (
 	tree: ElementNode,
 	element: ElementNode,
@@ -933,22 +550,6 @@ export const resolveSelectorIn = (
 	}
 }
 
-/**
- * Resolve the selector for a parent-authored element INSIDE composed
- * content (LT-460: the async boundary's message element within a composed
- * callout). The element is not part of the host's own template, so the
- * probe cannot count it — `resolveSelectorIn`'s uniqueness proof does not
- * apply, and its composed-child exclusions (`:not(child-tag *)`) would
- * exclude the element's own rendered position. The runtime query still
- * reaches it: an arm-scoped `first()` descends into the composed child's
- * markup (). The candidates are the element's `role` and its
- * class/id/data-* discriminators; there is NO bare-tag fallback (LT-460
- * rework): unlike the ticket's raw-tag callout — which contributes no markup
- * of its own to the parent's DOM — a composed child renders markup the
- * compiler cannot see, and a bare tag could match one of its own elements,
- * writing the arm's value into the child's markup. Null when the element
- * carries no distinguishing attribute; the caller refuses with the fix.
- */
 export const resolveComposeContentSelector = (
 	el: ElementNode,
 ): { selector: string; unique: false } | null => {
@@ -961,16 +562,6 @@ export const resolveComposeContentSelector = (
 	return selector === undefined ? null : { selector, unique: false }
 }
 
-/**
- * The `:scope >` child path from `tree` down to `element` (ADR 0024 s2) —
- * one bare-tag step per element on the way, control flow transparent (an
- * arm root or a list item is a DOM child of the element holding it) — or
- * null when `element` is `tree` itself or sits in no element chain under it
- * (composed content is another component's template). Proved like any
- * candidate: it must match exactly one element of the materialized probe,
- * whose root is `tree`, so `:scope` is the probe root (css-select reads a
- * context-free `:scope` as `:root`).
- */
 const childPathSelector = (
 	tree: ElementNode,
 	element: ElementNode,
@@ -991,15 +582,6 @@ const childPathSelector = (
 	return countForSelector(tree, selector) === 1 ? selector : null
 }
 
-/**
- * Resolve the selector a Mount Scope's `first` queries for `element` (ADR
- * 0046 s2): {@link resolveSelectorIn} over the scope root's subtree —
- * the materialized probe includes every arm of a nested arm set and one copy
- * of each nested item shape, so a candidate that counts 1 matches nothing in
- * a nested scope's possible content — and, when no class, role or `data-*`
- * separates the elements, the synthesized `:scope >` child path. Unique
- * false when neither proves out (LTC007; the fix is a unique class).
- */
 export const resolveScopedSelector = (
 	tree: ElementNode,
 	element: ElementNode,
@@ -1017,32 +599,11 @@ export const resolveSelector = (
 ): { selector: string; unique: boolean } =>
 	resolveSelectorIn(component.root, element, component.composedShapes)
 
-/**
- * Does any element under `nodes` (any depth, entering nested control flow,
- * stopping at composed children — another component's template) structurally
- * match `selector`? () — the per-branch addressing collision check:
- * a branch root's query is only sound when it cannot match the OTHER
- * branch's markup, or the branch that didn't render would have its effects
- * bound onto the sibling branch's element by its own existence guard.
- * Existence over the materialized probe; exclusivity (max-vs-sum) can
- * never flip it.
- */
 export const matchesUnder = (
 	nodes: readonly TemplateNode[],
 	selector: string,
 ): boolean => probeExists(nodes, selector)
 
-/**
- * Resolve the selector for an element addressed PER-BRANCH (): like
- * {@link resolveSelectorIn}, but a candidate is additionally rejected when
- * it structurally matches anything under `clash` — the sibling branch(es) of
- * the same exclusive control-flow node. `countForSelector`'s exclusivity-
- * aware counting deliberately calls a selector matching one root per branch
- * "unique" (the premise union addressing is built on); per-branch addressing
- * needs the opposite — a selector that only the addressed branch's element
- * can match — so the bare-tag candidate a same-tag sibling also matches
- * falls through to a discriminator here instead of being accepted.
- */
 export const resolveExclusiveSelectorIn = (
 	tree: ElementNode,
 	element: ElementNode,
@@ -1073,18 +634,11 @@ export const loopFor = (
 ): ForIR | null =>
 	[...component.fors.values()].find(f => f.output === node) ?? null
 
-/**
- * The @if node whose branches hold `target` as a direct branch root, if
- * any — elements inside conditional branches address through the union
- * of all branch roots (whichever rendered is the one in the DOM).
- */
 export const enclosingIfOf = (
 	component: ComponentIR,
 	target: ElementNode,
 ): IfNode | null => {
 	const walk = (node: TemplateNode): IfNode | null => {
-		// Server-known `@if`s only: a reactive conditional's arms address
-		// their content per arm, inside `reconcile()`'s mount (ADR 0015 s3).
 		if (isIf(node) && node.mode === 'server') {
 			const branches = [...thenOf(node), ...elseOf(node)]
 			if (branches.includes(target)) return node
@@ -1114,13 +668,6 @@ export const selectorFor = (
 	const roots = [...thenOf(enclosing), ...elseOf(enclosing)].filter(isElement)
 	const clauses: string[] = []
 	for (const root of roots) {
-		// Global tree (not `root` itself) — `resolveSelectorIn` tries
-		// role → bare tag → discriminator IN ORDER and stops at the first
-		// one unique WITHIN the tree it's given; passing `root` as its
-		// own tree made every candidate trivially "unique" (an element is
-		// always unique among itself), so a same-tag sibling elsewhere in
-		// the template (two plain `<p>`s, one per @if) was never caught
-		// and the bare-tag candidate always won even when ambiguous.
 		const self = resolveSelectorIn(
 			component.root,
 			root,
@@ -1144,11 +691,6 @@ export type SelectorAdapters = {
 	enclosingIfOf: (target: ElementNode) => IfNode | null
 }
 
-/**
- * The component-scoped selector adapters (TC-006): the element-only forms
- * of the four component-first selectors above, bound to one component —
- * the closures the loop and harvest passes used to re-spell per function.
- */
 export const selectorAdaptersOf = (
 	component: ComponentIR,
 ): SelectorAdapters => ({
@@ -1158,11 +700,6 @@ export const selectorAdaptersOf = (
 	enclosingIfOf: target => enclosingIfOf(component, target),
 })
 
-/**
- * The shapes one template node contributes to its component's registry
- * record: an element its own shape (plus `any` when `truc:html` fills it),
- * a compose site a reference, a `{children}` insertion `children`.
- */
 const shapesOfNode = (node: TemplateNode): RenderedShape[] => {
 	if (node.kind === 'compose')
 		return [{ kind: 'compose', source: node.source, ...composeSiteAttrs(node) }]
@@ -1185,14 +722,6 @@ const shapesOfNode = (node: TemplateNode): RenderedShape[] => {
 	]
 }
 
-/**
- * Every element `component`'s template can render, for its registry entry
- * (). Composed children stay references (`compose`), resolved by the
- * parent through the registry; compose-site children are the parent's own
- * elements rendered inside the child, so they are collected too. A
- * `truc:html` element renders markup the template cannot know (`any`); a
- * `{children}` insertion renders its owner's content (`children`).
- */
 export const renderedShapesOf = (component: ComponentIR): RenderedShape[] => {
 	const shapes: RenderedShape[] = []
 	let any = false
@@ -1209,29 +738,10 @@ export const renderedShapesOf = (component: ComponentIR): RenderedShape[] => {
 	return shapes
 }
 
-/**
- * The registry record of what `component` renders inside its Children
- * Region besides the content (ADR 0026 s1), or `undefined` when it inserts
- * no `children`.
- */
 export const childrenRegionOfComponent = (
 	component: ComponentIR,
 ): ChildrenRegion | undefined => childrenRegionOf(component.root, shapesOfNode)
 
-/**
- * Each compose source under `root`, mapped to its DOM tag and every shape
- * its subtree renders — closed over the compose graph through
- * `composeRegistry` (a grandchild's markup is in the DOM too). A source with
- * no entry, or an entry without `renderedShapes`, renders unknown markup
- * (`any`).
- *
- * `region` closes the child's Children Region record the same way (ADR 0026
- * s1): its own markup inside the marked element, every grandchild there in
- * full, and the region of each child the content is forwarded to. Inside
- * that closure a grandchild's `children` shape is dropped — the content it
- * inserts is the child's, already recorded as the child's own shapes.
- * `owner` is the composing component's tag (`root`'s).
- */
 export const composedShapesFor = (
 	root: TemplateNode & { kind: 'element' },
 	composeRegistry: ReadonlyMap<string, InternalRegistryEntry>,
@@ -1291,17 +801,6 @@ export const composedShapesFor = (
 	return result
 }
 
-/**
- * Each composed child under `root` as the downward-leak check reads it
- * (ADR 0011 s5, LTC087): its host — the child's root attributes merged with
- * its compose site's, at every level of nesting () — the elements its
- * template renders below the host, and its own composed children, closed
- * over the registry. A
- * `children` shape is dropped: the content it stands for is its owner's
- * markup (ADR 0026 s5). Unknown markup (`any`, an unregistered child) adds
- * nothing — the check warns only where a concrete leak exists. A compose
- * cycle stops at the repeated source.
- */
 export const leakChildrenFor = (
 	root: TemplateNode,
 	composeRegistry: ReadonlyMap<string, InternalRegistryEntry>,

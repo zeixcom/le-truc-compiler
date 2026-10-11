@@ -1,9 +1,4 @@
-/**
- * The timer cancellers are client-known globals (). `JS_GLOBALS` listed
- * `setInterval`, `setTimeout` and `requestAnimationFrame` but none of their
- * cancellers, so a watch whose cleanup cancels the timer it started was
- * refused as a setup statement (LTC005) unless spelled `window.clearInterval`.
- */
+/** The timer cancellers are client-known globals: `JS_GLOBALS` listed `setInterval`, `setTimeout` and `requestAnimationFrame` but none of their cancellers, so a watch whose cleanup cancels the timer it started was refused as a setup statement (LTC005) unless spelled `window.clearInterval`. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 import { compileComponentTsx } from '../src/frontend/tsx'

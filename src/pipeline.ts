@@ -1,12 +1,4 @@
-/**
- * The shared post-front-end pipeline (ADR 0010 sub-design 6): the
- * stage assembly both front ends run after their `compileSource` — compose
- * validation, `analyzeClient`, tier classification, both emitters, the
- * registry entry. `server/compiler/frontend/tsrx/index.ts` (`compileComponent`) and
- * `server/compiler/frontend/tsx/index.ts` (`compileComponentTsx`) are thin shells over
- * this function, differing ONLY in which front end parses the source, so a
- * pipeline change cannot drift between surfaces.
- */
+/** The shared post-front-end pipeline: the stage assembly both front ends run after their `compileSource`, so a pipeline change cannot drift between surfaces. */
 
 import {
 	findInteractiveContent,
@@ -52,34 +44,10 @@ export type CompiledComponent = {
 	serverCode: string
 	/** Generated client `defineComponent` module source. */
 	clientCode: string
-	/**
-	 * The scoped-emission CSS artifact (ADR 0011 s3–s4): the
-	 * authored `@scope` sheet with its explicit root (native `@scope`) or
-	 * rewritten as flat scoped selectors, per the configured `cssTargets`.
-	 * Empty when the component has no stylesheet.
-	 */
 	css: string
-	/**
-	 * The authored form — the dedented sheet text — that `css` was emitted
-	 * from; what LTC051 compares across a variant set (ADR 0011 s10).
-	 */
 	authoredCss: string
-	/**
-	 * Whether a form-association extension leads `config` — the host type
-	 * (`FormAssociatedElement` vs `HTMLElement`) of the tag-map entry
-	 * `tsrx-imports.d.ts` writes for a served `.tsrx` source ().
-	 */
 	formAssociated: boolean
-	/**
-	 * Client-module span table (`check:corpus`): maps tsc diagnostics
-	 * over `clientCode` back onto the authored source.
-	 */
 	clientSpans: SourceSpan[]
-	/**
-	 * Server-module span table (): composition makes server modules
-	 * import each other's real types, so generated server modules are
-	 * type-checked too, through this table.
-	 */
 	serverSpans: SourceSpan[]
 }
 
@@ -90,15 +58,6 @@ export type CompileFileResult = {
 
 /* === Exported Functions === */
 
-/**
- * Run the shared pipeline over a front end's extraction result. `registry`,
- * `childImports`, and `composeRegistry` mean exactly what they mean on
- * `compileComponent` (see the `.tsrx` index for the compose-registry
- * tolerance notes); `sourcePath` is the authored file's project-root-relative
- * path. `emitPaths` carries the configured output root's consequences for the
- * emitted specifiers (`emit-paths.ts`); its default is this repo's
- * layout, so an unconfigured call emits what it always emitted.
- */
 export const compileFromIR = (
 	component: ComponentIR | null,
 	diagnostics: LocalDiagnostic[],
@@ -109,8 +68,7 @@ export const compileFromIR = (
 	composeRegistry?: ReadonlyMap<string, InternalRegistryEntry>,
 	emitPaths: EmitPaths = DEFAULT_EMIT_PATHS,
 ): CompileFileResult => {
-	// Every return publishes the stages' diagnostics against the file the
-	// caller named (ADR 0022 s1).
+	// Every return publishes the stages' diagnostics against the file the caller named.
 	const located = () => diagnostics.map(d => locate(d, filename))
 	if (!component) return { component: null, diagnostics: located() }
 	const composeNodes = collectComposeElements(component)
@@ -128,28 +86,12 @@ export const compileFromIR = (
 		}
 	}
 	const plan = analyzeClient(component, registry, diagnostics, composeRegistry)
-	// Where each handler arg lands (), for the registry entry a
-	// composing parent binds through. Before the error gate: an
-	// unaddressable placement is LTC007.
+	// Where each handler arg lands, for the registry entry a composing parent binds through. Before the error gate: an unaddressable placement is LTC007.
 	const handlerArgs = handlerPlacementsOf(component, diagnostics)
 	const childrenRegion = childrenRegionOfComponent(component)
-	// The content model (ADR 0026 s4): a compose site of a child
-	// that declares `'non-interactive'` refuses interactive content — a
-	// literal element among the site's literal children, or a composed
-	// child whose own template renders one, transitively. It reads each
-	// child's declaration and `interactive` flag off its registry entry,
-	// so it runs only in the registry-aware pass; the entry's own flag is
-	// recorded either way (the discovery pass knows no composed child, so
-	// its value carries the direct half only).
+	// The content model: a compose site of a child that declares `'non-interactive'` refuses interactive content, reading each child's declaration and `interactive` flag off its registry entry — so it runs only in the registry-aware pass; the entry's own flag is recorded either way.
 	const interactive = templateInteractiveOf(component.root, composeRegistry)
-	// The one-writer check (ADR 0026 s3): the child half records
-	// what its client writes on role elements in the passed content — own-IR
-	// only, so it runs in both passes and rides the entry like `interactive`
-	// and `handlerArgs`. The parent half refuses a compose-site binding that
-	// writes the same property on a role element the child's entry records;
-	// it reads each child's entry, so it runs only in the registry-aware
-	// pass. `analyzeClient` has run, so a deferred reference a compose site
-	// claimed carries its `ref` attr and is excluded from the recording.
+	// The one-writer check: the child half records what its client writes on role elements in the passed content — own-IR only, so it runs in both passes; the parent half refuses a compose-site binding that writes the same property on a role element the child's entry records, reading each child's entry (registry-aware pass only, after `analyzeClient`).
 	const roleWrites = roleWritesOf(component)
 	if (composeRegistry) {
 		for (const finding of findRoleWriterConflicts(component, composeRegistry))
@@ -179,13 +121,9 @@ export const compileFromIR = (
 				)
 		}
 	}
-	//: the partial-readiness invariant (ADR 0012 s4) — nothing but
-	// own args and the declared ambient set may reach the fold.
+	// The partial-readiness invariant: nothing but own args and the declared ambient set may reach the fold.
 	checkFoldInputs(component, diagnostics)
-	// A `@scope` form the flat-selector lowering cannot express fails only
-	// on a CSS target without native `@scope` (LTC089, ADR 0011 s4). It
-	// depends on the configured targets, so it runs here rather than with
-	// the authored-form checks in template-output.ts.
+	// A `@scope` form the flat-selector lowering cannot express fails only on a CSS target without native `@scope` (LTC089) — it depends on the configured targets, so it runs here rather than with the authored-form checks.
 	if (
 		component.sheet &&
 		component.sheetText &&
@@ -205,9 +143,7 @@ export const compileFromIR = (
 				),
 			)
 	}
-	// A scoped rule that reaches into a composed child's own markup (LTC087,
-	// ADR 0011 s5). It needs each child's rendered shapes, so it runs only
-	// in the registry-aware pass.
+	// A scoped rule that reaches into a composed child's own markup (LTC087) needs each child's rendered shapes, so it runs only in the registry-aware pass.
 	if (component.sheet && component.sheetText && composeRegistry) {
 		const sheetStart = component.source.lastIndexOf(component.sheetText)
 		for (const finding of checkSheetLeaks(
@@ -226,35 +162,11 @@ export const compileFromIR = (
 	}
 	if (diagnostics.some(d => d.severity === 'error'))
 		return { component: null, diagnostics: located() }
-	/**
-	 * The per-component half of the tier decision (ADR 0008). Both
-	 * halves of the analysis contribute: setup extraction sees the
-	 * `LTC013`/`LTC043` shapes, the client analysis sees `LTC004`/
-	 * `LTC034`.
-	 *
-	 * Compose contamination (sub-design 3) is deliberately NOT applied here
-	 * — it is a fixpoint over the whole corpus's compose graph, so it runs
-	 * in the registry-aware second pass (`server/effects/compile.ts`) where
-	 * every component's first-pass tier is known. This value is therefore
-	 * the component's tier BEFORE contamination, and can only move
-	 * downward (towards the Simulated tier) from here.
-	 */
+
 	const routingSignals = [...setupSignals, ...plan.routingSignals].map(signal =>
 		locateSignal(signal, filename),
 	)
 	const tier = classifyTier(routingSignals)
-	/**
-	 * Composed children this component READS — a `first()` addressing the
-	 * compose site (resolved to a synthetic `ref` attr by
-	 * `analysis/compose-refs.ts`) or a `truc:pass={{ }}` into it.
-	 *
-	 * Deliberately NOT every composed child (ADR 0008 sub-design 3):
-	 * containment does not contaminate, because the compose graph renders
-	 * children before parents, so a merely-embedded child's markup is
-	 * already a string by the time the parent needs it. A containment rule
-	 * was measured and rejected — with page chrome in the graph it drags
-	 * nearly the whole corpus into the realm.
-	 */
 	const composeReadTags = composeRegistry
 		? [
 				...new Set(
@@ -273,9 +185,7 @@ export const compileFromIR = (
 		runtimeImport: emitPaths.runtimeImport,
 		sourcePath: filename,
 		composeRegistry,
-		// ADR 0008 sub-design 4: the tier decides whether the module
-		// re-declares the `@{ }` value harness. Pre-contamination by
-		// construction — see the option's own doc for why that is sound.
+		// The tier decides whether the module re-declares the `@{ }` value harness — pre-contamination by construction, so it is sound.
 		tier,
 		clientMessageKeys: plan.clientMessageKeys,
 	})
@@ -324,12 +234,7 @@ export const compileFromIR = (
 			},
 			serverCode: server.code,
 			clientCode: client.code,
-			// The scoped emission (ADR 0011 s3–s4): reachable only
-			// with no error diagnostics — the early return above dropped any
-			// file whose sheet failed LTC064 or the authored-form checks —
-			// so the surgery inputs are known-good. `sheetText` is the raw
-			// text `sheet`'s locs resolve against; `css` (dedented) stays on
-			// the IR as the authored form LTC051 compares.
+			// The scoped emission is reachable only with no error diagnostics — the early return above dropped any file whose sheet failed LTC064 or the authored-form checks — so the surgery inputs are known-good. `sheetText` is the raw text `sheet`'s locs resolve against; `css` (dedented) stays on the IR as the authored form LTC051 compares.
 			css:
 				component.sheet && component.sheetText
 					? emitScopedSheet(

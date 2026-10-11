@@ -1,45 +1,9 @@
-/**
- * The `.tsx` front end's template lowering (LT-183 spike, productionized by
- * ). Everything downstream consumes the same `TemplateNode` IR, so the
- * surface difference lives entirely at the lowering layer (ADR 0010
- * sub-design 2: "adapt at the lowering layer … do not fork IR variants").
- *
- * What is surface-specific here — the control-flow dispatch (ADR 0010
- * sub-design 2):
- *
- * - The control-flow DIRECTIVES become JSX expression shapes in child
- *   position: `{c ? <a/> : <b/>}` and `{c && <a/>}` → `if`; `{xs.map((x, i)
- *   => …)}` → `for` (server data → `each()`, a declared `createList` → the
- *   reconcile path, decided by the EXISTING analysis, not by syntax); an
- *   IIFE whose body is a `switch` returning JSX per arm → `switch`.
- * - The `@try` family has no honest expression spelling, so it is a
- *   `truc:`-namespaced intrinsic element (ADR 0019): `<truc:try
- *   catch={e => …}>` is the error boundary, and a `pending` arm makes it the
- *   async boundary (which arm ships stays a compiler decision; only the
- *   authored shape changed). Every other `truc:*` tag stays LTC053.
- * - Bare statements inside a branch are NOT expressible in JSX child
- *   position — an IIFE arm must return JSX — so `client-stmt` inside a
- *   branch retires with the grammar (ADR 0005 s11 already restricted it).
- * - The `&{expr}` lazy sigil and the React near-miss diagnostics are gone
- *   with the grammar (TSRX018/020/021–024 retire; the React idioms are the
- *   correct spellings here).
- *
- * The surface-independent core — condition validation, element/compose
- * lowering, the expression-child lift rule, positional reactivity, and the
- * children skeleton — is SHARED with the `.tsrx` front end through
- * `server/compiler/lower-shared.ts` (ADR 0010 sub-design 6's anti-drift
- * contract). Attribute classification is reused verbatim from
- * `server/compiler/classify-attributes.ts` — it consumes the same estree-shaped
- * JSXAttribute nodes this front end's `to-estree.ts` converter produces.
- */
-
 import {
 	asArray,
 	identifierName,
 	isNode,
 	jsxName,
 	nodeType,
-	text,
 } from '../../ast-utils'
 import { diagnostic } from '../../diagnostics'
 import type { ExtractContext } from '../../extract-context'
@@ -76,10 +40,7 @@ const lowerJsxValue = (
 ): TemplateNode[] => {
 	if (node.type === 'JSXFragment')
 		return lowerChildren(ctx, node, signals, fors)
-	// A PascalCase element is a compose site wherever a JSX value lowers —
-	// an arm root included (): the boundary and conditional arms take
-	// the same route an element child list gives a composed element. A
-	// `truc:try` tag is namespaced, so it never reaches this branch.
+	// A PascalCase element is a compose site wherever a JSX value lowers — an arm root included; a `truc:try` tag is namespaced, so it never reaches this branch.
 	const opening = isNode(node.openingElement) ? node.openingElement : null
 	const tag = jsxName(isNode(opening) ? opening.name : null)
 	if (tag && /^[A-Z]/.test(tag)) {
@@ -102,10 +63,7 @@ const lowerJsxValue = (
 
 /* === @if → ConditionalExpression / LogicalExpression === */
 
-/**
- * Lower `{c ? <a/> : <b/>}` (both arms) or `{c && <a/>}` (single branch)
- * into the `if` conditional — the same construct `@if` lowered in `.tsrx`.
- */
+/** Lower `{c ? <a/> : <b/>}` or `{c && <a/>}` into the `if` conditional. */
 const lowerIfExpr = (
 	ctx: ExtractContext,
 	node: AstNode,
@@ -165,17 +123,7 @@ const lowerIfExpr = (
 
 /* === @switch → IIFE over a statement switch === */
 
-/**
- * Lower `(() => { switch (d) { case 'a': return <x/>; default: return <y/>; } })()`
- * into the `switch` conditional. The IIFE must contain exactly the switch statement;
- * every arm's body must be a single `return <jsx/>`.
- *
- * IIFE recognition is SHAPE-based (0-arg call of a 0-param arrow with a
- * block body): object identity between `callee` and `arguments[0]` does NOT
- * survive a TS→estree conversion — each subtree converts separately
- * (LT-183 spike findings fact 6, `adr/archive/0032-spike-findings.md`),
- * so an identity check would never match.
- */
+/** Lower a `switch` IIFE into the `switch` conditional; recognition is shape-based — object identity does not survive the TS→estree conversion. */
 const lowerSwitchIife = (
 	ctx: ExtractContext,
 	node: AstNode,
@@ -238,11 +186,7 @@ const lowerSwitchIife = (
 
 /* === @try family → <truc:try pending catch> === */
 
-/**
- * Whether `node` is a `<truc:try>` element (ADR 0019) — the one `truc:*`
- * intrinsic this front end lowers. Every other namespaced tag falls through
- * to `lowerElement`, which rejects it with LTC053.
- */
+/** Whether `node` is a `<truc:try>` element — the one `truc:*` intrinsic this front end lowers; other namespaced tags fall to `lowerElement` (LTC053). */
 const isTrucTry = (node: unknown): node is AstNode => {
 	if (!isNode(node) || node.type !== 'JSXElement') return false
 	const opening = node.openingElement
@@ -255,27 +199,7 @@ const isTrucTry = (node: unknown): node is AstNode => {
 	)
 }
 
-/**
- * The `.tsx` spelling of `@try`/`@pending`/`@catch` (ADR 0019):
- * `<truc:try catch={e => <jsx/>}>ok</truc:try>` is the error boundary, and
- * adding `pending={<jsx/>}` makes it the async boundary — the winning arm
- * renders live beside the inert arm templates (ADR 0015 s4); which arm
- * SHIPS stays a compiler decision. The children are the success content; the
- * `catch` arrow's parameter is the catch parameter.
- *
- * `tsc` owns the arm types through the `IntrinsicElements['truc:try']`
- * entry (`catch` required, both arms `JSX.Element`, a repeated arm is
- * TS17001). What it cannot see is the SHAPE: the arms are compile-consumed,
- * never evaluated, so each must be written inline — a JSX element for
- * `pending`, an arrow with a JSX expression body for `catch`.
- *
- * There is no `stale` arm (): a re-fetching task keeps its `ok`
- * arm, whose content the client never re-renders; the reactive idiom for
- * the in-flight state is an
- * `isPending(signal)` read beside the boundary
- * (`class={() => (isPending(data) ? 'dimmed' : null)}`), which the
- * compiler folds server-side and watches client-side.
- */
+/** Lower `<truc:try catch={e => <jsx/>}>ok</truc:try>` — the error boundary, async with `pending={<jsx/>}`; the arms are inline shapes the compiler consumes, never evaluates. */
 const lowerTrucTry = (
 	ctx: ExtractContext,
 	node: AstNode,
@@ -335,15 +259,7 @@ const lowerTrucTry = (
 
 /* === @for → `.map()` === */
 
-/**
- * The empty-state idiom (): `{xs.length === 0 ? <empty/> : xs.map(…)}`
- * is `.tsx`'s spelling of `@for … @empty`. Recognized by SHAPE, like the
- * switch IIFE: the test compares the map receiver's own `length` to `0`,
- * so the loop and its arm lower together to one `ForIR` with an
- * `emptyArm`, and the test is never evaluated as an `if` condition (over a
- * reactive List it would read a signal). Any other conditional with a
- * `.map()` arm is diagnosed in `lowerIfExpr`.
- */
+/** The empty-state idiom `{xs.length === 0 ? <empty/> : xs.map(…)}` — `.tsx`'s `@for … @empty`, recognized by shape; the loop and its arm lower to one `ForIR`. */
 const emptyStateIdiomOf = (
 	node: AstNode,
 ): { loop: AstNode; empty: AstNode } | null => {
@@ -371,10 +287,7 @@ const emptyStateIdiomOf = (
 	return { loop, empty }
 }
 
-/**
- * Lower the empty-state idiom's arm (): `null` when the loop has
- * none, `false` when the arm was diagnosed (the loop is dropped).
- */
+/** Lower the empty-state idiom's arm: `null` when the loop has none, `false` when the arm was diagnosed (the loop is dropped). */
 const lowerEmptyArm = (
 	ctx: ExtractContext,
 	emptySrc: AstNode | null,
@@ -388,11 +301,7 @@ const lowerEmptyArm = (
 	return validateEmptyArm(ctx, arm, kind, fors, emptySrc) ?? false
 }
 
-/**
- * Whether `node` is an IIFE recognized by this lowering: `(() => { … })()`
- * with a single arrow argument and a block body. SHAPE-based — see
- * `lowerSwitchIife` on why identity does not survive the conversion.
- */
+/** Whether `node` is an IIFE this lowering recognizes: `(() => { … })()` with a single arrow argument and a block body, by shape (see `lowerSwitchIife`). */
 const asIife = (node: AstNode): AstNode | null => {
 	if (node.type !== 'CallExpression') return null
 	const callee = node.callee as AstNode | undefined
@@ -421,18 +330,6 @@ const isMapCall = (node: AstNode): boolean => {
 	)
 }
 
-/**
- * Lower `{xs.map((x, i) => …)}` into the `for` IR: parse the callback — its
- * parameters, and a block body's statements (the output is the one
- * `return <jsx/>`) or an expression body's JSX — into a `LoopSource`;
- * `lowerLoop` (shared) routes and validates the rest. Over server data this
- * is the `each()` plan; over a declared `createList` or `deriveList` the
- * reconcile plan — the loop's iterable type, not its spelling, routes it.
- *
- * The callback's second parameter is routed the same way (ADR 0024 s4): the
- * index over an Array, the item's stable key over a List — the `.tsx`
- * spelling of `@for`'s `key k` clause (`items.map((item, k) => …)`).
- */
 export const lowerFor = (
 	ctx: ExtractContext,
 	node: AstNode,
@@ -450,8 +347,7 @@ export const lowerFor = (
 	const body = callback.body as AstNode | undefined
 	if (!isNode(body)) return null
 	const block = body.type === 'BlockStatement'
-	// A `<truc:try>` root is a boundary, not an element: name the loop rule
-	// rather than let `lowerElement` report a tag it does not recognize.
+	// A `<truc:try>` root is a boundary, not an element: name the loop rule rather than let `lowerElement` report an unrecognized tag.
 	const root = block
 		? asArray(body.body).find(s => s.type === 'ReturnStatement')?.argument
 		: body
@@ -487,11 +383,6 @@ export const lowerFor = (
 
 /* === Children / element lowering (shared skeleton, .tsx dispatch) === */
 
-/**
- * Lower template children into IR. JSX text and expression containers are
- * the same shapes `@tsrx/core` produced; the directive slots are the
- * expression forms documented on the module.
- */
 export const lowerChildren = (
 	ctx: ExtractContext,
 	parent: AstNode,
@@ -506,7 +397,6 @@ export const lowerChildren = (
 			return true
 		},
 		dispatchControlFlow: (ctx, expr, out, _container, signals, fors) => {
-			// Control-flow shapes in child position:
 			const idiom = emptyStateIdiomOf(expr)
 			if (idiom) {
 				const lowered = lowerFor(ctx, idiom.loop, signals, fors, idiom.empty)
@@ -534,8 +424,7 @@ export const lowerChildren = (
 					if (lowered) out.push(lowered)
 					return true
 				}
-				// A non-recognized IIFE is an ordinary expression child —
-				// usually a string-producing block, legal and static.
+				// An unrecognized IIFE is an ordinary expression child — usually a string-producing block, legal and static.
 			}
 			return false
 		},

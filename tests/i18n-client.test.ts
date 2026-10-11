@@ -1,15 +1,4 @@
-/**
- * The client message channel (ADR 0009 s9): `t.<key>` reads in
- * client positions, the per-instance `i18n` root attribute the server
- * renders for exactly those keys, and the generated factory's preamble —
- * the source record merged under the attribute, with the evaluator inlined
- * and narrowed.
- *
- * No corpus component reads `t` client-side until , so every pin is
- * a fixture. The server half renders through a generated `i18n` module
- * with a German override catalog, so the attribute carries real per-locale
- * parsed patterns; the client half connects in the simulation realm.
- */
+/** The client message channel: `t.<key>` reads in client positions, the per-instance `i18n` root attribute the server renders for exactly those keys, and the generated factory's preamble — the source record merged under the attribute, with the evaluator inlined and narrowed. Every pin is a fixture; the server half renders through a generated `i18n` module with a German override catalog, the client half connects in the simulation realm. */
 
 import { afterAll, describe, expect, test } from 'bun:test'
 import { pathToFileURL } from 'node:url'
@@ -27,8 +16,6 @@ import { parseMessage } from '../src/icu/parse'
 import { CLIENT_MESSAGE, clientMessages } from '../src/runtime'
 import { createSimulationRealm } from '../src/sim/realm'
 import { createGeneratedDir } from './helpers/generated-corpus'
-
-/* === Fixture === */
 
 const MESSAGES = {
 	hi: 'Hi',
@@ -101,8 +88,6 @@ const compileTsx = (b = body, s?: string, p?: string) =>
 const errors = (diagnostics: CompileDiagnostic[]) =>
 	diagnostics.filter(d => d.severity === 'error')
 
-/* === Generated modules === */
-
 const generated = createGeneratedDir('i18n-client')
 afterAll(() => generated.cleanup())
 
@@ -142,8 +127,7 @@ generated.emit('c-el.tsrx.server.ts', tsrx.component.serverCode)
 generated.emit('c-el.tsx.server.ts', tsx.component.serverCode)
 const clientPath = generated.emit('c-el.client.ts', tsrx.component.clientCode)
 
-// The same component under `c-lm`, materializing `de` onto its own root in
-// a client-only setup statement (the `c-plural` fixture's shape).
+// The same component under `c-lm`, materializing `de` onto its own root in a client-only setup statement (the `c-plural` fixture's shape).
 const materializing = compileComponent(
 	tsrxSource(
 		body,
@@ -184,8 +168,6 @@ const i18nAttribute = (markup: string): Record<string, unknown> | null => {
 		.replace(/&amp;/g, '&')
 	return JSON.parse(raw) as Record<string, unknown>
 }
-
-/* === Tests === */
 
 describe('analysis: `t.<key>` in client positions', () => {
 	test('static reads of declared keys compile on both surfaces', () => {
@@ -290,10 +272,7 @@ describe('server: the root `i18n` attribute', () => {
 })
 
 describe('client-only setup statements and list-item handlers (LT-349)', async () => {
-	// colorgraph's `on(...)` setup statement and tokenbox's list-item
-	// handler: both admit a static read of a declared key, and both keys
-	// ride the attribute. The list body's handler reads a key no other
-	// position reads, so the attribute proves the list check recorded it.
+	// colorgraph's `on(...)` setup statement and tokenbox's list-item handler both admit a static read of a declared key, and both keys ride the attribute. The list body's handler reads a key no other position reads, so the attribute proves the list check recorded it.
 	const s = `${setup}\n\t\tconst items = createList<string>([], { keyConfig: 'item' })\n\t\ton(host, 'change', () => { host.title = t.hi })`
 	const names = 'createCell, createList'
 	const shapes = {
@@ -352,8 +331,7 @@ describe('client-only setup statements and list-item handlers (LT-349)', async (
 })
 
 describe('baking the record into a serialized message', () => {
-	// The client formats a baked message without the record; the server
-	// evaluator must give the same string either way.
+	// The client formats a baked message without the record; the server evaluator must give the same string either way.
 	const env = { lang: 'de', timeZone: 'Europe/Zurich', currency: 'CHF' }
 	test.each([
 		MESSAGES.tasks,
@@ -465,9 +443,7 @@ describe('client: connect in the simulation realm', async () => {
 		const markup = renderTsrx({ i18n: record('de') })
 		const { html } = await connect(markup)
 		expect(titleOf(html)).toBe('Hallo')
-		// One evaluator walk on both sides: the client's inlined, narrowed
-		// copy renders the plural/select/number message exactly as the
-		// server evaluator does for the same record and arguments.
+		// One evaluator walk on both sides: the client's inlined, narrowed copy renders the plural/select/number message exactly as the server evaluator does for the same record and arguments.
 		const { t } = record('de') as {
 			t: { tasks: (args: Record<string, unknown>) => string }
 		}
@@ -488,10 +464,7 @@ describe('client: connect in the simulation realm', async () => {
 	})
 
 	test('with no `[lang]` above it, the client formats in the locale the component materializes', async () => {
-		// Stripped of both root attributes and connected with no `[lang]`
-		// ancestor: the source strings, formatted in the `de` the fixture
-		// materializes during setup — read at the first format, not at
-		// connect. A German percent carries a no-break space.
+		// Stripped of both root attributes and connected with no `[lang]` ancestor: the source strings, formatted in the `de` the fixture materializes during setup — read at the first format, not at connect.
 		const markup = renderMaterializing({ i18n: record('de') }).replace(
 			/ (lang|i18n)="[^"]*"/g,
 			'',
@@ -527,9 +500,7 @@ describe('client: connect in the simulation realm', async () => {
 })
 
 describe('client: a translated construct the source does not carry (LT-350)', async () => {
-	// The evaluator is narrowed to the SOURCE's node kinds (`arg` here), so
-	// the de `plural` is uncarried: that key renders its source message
-	// rather than an empty node. `hi` proves the attribute is still read.
+	// The evaluator is narrowed to the source's node kinds (`arg` here), so the de `plural` is uncarried: that key renders its source message rather than an empty node. `hi` proves the attribute is still read.
 	const src = `import { createCell } from '@zeix/le-truc'
 export const i18n = { hi: 'Hi', tasks: '{count} tasks' } as const
 export function C(${params})
@@ -580,9 +551,7 @@ export function C(${params})
 })
 
 describe('a composed child inside a reactive-list item (LT-355, ADR 0009 s9)', async () => {
-	// A client-created instance speaks its creating parent's locale: the
-	// parent's server render bakes the composed child's root `lang` and
-	// `i18n` into the extracted `<template>` every client clone copies.
+	// A client-created instance speaks its creating parent's locale: the parent's server render bakes the composed child's root `lang` and `i18n` into the extracted `<template>` every client clone copies.
 	const parentDecl = "export const i18n = { title: 'List' } as const"
 	const parentParams = '{ i18n: { lang } }: { i18n: I18n<typeof i18n> }'
 	const parentSetup =

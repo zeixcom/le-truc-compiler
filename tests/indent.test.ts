@@ -1,10 +1,4 @@
-/**
- * Unit tests for template-literal-safe reindentation (): the
- * `lineStartsInTemplate` scanner and its consumers `reindent`
- * (emit-server, via setup slices) and `pushStatement` (emit-client, via
- * event-handler slices). A multi-line template literal's interior lines are
- * string content — reindenting them silently changes rendered values.
- */
+/** Unit tests for template-literal-safe reindentation: the `lineStartsInTemplate` scanner and its consumers `reindent` (emit-server, via setup slices) and `pushStatement` (emit-client, via event-handler slices). A multi-line template literal's interior lines are string content — reindenting them silently changes rendered values. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 import { lineStartsInTemplate } from '../src/indent'

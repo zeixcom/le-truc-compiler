@@ -1,20 +1,5 @@
-/**
- * Per-field harvest of a list seeded from server args (ADR 0024 s7,
- * ): Pass 3's plan for how the client rebuilds each adopted item
- * field by field from the item's markup.
- *
- * Each field is read from its canonical site in the item — `data-key` for
- * the field the `keyConfig` returns verbatim, else the first text child or
- * reactive attribute, in document order, whose expression reads exactly the
- * field (`item.f.get()` on a store item, `item.get().f` on any, optionally
- * through `String()`) — and through a parser: the `harvest()` entry when
- * there is one, else the one the field's type infers. A field with no site
- * fails LTC072 (LTC059 when its only site formats it); a field with a site
- * and no parser fails LTC076.
- */
-
-import type { AstNode } from '../ast-node'
 import {
+	type AstNode,
 	asArray,
 	identifierName,
 	nodeType,
@@ -94,11 +79,6 @@ const fieldAccessOf = (node: unknown, item: string): string | null => {
 	return null
 }
 
-/**
- * The field an expression reads exactly and unformatted, or null: the
- * field access itself, inside a parameterless arrow, optionally through
- * `String()` (the server serializes a value the same way, ADR 0024 s7).
- */
 const exactFieldOf = (expr: AstNode, item: string): string | null => {
 	let node: unknown = expr
 	if (
@@ -129,12 +109,6 @@ type FieldSite =
 	| { kind: 'text'; element: ElementNode; node: AstNode }
 	| { kind: 'attr'; element: ElementNode; attr: string; node: AstNode }
 
-/**
- * The item's harvest sites per field, first in document order, and its
- * formatted text sites (LTC059's input). Only elements every adopted item
- * carries count: the walk stays out of conditions, nested lists and loops,
- * and composed children.
- */
 const collectSites = (
 	output: ElementNode,
 	item: string,
@@ -180,12 +154,6 @@ const collectSites = (
 	return { sites, formatted }
 }
 
-/**
- * Plan each field of an arg-seeded list's item, read from `output` — the
- * root of the scope that renders the item through `item` — or report why a
- * field cannot be planned and return null. `missingSite` builds the
- * diagnostic for a field with no site and no formatted one.
- */
 const planFields = (
 	shared: PassShared,
 	signal: DeclaredSignalIR,
@@ -365,11 +333,6 @@ const identityKeyOf = (call: AstNode | null): string | null => {
 
 /* === Exported Functions === */
 
-/**
- * Plan an arg-seeded list's per-field harvest, or report why it cannot be
- * planned (LTC072, LTC059, LTC076) and return null. `container` is the
- * list container's query.
- */
 export const planListFieldHarvest = (
 	shared: PassShared,
 	signal: DeclaredSignalIR,
@@ -391,20 +354,6 @@ export const planListFieldHarvest = (
 	return { kind: 'list', signal: signal.name, seed: { container, fields } }
 }
 
-/**
- * Plan the harvest of a host-level arg-seeded list through its key alias
- * (ADR 0025), or report why it cannot be planned and return null.
- * Undefined when nothing in any item setup reads the list by key: the list
- * is not alias-harvested, and the caller plans it as any other signal.
- *
- * The four s1 conditions are LTC080's, one message each: the aliasing list
- * keys each item by itself; every `byKey` read is the alias statement
- * over the loop key; one alias scope per list; every field renders at a
- * site in the alias scope (LTC059 and LTC076 as for any per-field
- * harvest). The client reads the alias roots across every enclosing list
- * item, so an arm set, a server-data loop or a composed child between the
- * host and the alias scope is refused: no connect-time path crosses it.
- */
 export const planKeyAliasHarvest = (
 	shared: PassShared,
 	signal: DeclaredSignalIR,
@@ -452,9 +401,6 @@ export const planKeyAliasHarvest = (
 	if (first === null) return refuse()
 	const alias = first.alias as string
 	const scope = first.loop
-
-	// The client walks from the host's outermost list down to the alias
-	// scope's container; every step must be a list item.
 	const path = pathTo(component.root, scope.output) ?? []
 	const byOutput = new Map<TemplateNode, ReconcileForIR>()
 	for (const loop of component.fors.values())
@@ -498,8 +444,6 @@ export const planKeyAliasHarvest = (
 			),
 		)
 
-	// The container of each nested list, inside the item root of the list
-	// enclosing it: null when that item root is the container.
 	const through: Array<string | null> = []
 	const lists = [...enclosing, scope]
 	for (let i = 1; i < lists.length; i++) {

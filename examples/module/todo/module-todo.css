@@ -40,10 +40,7 @@ module-todo {
 			margin: 0;
 			padding: 0;
 
-			/* LT-466: the editor sits beside the checkbox, not inside
-			   its label — the checkbox's own flex-grow cedes the free
-			   space to the editor, and a completed item keeps the text
-			   treatment its label used to carry. */
+			/* The editor sits beside the checkbox, not inside its label — the checkbox's own flex-grow cedes the free space to the editor, and a completed item keeps the text treatment its label used to carry. */
 			& > form-checkbox {
 				flex-grow: 0;
 			}

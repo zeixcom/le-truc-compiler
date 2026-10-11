@@ -1,11 +1,4 @@
-/**
- * Language-feature tests (tsrx.dev/features parity): every construct the
- * pinned @tsrx/core 0.1.63 can parse must lower deliberately — supported or
- * gated with a diagnostic — never silently dropped. Covers @switch arms,
- * @try error boundaries, @pending async boundaries (gated), truc:html={expr}
- * dynamic rendering, and parse-error hints for the newer-grammar constructs
- * (statement-form switch, {html}/{text}/{ref} keywords, await).
- */
+/** Language-feature tests (features parity): every construct the pinned @tsrx/core can parse must lower deliberately — supported or gated with a diagnostic — never silently dropped. Covers @switch arms, @try error boundaries, @pending async boundaries, `truc:html` dynamic rendering, and parse-error hints for newer-grammar constructs. */
 import { afterAll, afterEach, describe, expect, test } from 'bun:test'
 import createDOMPurify, { type WindowLike } from 'dompurify'
 import { JSDOM } from 'jsdom'
@@ -15,15 +8,10 @@ import { compileComponentTsx } from '../src/frontend/tsx'
 import { configureHtmlSanitizer } from '../src/runtime'
 import { createGeneratedDir } from './helpers/generated-corpus'
 
-// `configureHtmlSanitizer` is process-wide and shared with the library's
-// client half : tests that configure one must restore the
-// unconfigured, fail-closed default (escape everything) afterward.
+// `configureHtmlSanitizer` is process-wide and shared with the library's client half: tests that configure one must restore the unconfigured, fail-closed default (escape everything) afterward.
 const unconfigure = (): void => configureHtmlSanitizer(undefined)
 
-// A stand-in "consumer-supplied" sanitizer (what a host wires up via
-// `configureHtmlSanitizer`) — DOMPurify on a jsdom window, its documented
-// Node path, since the library ships no sanitizer (ADR 0002). The same
-// DOMPurify serves the browser half, so the two cannot disagree .
+// A stand-in consumer-supplied sanitizer — DOMPurify on a jsdom window, its documented Node path, since the library ships no sanitizer. The same DOMPurify serves the browser half, so the two cannot disagree.
 const purify = createDOMPurify(new JSDOM('').window as unknown as WindowLike)
 const stripDangerousMarkup = (html: string): string => purify.sanitize(html)
 
@@ -47,7 +35,7 @@ const wrap = (
 const compiled = (template: string) =>
 	compileComponent(wrap(template), 'c.tsrx', new Set())
 
-// A per-run directory, not the build pipeline's own output .
+// A per-run directory, not the build pipeline's own output.
 const generated = createGeneratedDir('features')
 afterAll(() => generated.cleanup())
 
@@ -136,8 +124,7 @@ import { createCell } from '@zeix/le-truc'`
 			new Set(),
 		)
 		expect(d).toEqual([])
-		//: string case keys are the literal's JSON, escaped in the
-		// attribute.
+		// String case keys are the literal's JSON, escaped in the attribute.
 		expect(component?.serverCode).toContain(
 			'<template data-arms=\\"0\\" data-key=\\"case:&quot;a&quot;\\">',
 		)
@@ -306,8 +293,7 @@ import { deriveCell } from '@zeix/le-truc'`,
 		if (!component) throw new Error('async fixture must compile')
 		ensureEmitted('feat-async', component.serverCode)
 		const html = await render('feat-async', {})
-		// ADR 0015 s4: only the winner is live; every arm is an inert
-		// template keyed `ok`/`nil`/`err`, after the winner.
+		// Only the winner is live; every arm is an inert template keyed `ok`/`nil`/`err`, after the winner.
 		expect(html).toBe(
 			'<c-el><p data-key="nil" class="loading">Loading</p>' +
 				'<template data-arms="0" data-key="ok"><div class="content"></div></template>' +
@@ -357,18 +343,13 @@ import { deriveCell } from '@zeix/le-truc'`,
 		expect(code).toContain(
 			'watch(data, { ok: () => {}, err: error => bindText(armElement)(error.message) })',
 		)
-		// The toggled-arm machinery is gone .
+		// The toggled-arm machinery is gone.
 		expect(code).not.toContain('.hidden')
 		expect(code).not.toContain('parentElement')
 		expect(code).not.toContain('HTMLFieldSetElement')
 	})
 
-	// (CHECKLIST §8), structural since: `hidden` excludes
-	// nothing from form submission, which is why the toggled arms needed a
-	// `<fieldset disabled>` per arm. Template-cloned arms put exactly one
-	// arm in the document — the others are template content, which is not
-	// form-associated — so a named control in a non-active arm cannot
-	// submit. Pinned anyway, against the browser's own FormData.
+	// `hidden` excludes nothing from form submission — which is why the toggled arms needed a `<fieldset disabled>` per arm. Template-cloned arms put exactly one arm in the document; the others are template content, not form-associated, so a named control in a non-active arm cannot submit. Pinned against the browser's own FormData.
 	const namedControlComponent = (deriveExpr: string): string =>
 		`import { deriveCell } from '@zeix/le-truc'
 export function C({}: {})
@@ -426,10 +407,7 @@ export function C({}: {})
 })
 
 describe('bare html={} is rejected, not silently reclassified (LT-137)', () => {
-	// `html` is not a real HTML attribute. If the rename let the bare spelling
-	// fall through to the ordinary-attribute path, the compiler would emit a
-	// dead `html="…"` and drop the sanitize + client-bind behaviour entirely —
-	// a silent downgrade of the one attribute where that matters most.
+	// `html` is not a real HTML attribute: let the bare spelling fall through to the ordinary-attribute path and the compiler would emit a dead `html="…"`, dropping the sanitize + client-bind behaviour entirely — a silent downgrade of the one attribute where that matters most.
 	test('bare html={markup} reports and names the new spelling', () => {
 		const { diagnostics } = compiled('<article html={markup} />')
 		const hit = diagnostics.find(d => d.message.includes('truc:html'))
@@ -495,10 +473,7 @@ import { createState } from '@zeix/le-truc'`
 		)
 	})
 
-	//: the server render and the client's first `watch` run must land
-	// on the same DOM. Before, the server escaped while the client's
-	// `dangerouslyBindInnerHTML(article)` assigned raw — escaped text flipping
-	// to live markup at hydration. Both now go through one `sanitizeHtml`.
+	// The server render and the client's first `watch` run must land on the same DOM — the server escaping while the client's `dangerouslyBindInnerHTML(article)` assigned raw would flip escaped text to live markup at hydration. Both go through one `sanitizeHtml`.
 	const hydrate = (serverHtml: string, seed: string) => {
 		const { document } = new JSDOM(serverHtml).window
 		const article = document.querySelector('article')
@@ -530,11 +505,7 @@ import { createState } from '@zeix/le-truc'`
 })
 
 describe('async boundary, attribute channels (LT-449) — the ok root reads its driver through `truc:html`', () => {
-	// The ruled lazyload shape (the ticket's ruling, implemented in ): the
-	// ok arm's root reads the driver through a reactive `truc:html` thunk and
-	// carries the arm's own client constructs (the html watch is the value
-	// channel; a reactive style map rides beside it), and the catch arm nests
-	// its message one element below the root — the per-arm callout shape.
+	// The ruled lazyload shape: the ok arm's root reads the driver through a reactive `truc:html` thunk and carries the arm's own client constructs (the html watch is the value channel; a reactive style map rides beside it), and the catch arm nests its message one element below the root — the per-arm callout shape.
 	const component = (driver: 'deriveCell' | 'createTask'): string =>
 		`import { ${driver}, isPending } from '@zeix/le-truc'
 export function C({}: {})
@@ -565,8 +536,7 @@ export function C({}: {})
 		)
 		expect(diagnostics).toEqual([])
 		const code = compiled?.clientCode ?? ''
-		// The ok branch binds the arm root and mounts its watches — the html
-		// watch IS the value channel, so there is no text write.
+		// The ok branch binds the arm root and mounts its watches — the html watch IS the value channel, so there is no text write.
 		expect(code).toContain("if (armKey === 'ok') {")
 		expect(code).toContain(
 			"const div = armElement as ElementFromSelector<'div'>",
@@ -603,8 +573,7 @@ export function C({}: {})
 		if (!compiled) throw new Error('fixture must compile')
 		ensureEmitted('feat-async-html-channel', compiled.serverCode)
 		const html = await render('feat-async-html-channel', {})
-		// The pending arm is the live winner; the templates bake the html
-		// and style constructs empty  and the err message empty.
+		// The pending arm is the live winner; the templates bake the html and style constructs empty, and the err message empty.
 		expect(html).toContain(
 			'<card-callout data-key="nil"><p class="loading">Loading</p></card-callout>',
 		)
@@ -624,10 +593,7 @@ export function C({}: {})
 		)
 		expect(diagnostics).toEqual([])
 		if (!compiled) throw new Error('fixture must compile')
-		// The server module never imports the runtime library itself — its
-		// harness import is the compiler package's `./runtime` subpath
-		// , so the bare-package specifier with its closing quote is
-		// the exact needle.
+		// The server module never imports the runtime library itself — its harness import is the compiler package's `./runtime` subpath, so the bare-package specifier with its closing quote is the exact needle.
 		expect(compiled.serverCode).not.toContain("from '@zeix/le-truc'")
 		expect(compiled.serverCode).toContain(
 			"from '@zeix/le-truc-compiler/runtime'",
@@ -635,15 +601,13 @@ export function C({}: {})
 		ensureEmitted('feat-async-task-driver', compiled.serverCode)
 		const html = await render('feat-async-task-driver', {})
 		expect(html).toContain('data-key="nil"')
-		// The err arm exists only as its inert template — the live winner is
-		// the pending arm (the shim's pending box never routes 'err').
+		// The err arm exists only as its inert template — the live winner is the pending arm (the shim's pending box never routes 'err').
 		expect(html).not.toContain('<p class="error" data-key="err"')
 		expect(html).not.toContain('<card-callout data-key="err"')
 	})
 
 	test('a catch read on the root beside a nested message element is refused (one text target per arm)', () => {
-		// Admitted, the err branch would write the root's `e.message` into
-		// the nested `<p>` and never write `e.name` ( review).
+		// Admitted as-is, the err branch would write the root's `e.message` into the nested `<p>` and never write `e.name`.
 		const source = component('deriveCell').replace(
 			'<card-callout class="danger"><p class="error">{e.message}</p></card-callout>',
 			'<card-callout class="danger">{e.message}<p class="error">{e.name}</p></card-callout>',
@@ -724,10 +688,7 @@ import { createState, createMemo } from '@zeix/le-truc'`
 	})
 
 	test('a compute function reading host/internals routes Simulated when unrendered (LT-165 step 5)', () => {
-		// ADR 0008 s5: the shape the harness cannot run (`createMemo` invokes
-		// its compute at render time, where `host` doesn't exist) is a routing
-		// signal. The Simulated-tier server module drops the const; the client
-		// declares it when something client-side reads it.
+		// The shape the harness cannot run (`createMemo` invokes its compute at render time, where `host` does not exist) is a routing signal. The Simulated-tier server module drops the const; the client declares it when something client-side reads it.
 		const source = `export function C({}: {})
 	@{
 		expose({ filter: asString('') })
@@ -751,10 +712,7 @@ import { asString, createMemo } from '@zeix/le-truc'`
 	})
 
 	test('the same compute rendered into the markup is a hard error (LTC046, LT-165 step 5)', () => {
-		// The residue the reclassification must not paper over: `{lowerFilter}`
-		// is a static server splice, and no tier can produce its value — the
-		// fold cannot run the read and no client binding ever corrects a
-		// static splice. Unrendered consts route (above); rendered ones error.
+		// `{lowerFilter}` is a static server splice no tier can produce — the fold cannot run the read and no client binding corrects a static splice. Unrendered consts route; rendered ones error.
 		const source = `export function C({}: {})
 	@{
 		expose({ filter: asString('') })
@@ -804,7 +762,6 @@ describe('review fixes (2026-08-22 architect pass)', () => {
 		expect(await render('feat-nested', { status: 'a', markup: '' })).toBe(
 			'<c-el><div class="outer"><p class="inner">A</p></div></c-el>',
 		)
-		// else-branch try renders its body
 		expect(await render('feat-nested', { status: 'xy', markup: '' })).toBe(
 			'<c-el><div class="outer"><p>2</p></div></c-el>',
 		)
@@ -826,14 +783,12 @@ describe('review fixes (2026-08-22 architect pass)', () => {
 		expect(diagnostics).toEqual([])
 		if (!component) throw new Error('nested try fixture must compile')
 		ensureEmitted('feat-nested-try', component.serverCode)
-		// inner content renders IN PLACE inside the outer body, tail after it
 		expect(
 			await render('feat-nested-try', { status: 'abc', markup: 'xy' }),
 		).toBe(
 			'<c-el><div class="outer"><p class="inner">2</p><p class="tail">3</p></div></c-el>',
 		)
-		// the tail throws AFTER the nested try already buffered its content:
-		// the outer catch discards the WHOLE arm — no partial inner leak
+		// The tail throws after the nested try already buffered its content: the outer catch discards the whole arm — no partial inner leak.
 		expect(await render('feat-nested-try', { markup: 'xy' })).toBe(
 			'<c-el><p>outer-err</p></c-el>',
 		)
@@ -853,8 +808,7 @@ describe('review fixes (2026-08-22 architect pass)', () => {
 	})
 
 	test('keyConfig-function returning empty string falls back like cause-effect', async () => {
-		// Server/client key parity: cause-effect uses `keyConfig(item) || auto`
-		// — an empty-string key must regenerate, not seed data-key="".
+		// Server/client key parity: cause-effect uses `keyConfig(item) || auto` — an empty-string key must regenerate, not seed data-key="".
 		const { createList } = await import('../src/runtime')
 		const list = createList(['a', 'b'], {
 			keyConfig: () => '',
@@ -896,9 +850,7 @@ import { createList } from '@zeix/le-truc'`
 	})
 
 	test('a second reactive list in one component compiles (LT-423)', () => {
-		// ADR 0024 s2: the extracted templates are stamped `data-list` and
-		// queried from their own container's parent, so the old
-		// one-list-per-component limit is lifted.
+		// The extracted templates are stamped `data-list` and queried from their own container's parent, lifting the old one-list-per-component limit.
 		const source = `export function C({}: {})
 	@{
 		const a = createList<string>(['x'], { keyConfig: 'a' })
@@ -965,12 +917,7 @@ describe('newer-grammar constructs — parse-error hints', () => {
 	})
 
 	test('`{html markup}` gets NO phantom-keyword hint (LT-137)', () => {
-		// The hint used to say "{html expr} keyword is newer TSRX grammar than
-		// @tsrx/core 0.1.63". No such keyword exists in any published upstream
-		// release — verified against @tsrx/core 0.1.60/0.1.63, @tsrx/ripple and
-		// ripple — so the hint sent the author looking for a pin upgrade that
-		// would not have helped. It still fails to parse; it just no longer
-		// claims a false cause.
+		// No `{html expr}` keyword exists in any published upstream release, so the phantom-keyword hint would send the author looking for a pin upgrade that would not help. It still fails to parse; it just no longer claims a false cause.
 		const { diagnostics } = compileComponent(
 			wrap('<article>{html markup}</article>'),
 			'c.tsrx',

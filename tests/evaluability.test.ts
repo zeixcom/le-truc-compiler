@@ -1,9 +1,4 @@
-/**
- * Direct unit test for `evaluability.ts` : the single home of
- * the server-known dependency-closure rule that decides WHAT THE SERVER
- * RENDERS. Pinned directly rather than only transitively through golden
- * tests — a divergence here is a wrong component, not a wrong message.
- */
+/** Direct unit test for `evaluability.ts`: the single home of the server-known dependency-closure rule that decides what the server renders. Pinned directly rather than only transitively through goldens — a divergence here is a wrong component, not a wrong message. */
 import { describe, expect, test } from 'bun:test'
 import {
 	containsImpureAmbient,
@@ -31,8 +26,7 @@ describe('dependenciesOf', () => {
 		)
 		const title = component?.root.attrs.find(a => a.kind === 'reactive')
 		if (title?.kind !== 'reactive') throw new Error('expected reactive attr')
-		// `String` is a JS_GLOBALS member — dependenciesOf strips it;
-		// freeIdentifiers alone would still report it (compiler.test.ts pins that).
+		// `String` is a JS_GLOBALS member — dependenciesOf strips it; freeIdentifiers alone would still report it (compiler.test.ts pins that).
 		expect([...dependenciesOf(title.thunk)].sort()).toEqual(['color', 'n'])
 	})
 
@@ -97,8 +91,7 @@ describe('isServerEvaluable', () => {
 		)
 		const title = component?.root.attrs.find(a => a.kind === 'reactive')
 		if (title?.kind !== 'reactive') throw new Error('expected reactive attr')
-		// `n` is deliberately withheld from scope, mirroring a thunk that reads
-		// an arg-derived signal outside its own server-known closure.
+		// `n` is deliberately withheld from scope, mirroring a thunk that reads an arg-derived signal outside its own server-known closure.
 		expect(isServerEvaluable(title.thunk, new Set(['color']))).toBe(false)
 	})
 
@@ -123,11 +116,7 @@ describe('isServerEvaluable', () => {
 	})
 })
 
-//: `Intl` is split from `Date` — `Intl.*` folds when its locale
-// argument resolves to a server-known value (a server arg, a literal, or a
-// server-known const); `Date` stays unconditionally impure, since
-// `Date.now()`/`new Date()` have no argument that could make them
-// deterministic.
+// `Intl` folds when its locale argument resolves to a server-known value; `Date` stays unconditionally impure — `Date.now()`/`new Date()` have no argument that could make them deterministic.
 describe('LT-142: Intl split from Date', () => {
 	const thunkOf = (source: string) => {
 		const { component } = compileSource(source, 'c.tsrx')
@@ -227,11 +216,7 @@ describe('LT-142: Intl split from Date', () => {
 	})
 
 	test('the local Date constructor stays impure — it reads the build machine timezone (LT-165 step 5)', () => {
-		// `new Date(y, m, d)` over server-known args reads no viewing-moment
-		// fact, but the local-time constructor (and the zone-less formatter)
-		// interpret in the build machine's timezone — limb (b) ambient state:
-		// the rendered day must not depend on where the build ran. ADR 0009 s2
-		// prescribes the `Date.UTC` + `timeZone: 'UTC'` shape instead.
+		// The local-time constructor (and the zone-less formatter) interpret in the build machine's timezone — the rendered day must not depend on where the build ran. The prescribed shape is `Date.UTC` + `timeZone: 'UTC'`.
 		const thunk = thunkOf(
 			`export function C({ y, m, d }: { y: number; m: number; d: number })
 			@{
@@ -250,9 +235,7 @@ describe('LT-142: Intl split from Date', () => {
 	})
 
 	test('Date.UTC over server-known args is pure — the one admissible Date form (LT-165 step 5)', () => {
-		// The UTC conversion is a fixed function of its arguments: no wall
-		// clock, no timezone read. This is what makes the ticket's prescribed
-		// `Date.UTC(y, m - 1, d)` + `timeZone: 'UTC'` blogmeta shape foldable.
+		// The UTC conversion is a fixed function of its arguments: no wall clock, no timezone read — what makes the `Date.UTC` + `timeZone: 'UTC'` shape foldable.
 		const thunk = thunkOf(
 			`export function C({ y, m, d }: { y: number; m: number; d: number })
 			@{

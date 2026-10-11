@@ -1,23 +1,4 @@
-/**
- * Per-item setup (ADR 0024 s2, s5; ), end to end on both surfaces:
- *
- * - the block body of a `.tsx` `map` callback and the statements of a
- *   `.tsrx` `@for` body are the item's setup, classified by the
- *   component-setup rules with the item and key as known names;
- * - a plain const runs in both phases: per initial item in the server's
- *   loop, per entering item in `bindItem` — an attribute over the item's
- *   consts is set once at clone, like a key-derived one;
- * - a signal declared over the item is evaluated once per initial item by
- *   the value harness and per item on the client; a `createSensor` seed is
- *   its server value, and a condition over it switches arms in the item;
- * - `first()` naming the item root resolves to the element parameter;
- * - a client-only side effect runs in `bindItem` only;
- * - a `deriveList` declared in the item drives a nested list;
- * - a host-declared `deriveList` whose only consumer is a `byKey()` item
- *   const rides both generated modules and renders ().
- *
- * The refusals are pinned for parity in `tsx/diagnostic-parity.test.ts`.
- */
+/** Per-item setup, end to end on both surfaces: the block body of a `.tsx` `map` callback and the statements of a `.tsrx` `@for` body are the item's setup, classified by the component-setup rules with the item and key as known names. A plain const runs in both phases (per initial item in the server loop, per entering item in `bindItem`); a signal declared over the item evaluates per item, a `createSensor` seed is its server value; `first()` naming the item root resolves to the element parameter; a client-only side effect runs in `bindItem` only; a `deriveList` declared in the item drives a nested list; a host-declared `deriveList` whose only consumer is a `byKey()` item const rides both generated modules and renders. The refusals are pinned for parity in `tsx/diagnostic-parity.test.ts`. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import { pathToFileURL } from 'node:url'
 import { compileComponent } from '../src/frontend/tsrx'
@@ -27,8 +8,6 @@ import { createGeneratedDir } from './helpers/generated-corpus'
 
 const generated = createGeneratedDir('item-setup')
 afterAll(() => generated.cleanup())
-
-/* === Helpers === */
 
 const STYLE_TSRX = `<style>@scope {
 	:scope {
@@ -108,8 +87,6 @@ const mount = async (name: string, clientCode: string, markup: string) => {
 	const rendered = await realm.render({ markup, component: 'c-el' })
 	return { realm, ...rendered }
 }
-
-/* === Consts, signals, a root ref, a sensor and a side effect per item === */
 
 const PRE =
 	"import { createList, createMemo, createSensor, createStore, type MutableStore } from '@zeix/le-truc'\ntype Task = { title: string; done: boolean }"
@@ -276,8 +253,6 @@ describe('per-item setup: consts, signals, a root ref, a sensor', async () => {
 	})
 })
 
-/* === A nested list over an item-declared deriveList === */
-
 const GROUPS = `const groups = createList<Group, MutableStore<Group>>([{ name: 'x', tags: 'p q' }, { name: 'y', tags: '' }], { keyConfig: g => g.name, createItem: createStore })`
 const GROUP_PRE =
 	"import { createList, createStore, deriveList, type MutableStore } from '@zeix/le-truc'\ntype Group = { name: string; tags: string }"
@@ -372,7 +347,7 @@ describe('a nested list over an item-declared deriveList', async () => {
 			markup.indexOf('<template data-list="1">'),
 		)
 		expect(template).not.toContain('data-key="p"')
-		// The nested template is hoisted beside the outer one (ADR 0024 s2).
+		// The nested template is hoisted beside the outer one.
 		expect(markup).toMatch(/<\/template><template data-list="1">/)
 	})
 
@@ -413,8 +388,6 @@ describe('a nested list over an item-declared deriveList', async () => {
 		expect(tagsOf('z')).toEqual(['r', 's'])
 	})
 })
-
-/* === A host-declared deriveList read only through a `byKey()` item const === */
 
 const ROWS_PRE =
 	"import { createList, createStore, deriveList, type MutableStore } from '@zeix/le-truc'\ntype Row = { id: string; amount: number }"
@@ -512,8 +485,6 @@ describe('a host-declared deriveList whose only consumer is a byKey() item const
 		expect(price('c')?.textContent).toBe('10')
 	})
 })
-
-/* === The `.tsrx` signal shorthand over a per-item signal === */
 
 describe('the `.tsrx` shorthand over a per-item signal', async () => {
 	const source = tsrx(

@@ -575,14 +575,7 @@ blockquote {
 	text-decoration: none;
 }
 
-/* Docs shell (LT-502; moved out of section-menu's sheet, owner ruling
-   2026-10-08). .docs-body/.docs-main are the two-column wrapper that
-   docs-src/layouts/*.html render around <section-menu>; the page owns
-   them, so their rules live here. The sidebar layout only reads as a
-   sidebar once the shell is a flex row. Below 45em section-menu is
-   off-canvas, so the shell stays a single column there. The
-   #sidebar-toggle id is the toggle contract the component's setup reads
-   (TOGGLE_ID). */
+/* Docs shell: .docs-body/.docs-main are the two-column wrapper that docs-src/layouts/*.html render around <section-menu>; the page owns them, so their rules live here. The sidebar layout only reads as a sidebar once the shell is a flex row; below 45em section-menu is off-canvas, so the shell stays a single column there. The #sidebar-toggle id is the toggle contract the component's setup reads (TOGGLE_ID). */
 :root {
 	--header-height: 3rem;
 }
@@ -608,10 +601,7 @@ blockquote {
 }
 
 @media screen and (max-width: 44.999em) {
-	/* Toggle button contract: id="sidebar-toggle" (see TOGGLE_ID
-	   in the component's setup). Stays above the drawer's fixed,
-	   viewport-covering backdrop (z-index 100) so it remains
-	   clickable to close while open. */
+	/* Toggle button contract: id="sidebar-toggle" (see TOGGLE_ID in the component's setup). Stays above the drawer's fixed, viewport-covering backdrop (z-index 100) so it remains clickable to close while open. */
 	#sidebar-toggle {
 		z-index: 101;
 		position: absolute;
@@ -676,10 +666,7 @@ blockquote {
 }
 
 @media screen and (min-width: 45em) {
-	/* Toggle button contract: id="sidebar-toggle" (see TOGGLE_ID
-	   in the component's setup). Hidden above the breakpoint
-	   since the sidebar is always visible there and has nothing
-	   to toggle. */
+	/* Toggle button contract: id="sidebar-toggle" (see TOGGLE_ID in the component's setup). Hidden above the breakpoint since the sidebar is always visible there and has nothing to toggle. */
 	#sidebar-toggle {
 		display: none;
 	}

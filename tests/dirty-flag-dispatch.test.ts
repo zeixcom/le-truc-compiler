@@ -1,26 +1,4 @@
-/**
- * Dirty-flag attribute DISPATCH tests (): `value`/`checked`/`selected`
- * on native form controls must lower reactive thunks to PROPERTY writes
- * (`bindProperty`), not attribute writes — the write direction of the same
- * dirty-flag divergence `dirty-flag-harvest.test.ts` covers on the READ side
- * (CHECKLIST §6). Once the user has interacted with the control (or any JS
- * has written the property), removing/rewriting the content attribute no
- * longer clears the live IDL property, so a `bindAttribute` mirror silently
- * stops tracking — the form-radiogroup mutual-exclusion break that stopped
- * its cutover (NOTES ). The twin wrote `radio.checked = isChecked` —
- * a property write — inside its `each()` callback; the compiler must match.
- *
- * Scoping:
- * - the widening is keyed on ATTR ∈ DIRTY_FLAG_ATTRS × TAG ∈ the native
- *   form-control set, in BOTH dispatch paths (loop body and top level);
- * - the thunk's own shape is irrelevant to the hazard — a string-valued
- *   `value` thunk over an `<input>` diverges from the attribute exactly as
- *   a boolean `checked` thunk does once the control is dirty, so both
- *   dispatch as properties;
- * - a string thunk over an ordinary attribute, and a dirty-flag attr on a
- *   non-form-control element (`<meter value>`), keep the attribute dispatch
- *   unchanged — the widening is not blanket.
- */
+/** Dirty-flag attribute dispatch: `value`/`checked`/`selected` on native form controls lower reactive thunks to property writes (`bindProperty`), not attribute writes — the write direction of the divergence `dirty-flag-harvest.test.ts` covers on the read side. Once a control is dirty, removing the content attribute no longer clears the live IDL property, so a `bindAttribute` mirror silently stops tracking. Keyed on attr × native form-control tag in both dispatch paths; a string thunk over an ordinary attribute and a dirty-flag attr on a non-form-control keep the attribute dispatch. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 
@@ -55,9 +33,7 @@ export function C({ options }: { options: { value: string }[] })
 }`)
 		expect(diagnostics).toEqual([])
 		const code = component?.clientCode ?? ''
-		// The loop-body descendant target needs the precise element type for
-		// bindProperty's keyed setter to typecheck — querySelector is emitted
-		// with the tag's interface as its type argument.
+		// The loop-body descendant target needs the precise element type for bindProperty's keyed setter to typecheck — querySelector is emitted with the tag's interface as its type argument.
 		expect(code).toContain(
 			"const input = option.querySelector<HTMLInputElement>('input')!",
 		)
@@ -191,9 +167,7 @@ export function C({}: {})
 	})
 
 	test('number-valued thunk over `value` on a native input still stringifies for the property setter', () => {
-		// `returnsNumber`: number literals and conditionals over them. The
-		// bare number-signal read (`count.get()`) it used to miss is covered
-		// since  — see the test below.
+		// `returnsNumber`: number literals and conditionals over them; the bare number-signal read is covered in the test below.
 		const { component, diagnostics } = compiled(`export function C({}: {})
 @{
 	expose({})
@@ -214,10 +188,7 @@ export function C({}: {})
 	})
 
 	test('a bare number-SIGNAL read stringifies too (LT-126)', () => {
-		// `returnsNumber` used to recognise only literals and conditionals over
-		// them, so `() => count.get()` reached `bindProperty`'s DOMString setter
-		// uncoerced and the generated client failed `check:corpus`. The signal's
-		// `inferredType` settles it.
+		// Without the signal's `inferredType`, `() => count.get()` reached `bindProperty`'s DOMString setter uncoerced. The inferred type settles it.
 		const { component, diagnostics } =
 			compiled(`import { createState } from '@zeix/le-truc'
 export function C({}: {})

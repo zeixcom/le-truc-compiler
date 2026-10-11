@@ -1,14 +1,10 @@
-/**
- * The key alias (ADR 0025 s1): a host-level list seeded from server
- * args and never rendered by its own `map` is read in a reactive list's
- * item setup through `const t = list.byKey(k)`, where the item of the
- * loop's list is its key. This module finds the reads syntactically; the
- * harvest pass (`analysis/list-harvest.ts`) proves the four conditions and
- * the server emitter (`emit-server.ts`) records the witness.
- */
-
-import type { AstNode } from './ast-node'
-import { asArray, identifierName, nodeType, walkNodes } from './ast-utils'
+import {
+	type AstNode,
+	asArray,
+	identifierName,
+	nodeType,
+	walkNodes,
+} from './ast-utils'
 import { dependenciesOf } from './evaluability'
 import type {
 	ComponentIR,
@@ -19,13 +15,6 @@ import type {
 
 /* === Types === */
 
-/**
- * One `list.byKey(…)` read in a reactive list's item setup. `alias` is the
- * declared const name when the statement is the alias form exactly —
- * `const t = list.byKey(arg)`, a non-null assertion allowed — else null:
- * the read is conditional, nested in an expression, or in a non-const
- * statement.
- */
 export type ByKeyRead = {
 	loop: ReconcileForIR
 	stmt: ItemSetupStmt
@@ -51,21 +40,11 @@ const byKeyArgsOf = (node: unknown, list: string): AstNode[] | null => {
 
 /* === Exported Functions === */
 
-/**
- * Whether an arg-seeded list harvests per field (ADR 0024 s7): a
- * `harvest()` seed, or an item type that is not a primitive. A `string`
- * (or untyped) item keeps the whole-item read of its bare `{item}` hole.
- */
 export const harvestsPerField = (signal: DeclaredSignalIR): boolean =>
 	signal.harvest?.kind === 'list' ||
 	signal.listItem?.shape.kind === 'fields' ||
 	signal.listItem?.shape.kind === 'opaque'
 
-/**
- * Whether `signal` is a list the key alias may harvest: a host-level
- * `createList` whose seed reads server args and nothing else, and which no
- * reactive list renders through its own `map`.
- */
 export const isAliasHarvestable = (
 	component: ComponentIR,
 	signal: DeclaredSignalIR,
@@ -112,11 +91,6 @@ export const byKeyReadsOf = (
 	)
 }
 
-/**
- * The alias scope the witness records (ADR 0025 s2): the loop holding the
- * first exact alias of `list`, or null. The harvest pass has refused every
- * other shape before a module is emitted.
- */
 export const aliasScopeOf = (
 	component: ComponentIR,
 	list: string,

@@ -1,24 +1,6 @@
-/**
- * The authored-surface vocabulary (LT-233; ADR 0010 sub-design 6 — the two
- * surfaces render identically AND diagnose identically).
- *
- * Every diagnostic fragment that names an authored spelling lives here, one
- * table per surface, side by side: a key added for one surface is a type
- * error until the other spells it too. Shared machinery — the front-end
- * driver (`front-end.ts`), `lower-shared.ts`, the post-lowering tail and
- * the analysis passes — reads the table for the surface it is compiling
- * (`ctx.surface` / `component.surface`) and never spells a directive
- * itself. Messages emitted only by one surface's grammar-specific code (the
- * `.tsx` switch IIFE) stay inline there: they have
- * no twin to drift from.
- *
- * `server/tests/compiler/tsx/diagnostic-parity.test.ts` pins the contract:
- * the same invalid component gets the same code and the same message on
- * both surfaces, modulo exactly these fragments, and a `.tsx` message
- * never names a `.tsrx` directive.
- */
+/** The authored-surface vocabulary: every diagnostic fragment that names an authored spelling, one table per surface, side by side so the surfaces cannot drift. */
 
-/** The two authored surfaces (closed set, ADR 0010 s6). */
+/** The two authored surfaces (closed set). */
 export type Surface = 'tsrx' | 'tsx'
 
 export type SurfaceWording = {
@@ -76,7 +58,7 @@ export type SurfaceWording = {
 	/** One switch arm's test keyword, as in "a … value". */
 	caseLabel: string
 
-	/* --- reactive conditions (ADR 0015) --- */
+	/* --- reactive conditions --- */
 	/** A condition that reads a signal, as a sentence subject. */
 	reactiveConditional: string
 
@@ -106,7 +88,7 @@ export type SurfaceWording = {
 	emptyArm: string
 	/** The empty arm as a fix-it. */
 	emptyArmFix: string
-	/** A loop inside a conditional/switch branch (LT-301). */
+	/** A loop inside a conditional/switch branch. */
 	loopInBranch: (branch: 'if' | 'switch') => { inside: string; outOf: string }
 }
 
@@ -230,11 +212,5 @@ export const SURFACE_WORDING: Readonly<Record<Surface, SurfaceWording>> = {
 	tsx: TSX,
 }
 
-/**
- * The vocabulary for whatever the context is compiling. A `ComponentIR`
- * from a third-party front end may carry no surface (the field is optional
- * contract IR) — it is worded as `.tsx`, the JavaScript-expression
- * spelling and the published package's only bundled surface.
- */
 export const wordingOf = (at: { surface?: Surface }): SurfaceWording =>
 	SURFACE_WORDING[at.surface ?? 'tsx']

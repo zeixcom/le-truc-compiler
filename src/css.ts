@@ -1,44 +1,4 @@
-/**
- * The component stylesheet as a compiler artifact (ADR 0011 s9).
- *
- * The dedent gives way to a parse: `parseComponentSheet` parses the
- * `<style>` block's source with lightningcss — the `lightningcss-wasm`
- * distribution, the only one that loads under every JS runtime the
- * portability check runs (ADR 0016; the native napi binding cannot load
- * from a self-contained bundle) — and makes its rules, selectors and
- * at-rules reachable from the IR (`ComponentIR.sheet`). A sheet that does
- * not parse has no correct emission: tier 1 Prevented (ADR 0007 s1),
- * LTC064. A declaration outside its property's grammar is LTC065, tier 2
- * Contained — a warning, the sheet ships as authored — because the
- * arbiter's dictionary (mdn-data, via css-tree) lags the platform: its
- * "no" is evidence, not proof (). css-tree's lexer arbitrates
- * declaration grammar because lightningcss deliberately keeps unknown
- * properties and unparseable values instead of rejecting them, so its
- * parse alone cannot police the spec grammar, and its whole-sheet failures
- * cannot name the offending declaration the way a per-declaration check
- * can. css-tree reaches the nested blocks its own parser folds into Raw
- * nodes by recursing into their brace regions, which keeps every
- * declaration's authored position.
- *
- * The lightningcss pass is READ-ONLY: the visitor collects the parsed
- * sheet and returns nothing. Returning parsed nodes into the parser (the
- * write path a modified sheet would need) crashes on `var()` inside
- * nested rules at 1.33 — upstream parcel-bundler/lightningcss#1065. The
- * collected objects stay valid after `transform` returns; nothing
- * re-enters the parser.
- *
- * Emission is the scoped emission (`css-scope.ts`): the dedent
- * (`dedentCss`) yields the AUTHORED form the IR carries — what LTC051
- * compares across a variant set — while the emitted artifact is scoped
- * per `cssTargets`.
- */
-
 import type { CssNode, CssTreeDeclaration } from 'css-tree/dist/csstree.esm'
-// The dist ESM bundle, not the package entry: the entry loads its
-// dictionary patch through a runtime `createRequire`, which cannot ride
-// the portability bundle's self-contained module graph (ADR 0016). The
-// dist bundle inlines the same dictionary and runs under every JS
-// runtime; its (loose) types come from the ambient shim `css-tree.d.ts`.
 import {
 	lexer,
 	parse,
@@ -62,16 +22,7 @@ export type SheetErrorFace =
 /** One spec-grammar finding over the authored sheet. */
 export type SheetError = {
 	face: SheetErrorFace
-	/**
-	 * 0-based offset within the sheet text, when the parser knows it —
-	 * the caller maps it onto the authored source.
-	 */
 	offset?: number
-	/**
-	 * Where the offending construct ends (exclusive) in the sheet text —
-	 * the declaration's end for the declaration faces; absent for a syntax
-	 * error, which the parser locates as a point.
-	 */
 	end?: number
 	/** The offending property, for the declaration faces. */
 	property?: string
@@ -90,9 +41,6 @@ export type ParsedComponentSheet = {
 
 /* === Internal Functions === */
 
-/**
- * Offset of a 1-based lightningcss `loc` position within the sheet text.
- */
 const lineColToOffset = (source: string, line: number, column: number) => {
 	let offset = 0
 	for (let i = 1; i < line; i++) {
@@ -119,12 +67,6 @@ const mentionsSubstitution = (node: CssNode | undefined): boolean =>
 		? true
 		: childrenOf(node).some(mentionsSubstitution))
 
-/**
- * The inner text of every top-level `{…}` region of a Raw node's value —
- * a nested rule under css-tree's pre-nesting grammar. String, comment and
- * (unclosed-group safe) paren aware; lightningcss has already accepted the
- * sheet's syntax, so the scan never sees text a browser could not.
- */
 const nestedBlockRegions = (text: string): Array<[number, number]> => {
 	const regions: Array<[number, number]> = []
 	let depth = 0
@@ -161,11 +103,6 @@ const nestedBlockRegions = (text: string): Array<[number, number]> => {
 
 const MAX_VALUE_ECHO = 60
 
-/**
- * At-rules whose block holds descriptors, not properties — never matched
- * against the property dictionary. `@page` is here too: its block mixes
- * page descriptors with margin rules.
- */
 const DESCRIPTOR_ATRULES = new Set([
 	'font-face',
 	'property',
@@ -177,21 +114,6 @@ const DESCRIPTOR_ATRULES = new Set([
 	'color-profile',
 ])
 
-/**
- * The declaration-grammar pass. css-tree parses the sheet (positions on,
- * its pre-nesting grammar folding nested rules into positioned Raw nodes
- * that the region recursion re-enters) and `lexer.matchDeclaration` — the
- * per-declaration entry, which resolves vendor and hack prefixes — checks
- * each rule-block declaration against the CSS dictionary. Exempt, never
- * errors: custom properties (any value is valid by spec), values
- * referencing `var()`/`env()` (matching needs substitution), whole Raw
- * values (nothing decidable), and every declaration inside a descriptor
- * at-rule (`DESCRIPTOR_ATRULES`: descriptors are not properties). A
- * conditional group nested in a rule (`.a { @media … { width: … } }`)
- * holds properties and is checked like the rule it sits in (). A
- * css-tree parse failure means no declaration check — lightningcss is the
- * syntax authority and has already passed the sheet.
- */
 const grammarErrors = (source: string): SheetError[] => {
 	const errors: SheetError[] = []
 	let ast: CssNode
@@ -201,8 +123,6 @@ const grammarErrors = (source: string): SheetError[] => {
 		return errors
 	}
 
-	// css-tree ends a declaration without a `;` after the whitespace that
-	// follows it; the reported range stops at its last character.
 	const trimmedEnd = (text: string, end: number): number => {
 		while (end > 0 && /\s/.test(text[end - 1] ?? '')) end--
 		return end
@@ -219,8 +139,6 @@ const grammarErrors = (source: string): SheetError[] => {
 		const unknown = message.startsWith('Unknown property')
 		let echoed: string | undefined
 		if (!unknown && value.loc) {
-			// The value's offsets are relative to the (re-parsed) text the
-			// declaration sits in; `base` lifts them into the sheet.
 			echoed = source
 				.slice(base + value.loc.start.offset, base + value.loc.end.offset)
 				.trim()
@@ -247,8 +165,6 @@ const grammarErrors = (source: string): SheetError[] => {
 				return
 			case 'Atrule': {
 				const block = (node as { block?: CssNode }).block
-				// A conditional group keeps its context: at the top level it
-				// holds rules, nested in a rule it holds properties.
 				if (block)
 					visit(
 						block,
@@ -287,19 +203,10 @@ const grammarErrors = (source: string): SheetError[] => {
 
 /* === Exported Functions === */
 
-/**
- * Parse a `<style>` block's source text (ADR 0011 s9). The lightningcss
- * pass collects the sheet read-only; its syntax failures report as the
- * `syntax` face and leave no sheet. The css-tree pass then reports
- * declaration-grammar findings. Neither face changes the emitted text —
- * the dedent below stays the emission source until .
- */
 export const parseComponentSheet = (source: string): ParsedComponentSheet => {
 	let captured: StyleSheet | undefined
 	try {
 		transform({
-			// A relative selector at the top of `@scope` reads anchored, at
-			// the authored locs (`anchorRelativeSelectors`).
 			code: new TextEncoder().encode(
 				anchorRelativeSelectors(source, '&'),
 			) as Buffer,
@@ -335,16 +242,6 @@ export const parseComponentSheet = (source: string): ParsedComponentSheet => {
 	return { sheet: captured, errors: grammarErrors(source) }
 }
 
-/**
- * Normalize a `<style>` block's `stylesheet.source` to standalone CSS:
- * strip the common leading indentation from every non-blank line, drop
- * leading/trailing blank lines, and end with exactly one newline.
- *
- * The AUTHORED form the IR carries (LTC051 compares it across a variant
- * set, ADR 0011 s10); the emitted artifact is the scoped emission
- * (`css-scope.ts`), partitioned from the raw text `sheet`'s locs resolve
- * against.
- */
 export const dedentCss = (source: string): string => {
 	const lines = source.split('\n')
 	const indents = lines

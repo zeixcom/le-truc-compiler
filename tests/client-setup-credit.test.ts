@@ -1,14 +1,4 @@
-/**
- * A signal read by a CLIENT-ONLY setup statement is credited as rendered
- * (). Such a statement — `watch(() => open.get() && …,
- * bindAttribute(el, 'hidden'))` — reaches the DOM without a template render
- * site, and is the only route open to a predicate over a composed child's
- * public prop: as a reactive JSX attribute the same predicate cannot be
- * folded by the server, so the attribute is omitted from the served HTML
- * (LTC034) instead. The credit seeds by initializer reuse, which is sound
- * here by construction — `clientSetup` exists only in the generated client,
- * so the server rendered nothing for the reused initializer to contradict.
- */
+/** A signal read by a client-only setup statement is credited as rendered: such a statement reaches the DOM without a template render site — the only route open to a predicate over a composed child's public prop, since as a reactive attribute it cannot be server-folded (LTC034). The credit seeds by initializer reuse, sound by construction: `clientSetup` exists only in the generated client. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 import { compileComponentTsx } from '../src/frontend/tsx'
@@ -35,9 +25,6 @@ describe('client-only setup statements credit a signal as rendered', () => {
 import { bindAttribute, createState } from '@zeix/le-truc'`
 
 	test('no error — the signal is consumed, not dead', () => {
-		// Pre-tiering this was the LTC004 refusal; since  step 5 the
-		// code is retired onto tier.ts's RoutingSignalOrigin, so the pin is
-		// the positive: the module compiles with no diagnostic at all.
 		const { component, diagnostics } = compile(source)
 		expect(diagnostics).toEqual([])
 		expect(component).not.toBeNull()
@@ -54,10 +41,7 @@ import { bindAttribute, createState } from '@zeix/le-truc'`
 	})
 
 	test('the credit follows a const (LT-323)', () => {
-		// `open.get()` sits one level of indirection away inside `isOpen`.
-		// Until  the credit read only the statement's own node, so this
-		// spelling routed Simulated on LTC004; ADR 0008 folds it, because
-		// every consumer is still client-only.
+		// `open.get()` sits one level of indirection away inside `isOpen`; the credit follows it because every consumer is still client-only.
 		const { component } = compile(
 			source.replace(
 				"\twatch(() => !open.get(), bindAttribute(panel, 'hidden'))",
@@ -101,10 +85,7 @@ import { createState } from '@zeix/le-truc'`)
 	})
 
 	test('a render position through a carrier blocks the context-member seed (LT-327)', () => {
-		// `count` reaches the template only through `label`, so the direct
-		// `sig.get()` scan misses it. Its initializer reads `all()`, which the
-		// server cannot evaluate — folding it would emit `all` undeclared in
-		// the server module (ADR 0008: any doubt routes downward).
+		// `count` reaches the template only through `label`, so the direct `sig.get()` scan misses it. Its initializer reads `all()`, which the server cannot evaluate — folding it would emit `all` undeclared in the server module.
 		const { component } = compile(`export function C({}: {})
 @{
 	const count = createMemo(() => all('li').get().length)
@@ -131,8 +112,7 @@ import { bindText, createMemo } from '@zeix/le-truc'`)
 	})
 
 	test('a @case test is a render position (LT-330)', () => {
-		// The case test \`label()\` reaches \`count\` through a carrier, the
-		// same shape as  — but in a switch arm, not an \`@if\` test.
+		// The case test `label()` reaches `count` through a carrier, but in a switch arm rather than an `@if` test.
 		const { component } = compile(`export function C({ mode }: { mode: string })
 @{
 	const count = createMemo(() => all('li').get().length)

@@ -1,23 +1,12 @@
-/**
- * Unit tests for the one structural `TemplateNode` visitor (
- * walk.ts): visit order over every node kind, parent pairing, the one
- * traversal rule that varies by consumer (`intoCompose`), and the
- * always-enter `@pending` policy ().
- * The tree is hand-built IR — no compiler front end needed, which is the
- * point of extracting the visitor.
- */
 import { describe, expect, test } from 'bun:test'
-import type { AstNode } from '../src/ast-node'
+import type { AstNode } from '../src/ast-utils'
 import type { TemplateNode } from '../src/ir'
 import { NO_DEPS } from '../src/reactivity'
 import { childNodes, collectAttrs, someNode, walkTemplate } from '../src/walk'
 
 const n = (type: string): AstNode => ({ type }) as AstNode
 
-/** A tree exercising every TemplateNode kind:
- *  root(el) → [ text, expr, if(then: el(a), else: client-stmt),
- *               switch(2 arms: el(b), text), try(body: el(c), catch: compose
- *               → el(d), pending: el(e)) ] */
+/** A tree exercising every TemplateNode kind: root(el) → [text, expr, if(then: el(a), else: client-stmt), switch(2 arms: el(b), text), try(body: el(c), catch: compose → el(d), pending: el(e))]. */
 const tree: TemplateNode & { kind: 'element' } = {
 	kind: 'element',
 	tag: 'x-root',

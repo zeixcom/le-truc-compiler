@@ -1,11 +1,4 @@
-/**
- * Tests for `class={() => ({ … })}` object-literal-bodied class thunks
- * : server-side initial render and client-side lowering to
- * one `watch(thunk, bindClass(el, keys))` call against `bindClass()`'s
- * map-form overload () — including the component-root case (targeting
- * `host`), which the custom-element reactive-attribute gate otherwise
- * rejects. Mirrors `style-map.test.ts`.
- */
+/** `class={() => ({ … })}` object-literal class thunks: server-side initial render and client-side lowering to one `watch(thunk, bindClass(el, keys))` call against `bindClass()`'s map-form overload — including the component-root case (targeting `host`), which the custom-element reactive-attribute gate otherwise rejects. Mirrors `style-map.test.ts`. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 import { compileComponentTsx } from '../src/frontend/tsx'
@@ -170,15 +163,7 @@ import { createCell } from '@zeix/le-truc'`
 })
 
 describe('quoted class keys (LT-221 §1.3)', () => {
-	// Two defects, one family. (1) Extraction: `objectKeys` assumed class
-	// maps "never use" string-literal keys, so a quoted key — the ONLY way
-	// to write a hyphenated class token in TS — was silently dropped from
-	// the key list (`bindClass(el, [])`: server renders the class, the
-	// client can never toggle it, no diagnostic). (2) Emission: the
-	// per-key watch sites interpolate the key into a MEMBER ACCESS —
-	// `((thunk)()).${key}` — which for a hyphenated key parses as
-	// subtraction (`x.has - error`). Dot-safe keys keep today's bytes;
-	// everything else goes through bracket access.
+	// Two pinned defects: extraction silently dropped quoted keys from the key list (`bindClass(el, [])` — server renders the class, the client can never toggle it, no diagnostic), and emission interpolated the key into a member access (`((thunk)()).${key}`), which for a hyphenated key parses as subtraction. Dot-safe keys keep member access; everything else goes through bracket access.
 
 	test('a quoted key in a top-level class map reaches the client binding', () => {
 		const source = `export function C({}: {})
@@ -239,10 +224,7 @@ import { createCell } from '@zeix/le-truc'`
 })
 
 describe('the class:-prefix spelling is rejected (LT-222)', () => {
-	// `class:token={…}` used to slip through classification: the call form
-	// rendered a literal `class:token` attribute the browser ignores, and the
-	// thunk form emitted a watch that read `.token` off the thunk's result —
-	// a class that could never apply. Both silently wrong; now LTC006.
+	// `class:token={…}` is silently wrong in both spellings: the call form renders a literal attribute the browser ignores, and the thunk form emits a watch reading `.token` off the thunk's result — a class that can never apply. Hence LTC006.
 
 	test('a reactive class:-prefix attr is rejected on .tsrx', () => {
 		const source = `export function C({}: {})

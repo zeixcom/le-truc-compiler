@@ -1,14 +1,4 @@
-/**
- * A compiler-inferred `number` harvest reads through `asNumber`, not
- * `asInteger` (). The server renders a number with `String(n)`, the
- * shortest round-tripping form, so `parseFloat` recovers it exactly; the old
- * `asInteger` mapping truncated `2.5` to `2` at connect — a silent
- * miscompile of the DOM-is-truth seed (ADR 0001).
- *
- * Each fixture connects in the simulation realm on both surfaces: connect is
- * a fixed point, so a harvest that recovered `2.5` re-renders `2.5`, and a
- * truncating one re-renders `2`.
- */
+/** A compiler-inferred `number` harvest reads through `asNumber`, not `asInteger` — the old mapping truncated `2.5` to `2` at connect. Each fixture connects in the simulation realm on both surfaces: connect is a fixed point, so a harvest that recovered `2.5` re-renders `2.5`, and a truncating one re-renders `2`. */
 
 import { afterAll, describe, expect, test } from 'bun:test'
 import { pathToFileURL } from 'node:url'

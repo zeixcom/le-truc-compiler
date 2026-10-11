@@ -1,10 +1,4 @@
-/**
- * A host-level server-data loop lowers client-side to `const items = all(…)`,
- * so the collection name shadows the server arg of the same name ().
- * The shadow never reaches tsc: a client position reading the arg is
- * LTC005's server-only-name face, on both surfaces, naming the arg. No
- * dedicated diagnostic is needed.
- */
+/** A host-level server-data loop lowers client-side to `const items = all(…)`, so the collection name shadows the server arg of the same name. The shadow never reaches tsc: a client position reading the arg is LTC005's server-only-name face, on both surfaces, naming the arg — no dedicated diagnostic needed. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 import { compileComponentTsx } from '../src/frontend/tsx'
@@ -40,8 +34,7 @@ const reads: Record<string, [string, string]> = {
 		'expose({ n: () => items.length })',
 		'server-only name `items`',
 	],
-	// A setup `on()` whose body reads a server name is not a client-only
-	// side effect over `host`: refused at the statement, still LTC005.
+	// A setup `on()` whose body reads a server name is not a client-only side effect over `host`: refused at the statement, still LTC005.
 	'a setup handler': [
 		"on(host, 'click', () => { host.n = items.length })",
 		'outside the supported subset',

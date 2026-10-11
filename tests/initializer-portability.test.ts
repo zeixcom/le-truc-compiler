@@ -1,13 +1,4 @@
-/**
- * A signal rendered only through a thunk no site can splice into (a
- * style-map, a computed thunk) seeds the client by reusing its initializer
- * verbatim ().  widens which initializers are reusable: a plain
- * setup const or an authored import is bound in the client module — the
- * signal's declaration is a client-emitted position, so the placement
- * fixpoint emits what it reads — and no longer routes the component
- * Simulated on LTC004. An initializer the client still cannot reuse names
- * its free names in the routing reason, instead of claiming no site exists.
- */
+/** A signal rendered only through a thunk no site can splice into (a style-map, a computed thunk) seeds the client by reusing its initializer verbatim. A plain setup const or an authored initializer is bound in the client module — the signal's declaration is a client-emitted position, so the placement fixpoint emits what it reads — and no longer routes the component Simulated on LTC004. An initializer the client still cannot reuse names its free names in the routing reason, instead of claiming no site exists. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 import { compileComponentTsx } from '../src/frontend/tsx'

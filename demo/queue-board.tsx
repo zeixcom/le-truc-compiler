@@ -1,31 +1,3 @@
-/**
- * The queue board — the task queue's live view (owner ruling 2026-10-10).
- *
- * One component renders the whole board: six fixed lanes as template
- * structure, one seeded master list, one derived list per lane. The queue
- * semantics live in the store (scripts/lib/queue-store.ts), which computes
- * lane, order and badges; this component only displays what it is handed and
- * never recomputes them.
- *
- * The data flow, both halves of the compiler's own model:
- * - Server: `renderQueueBoard({ tasks, … })` folds the initial snapshot into
- *   HTML — the page is correct before any JavaScript runs.
- * - Client: the master list is seeded from the server arg and harvested from
- *   the rendered cards' `data-*` raw sites (ADR 0003 — every field a card
- *   shows also rides an attribute, so the harvest can rebuild it; the id
- *   rides the compiler-stamped `data-key`, the ticker's `symbol` precedent).
- *   The client-only helper `connectBoard` (demo/_common/live.ts) then opens
- *   the SSE channel; every message replaces the whole list, and each lane's
- *   derived list reconciles its cards by task id.
- *
- * Authored-surface notes for the next reader: the seeded list is the
- * single-generic `createList<BoardTask>` form (items are cells), because a
- * `createItem: createStore` list has no harvest route for a server-seeded
- * initializer; host-level bound elements each carry their own unique static
- * attribute (`data-count`, `data-cards`) because lane position alone does not
- * make a selector; and the meta cells seed from plain typed parameters — a
- * `join()` seed hides its type from the harvest (LTC077).
- */
 import {
 	asNumber,
 	asParser,
@@ -79,12 +51,7 @@ export function QueueBoard({
 	const updated = createCell(generatedAt)
 	const issues = createCell(problems)
 
-	// The lane field's parser, shared by all six harvests: `BoardLane` is a
-	// union of the six lane keys, and no peer factory parser returns it —
-	// `asParser` is the documented spelling for a field type the factories
-	// do not cover (FieldParser<V>). The narrowing comparisons alone produce
-	// the union; an unknown key falls to the first lane instead of passing a
-	// bare string through.
+	// The lane field's parser, shared by all six harvests
 	const parseLane = asParser(
 		(value): BoardLane =>
 			value === 'waiting' ||
@@ -97,14 +64,7 @@ export function QueueBoard({
 				: 'waiting',
 	)
 
-	// One seeded list per lane, mapped directly below: each lane's cards are
-	// server-rendered from its arg and harvested field by field (ADR 0003),
-	// and every SSE message replaces each lane wholesale. The item type is
-	// imported, so each `harvest` declares the field list and parsers inline
-	// (ADR 0046 s7, LT-429 — a shared setup const would hide the seed from
-	// the compiler); the id rides the compiler-stamped `data-key`. `lane`'s
-	// parser is declared, not inferred: the imported `BoardLane` union is
-	// beyond the inference (LTC076), so the maps share `parseLane` below.
+	// One seeded list per lane, mapped directly below
 	const waitingList = createList<BoardTask>(
 		harvest(waiting ?? [], {
 			id: asString(),
@@ -178,8 +138,6 @@ export function QueueBoard({
 		{ keyConfig: task => task.id },
 	)
 
-	// Client-only: the SSE channel. The statement stays out of the server
-	// module, exactly like the todo example's setupReorder call.
 	connectBoard({
 		lanes: {
 			waiting: waitingList,

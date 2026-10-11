@@ -1,7 +1,4 @@
-/**
- * Shared corpus fixture for tests that exercise the corpus runner
- * (`compileCorpus`) the way the build does.
- */
+/** Shared corpus fixture for tests that exercise the corpus runner (`compileCorpus`) the way the build does. */
 
 import { readdirSync, readFileSync } from 'node:fs'
 import * as path from 'node:path'
@@ -14,23 +11,14 @@ import type { FileInfo } from './file-signals'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 
-/**
- * The corpus under `examples/` — BOTH authored surfaces — as `FileInfo[]`,
- * read through the CONFIGURED scan (): the same glob list, dedup and
- * runtime-neutral order the build, `check:corpus` and `i18n:sync` get, so a
- * test fixture cannot drift from what the pipeline actually compiles.
- */
+/** The corpus under `examples/` — both authored surfaces — read through the configured scan: the same glob list, dedup and runtime-neutral order the build and checks get, so a test fixture cannot drift from what the pipeline actually compiles. */
 export const loadCorpus = async (): Promise<CorpusFile[]> =>
 	collectCorpusSources(resolveCorpusConfig(ROOT))
 
-/** The `c-plural` fixture's repo-relative path (LT-467). */
+/** The `c-plural` fixture's repo-relative path. */
 export const C_PLURAL_FIXTURE = 'tests/fixtures/plural/c-plural.tsrx'
 
-/**
- * The `c-plural` compiler fixture as a `FileInfo` — the retired
- * basic-pluralize example, kept outside the corpus for the i18n coverage it
- * carried (). Compile it with `compileCorpus([cPluralFixture()], …)`.
- */
+/** The `c-plural` compiler fixture as a `FileInfo` — the retired basic-pluralize example, kept outside the corpus for the i18n coverage it carried. Compile it with `compileCorpus([cPluralFixture()], …)`. */
 export const cPluralFixture = (): FileInfo => {
 	const full = path.join(ROOT, C_PLURAL_FIXTURE)
 	return {
@@ -44,22 +32,13 @@ export const cPluralFixture = (): FileInfo => {
 	}
 }
 
-/**
- * Front-end-only compile of one corpus file, the surface chosen by
- * extension — the same dispatch `compileCorpus` makes (ADR 0017 variant
- * sets put a `.tsx` beside a `.tsrx` in one folder).
- */
+/** Front-end-only compile of one corpus file, the surface chosen by extension — the same dispatch `compileCorpus` makes (variant sets put a `.tsx` beside a `.tsrx` in one folder). */
 export const compileCorpusSource = (content: string, filename: string) =>
 	filename.endsWith('.tsx')
 		? compileSourceTsx(content, filename)
 		: compileSource(content, filename)
 
-/**
- * Every ICU pattern the corpus declares, with its render locale: each
- * component's inline source string (`en`) and every non-empty catalog
- * translation under `i18n/`. The oracle test (icu.test.ts) and the MF2
- * exit (mf2-exit.test.ts) walk the same list.
- */
+/** Every ICU pattern the corpus declares, with its render locale: each component's inline source string (`en`) and every non-empty catalog translation under `i18n/`. */
 export const corpusPatterns = async (): Promise<[string, string][]> => {
 	const out: [string, string][] = []
 	for (const file of await loadCorpus()) {

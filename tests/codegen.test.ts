@@ -1,9 +1,4 @@
-/**
- * The shared code-generation kit (): `jsString`/`jsTemplate`,
- * `HtmlWriter`, `CodeBuilder`, `commonIndent`, and the server emitter's
- * reserved-name policy — a render-scope name equal to a local the emitter
- * mints (`__html`, …) renames the minted local instead of shadowing it.
- */
+/** The shared code-generation kit: `jsString`/`jsTemplate`, `HtmlWriter`, `CodeBuilder`, `commonIndent`, and the server emitter's reserved-name policy (a render-scope name equal to a minted local renames the minted local instead of shadowing it). */
 import { afterAll, describe, expect, test } from 'bun:test'
 import { CodeBuilder, HtmlWriter, jsString, jsTemplate } from '../src/codegen'
 import { compileComponentTsx } from '../src/frontend/tsx'

@@ -1,13 +1,4 @@
-<!-- Regenerated from the compiled template (LT-118): every instance below is
-     what `renderFormSpinbutton()` emits for its args, so the served DOM and the
-     client's harvest agree. value/min/max/step live on the owned input
-     (children-are-data, LT-112); `zero` opts an instance into the "Add to Cart"
-     zero-state affordance and is harvested from its own `.zero` span — at value
-     0 the input and decrement button are `hidden`, the increment button carries
-     the call-to-action label, and `.other` hides. The non-zero increment
-     aria-label reads `t.increment` client-side (ADR 0030 s9, LT-219): a
-     server render at a translated locale carries it in the root `i18n`
-     attribute; these instances carry none and speak the source locale. -->
+<!-- Regenerated from the compiled template: every instance is what the component emits for its args, so the served DOM and the client's harvest agree. value/min/max/step live on the owned input; `zero` opts an instance into the zero-state affordance and is harvested from its own `.zero` span. -->
 
 <form-spinbutton id="default-test" name="amount" value="0" min="0" max="10" step="1" bigStep="10">
 	<label for="amount-input">Amount</label>

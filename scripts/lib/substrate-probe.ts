@@ -1,22 +1,3 @@
-/**
- * Substrate-probe harness for the LT-152 substrate evaluation
- * (scripts/substrate-evaluation.ts) — jsdom vs. happy-dom.
- *
- * Carries the substrate-parameterized half of the simulation driver: window
- * creation for both substrates, a patch-table applier that reuses the
- * PRODUCTION table (`server/compiler/sim/patch-table.ts`) verbatim plus
- * substrate extras, and the two-phase ProbeRealm (recording-registry load,
- * synchronous parse→replay→serialize render) mirroring
- * `server/compiler/sim/realm.ts`. The production realm stays jsdom-only; any
- * table entry this harness needs for a second substrate is an evaluation
- * finding, recorded in ADR 0027.
- *
- * Client-module loading goes through `importBundle`, which only ever loads a
- * bundle this harness itself wrote into its own tmp directory (validated
- * before the dynamic import), so the executed code is pinned to
- * locally-bundled generated/hand-written clients.
- */
-
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'

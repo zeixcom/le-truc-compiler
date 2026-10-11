@@ -1,44 +1,4 @@
-/**
- * Cross-surface DIAGNOSTIC parity (LT-242; the ADR 0010 s6 equivalence
- * contract, amended: both surfaces render identically AND diagnose
- * identically).
- *
- * `parity.test.ts` proves successful compiles agree. Every drift COMPILER_
- * REVIEW §2.3 found lived on the failure path instead, where it could not
- * look: the `.tsx` `offenders` truthiness bug (fixed ), the
- * `.tsrx`-only `keyName` arm (a grammar asymmetry until the `.tsx` keyed
- * `map` closed it) and the per-item `ref` message. A user of either surface must get the same code
- * and the same sentence for the same invalid component — otherwise one
- * surface teaches its users something the other never hears.
- *
- * Each case authors ONE invalid component in both surfaces, compiles both
- * front ends, and asserts equal `[code, severity, covered text, message]`
- * lists after the `.tsx` side is TRANSLATED into `.tsrx` spelling. Message
- * translation is two things only:
- *
- * - the echoed file name (`c.tsrx` / `c.tsx`) — structural, not wording;
- * - `SURFACE_VOCABULARY` — the explicit allowlist of fragments that
- *   legitimately differ because they NAME the authored spelling (`@if`
- *   against a conditional, `@for body` against `map body`). Since LT-233
- *   every entry is built from the compiler's own vocabulary
- *   (`server/compiler/surface.ts`), so the table cannot drift from the
- *   product; the one entry outside it echoes the author's own tag. Every
- *   entry must be exercised by some case — a stale entry fails.
- *
- * Parity cannot see the second drift class: shared machinery that speaks
- * `.tsrx` to BOTH surfaces (`@for`, `@if`) is identical and still wrong
- * for `.tsx` users. The leak scan rejects `.tsrx` directive vocabulary in
- * every `.tsx` message.  found six such leaks;  folded them
- * into the vocabulary, and the scan now tolerates none.
- *
- * Each diagnostic's range is compared by the authored text it covers
- * (ADR 0022 s1), not by offset — the two spellings lay out
- * differently. Where the surfaces spell the covered construct differently
- * (`@if (…) { … }` against a ternary), the case lists the pair in `spans`;
- * an unexercised pair fails. Each case also asserts its `code` is present
- * on both sides, so a fixture that stops triggering its family fails
- * instead of passing vacuously.
- */
+/** Cross-surface DIAGNOSTIC parity: every case authors ONE invalid component in both surfaces, compiles both front ends, and asserts equal `[code, severity, covered text, message]` lists after the `.tsx` side is TRANSLATED into `.tsrx` spelling — a user of either surface gets the same code and the same sentence for the same invalid component. Message translation is two things only: the echoed file name, and `SURFACE_VOCABULARY`, the explicit allowlist of fragments that legitimately differ because they NAME the authored spelling; every entry must be exercised by some case — a stale entry fails. Parity cannot see shared machinery that speaks `.tsrx` to BOTH surfaces, so the leak scan rejects `.tsrx` directive vocabulary in every `.tsx` message. Each diagnostic's range is compared by the authored text it covers, not by offset; `spans` allowlists the pairs the surfaces spell differently (an unexercised pair fails), and each case asserts its `code` is present on both sides so a fixture that stops triggering its family fails instead of passing vacuously. */
 import { describe, expect, test } from 'bun:test'
 import type { CompileDiagnostic, DiagnosticCode } from '../../src/diagnostics'
 import { compileComponent } from '../../src/frontend/tsrx'
@@ -234,11 +194,7 @@ export function C(${params})
 			</c-el>
 	}`
 
-/**
- * The text a ROOT diagnostic (LTC008's wrong root tag) covers: the root
- * element, `<style>` child included . Cases comparing a root
- * diagnostic across surfaces allowlist the two spellings with it.
- */
+/** The text a ROOT diagnostic (LTC008's wrong root tag) covers: the root element, `<style>` child included. Cases comparing a root diagnostic across surfaces allowlist the two spellings with it. */
 const coveredRoot = (source: string): string =>
 	source.slice(
 		source.indexOf('<div>'),
@@ -305,16 +261,7 @@ const cell = (name: string, init: string) =>
 
 /* === Cases === */
 
-/**
- * The three COMPILER_REVIEW §2.3 shapes. Two are fixed; the per-item `ref`
- * has converged in practice — `classify-attributes.ts` retires `ref={}` on
- * both surfaces before either list-body validator sees it, so the `.tsrx`
- * `attr.kind === 'ref'` arm in `validateListBody` is unreachable (LT-233
- * deletes it with the fold). The pins keep all three closed.
- */
-// The two §1.1 offender shapes (the impure attribute and the named
-// offender) retired with the slot fill  — they are in the
-// reactive-list bodies describe's compiles-clean list.
+/** The drift shapes this suite exists for; the pins keep them closed. */
 const REVIEW_SHAPES: Case[] = [
 	{
 		name: '§2.3 keyName: a loop variable named `first`',
@@ -342,10 +289,10 @@ const REVIEW_SHAPES: Case[] = [
 	},
 ]
 
-/** The reactive-list body family (ADR 0005 sub-design 5, the copied seam). */
+/** The reactive-list body family. */
 const LIST_BODY: Case[] = [
 	{
-		// ADR 0024 s4 : the `.tsx` keyed `map` binds the key, so the
+		// The `.tsx` keyed `map` binds the key, so the
 		// reserved-name check covers the key binding on both surfaces.
 		name: 'a key binding named `first`',
 		code: 'LTC005',
@@ -376,8 +323,8 @@ const LIST_BODY: Case[] = [
 		pins: ['write a bare identifier'],
 	},
 	{
-		// The one-hole rule retired (ADR 0024 s1); the shared lazy-text gate
-		// owns this shape now — two lazy children race on the shared
+		// The one-hole rule is retired; the shared lazy-text gate
+		// owns this shape — two lazy children race on the shared
 		// textContent.
 		name: 'a lazy child other than the item',
 		code: 'LTC005',
@@ -386,7 +333,7 @@ const LIST_BODY: Case[] = [
 	},
 	{
 		// A server attribute over the item is still refused: the item is the
-		// signal the List hands out (ADR 0024 s3), and the template render
+		// signal the List hands out, and the template render
 		// outside the loop cannot fold a per-item value.
 		name: 'a server attribute reading the item',
 		code: 'LTC005',
@@ -403,7 +350,7 @@ const LIST_BODY: Case[] = [
 		pins: ['reads an ambient value'],
 	},
 	{
-		// Per-field harvest (ADR 0024 s7): the key field comes from
+		// Per-field harvest: the key field comes from
 		// `data-key`, every other field needs a site in the item.
 		name: 'LTC072 a field of an arg-seeded list item rendered nowhere',
 		code: 'LTC072',
@@ -434,7 +381,7 @@ const LIST_BODY: Case[] = [
 	},
 	{
 		// A composed child renders once into the extracted template, root
-		// `lang`/`i18n` included (ADR 0009 s9): an arg over the item
+		// `lang`/`i18n` included: an arg over the item
 		// has no per-item render to reach.
 		name: 'LTC075 a composed child in the item reading the item in an arg',
 		code: 'LTC075',
@@ -457,7 +404,7 @@ const LIST_BODY: Case[] = [
 	},
 	{
 		// A server-data loop renders once into the extracted template, so
-		// one over the item has no lowering ; a loop over server
+		// one over the item has no lowering; a loop over server
 		// data nests.
 		name: 'a server-data loop over the item',
 		code: 'LTC005',
@@ -470,9 +417,9 @@ const LIST_BODY: Case[] = [
 		pins: ['inside a reactive-list', 'iterating `item`'],
 	},
 	{
-		//: the positive server-only rule, with the tail. The
-		// subject is the shared construct face now — the item plans through
-		// `emitConstructEffects` like an arm .
+		// The positive server-only rule, with the tail. The
+		// subject is the shared construct face — the item plans through
+		// `emitConstructEffects` like an arm.
 		name: 'a handler reading a server arg',
 		code: 'LTC005',
 		spec: list(
@@ -484,8 +431,8 @@ const LIST_BODY: Case[] = [
 		],
 	},
 	{
-		// A plain boundary has no lowering inside the item's mount ;
-		// an async boundary is an arm set and nests .
+		// A plain boundary has no lowering inside the item's mount;
+		// an async boundary is an arm set and nests.
 		name: 'a boundary inside the body',
 		code: 'LTC005',
 		spans: [
@@ -502,7 +449,7 @@ const LIST_BODY: Case[] = [
 	},
 	{
 		// No client-need walk reaches a list body, so a setup const read only
-		// there would never be emitted client-side .
+		// there would never be emitted client-side.
 		name: 'a handler reading a setup const',
 		code: 'LTC005',
 		spec: {
@@ -609,7 +556,7 @@ const LIST_BODY: Case[] = [
 		},
 	},
 	{
-		//: the .tsx map-body guard gains its .tsrx twin — an @try
+		// The .tsx map-body guard gains its .tsrx twin — an @try
 		// where a @for body's output belongs is LTC053 on both surfaces,
 		// not the generic non-output-statement rule.
 		name: 'a boundary as a loop body root (LTC053, LT-358a)',
@@ -629,19 +576,7 @@ const LIST_BODY: Case[] = [
 	},
 ]
 
-/**
- * Condition validation — the LTC005 condition face ADR 0015 retires
- * (LT-274–LT-276). Pinned identical on both surfaces now, so the ADR 0015
- * codes that replace it inherit parity from day one: when they land, these
- * cases flip to the new codes on both sides at once or fail here.
- */
-/**
- * Conditions over signals are legal since ADR 0015 : the four
- * shapes that pinned LTC005's retired condition face now compile on both
- * surfaces (`REACTIVE_CONDITIONS` below), and the cases here pin the new
- * refusals — LTC062, LTC063 and the placement and arm-shape faces of
- * LTC005.
- */
+/** Conditions over signals are legal: the four shapes in `REACTIVE_CONDITIONS` below compile on both surfaces, and the cases here pin the new refusals — LTC062, LTC063 and the placement and arm-shape faces of LTC005 — pinned identical on both surfaces so the codes inherit parity from day one. */
 const REACTIVE_CONDITIONS: Spec[] = [
 	{
 		pre: imports('createCell'),
@@ -689,8 +624,8 @@ const CONDITIONS: Case[] = [
 		spec: {
 			pre: imports('createCell'),
 			setup: cell('m', '1'),
-			//  made case keys value-typed (`case:` + the literal's
-			// JSON), so `1` and `'1'` name DISTINCT arms now; the duplicate
+			// Case keys are value-typed (`case:` + the literal's
+			// JSON), so `1` and `'1'` name DISTINCT arms; the duplicate
 			// pair is two spellings of one literal value — `1.0` parses to
 			// `1`, as `===` says.
 			body: '@switch (m.get()) { @case 1: { <p>a</p> } @case 1.0: { <p>b</p> } }',
@@ -861,12 +796,7 @@ const CONDITIONS: Case[] = [
 	},
 ]
 
-/**
- * LTC005's server-only face : one fixture per position the client
- * emits authored code into. The generated client binds no server arg and no
- * `t`, so each would be a ReferenceError at connect. List bodies are pinned
- * in LIST_BODY above; a new client-emitted position belongs here.
- */
+/** LTC005's server-only face: one fixture per position the client emits authored code into. The generated client binds no server arg and no `t`, so each would be a ReferenceError at connect. List bodies are pinned in LIST_BODY above; a new client-emitted position belongs here. */
 const LABEL = '{ label }: { label: string }'
 const ICU = {
 	pre: `${imports('createCell')}\nexport const i18n = { tasks: '{count, plural, other {# tasks}}' }`,
@@ -880,8 +810,8 @@ const SERVER_ONLY: Case[] = [
 		pins: ['Reactive text on <span> references server-only name `label`'],
 	},
 	{
-		//  admits a static `t.<key>` read (the client message channel);
-		// a computed key stays server-only.
+		// The vocabulary admits a static `t.<key>` read (the client message
+		// channel); a computed key stays server-only.
 		name: 'a reactive text child reading `t` through a computed key',
 		code: 'LTC005',
 		spec: {
@@ -971,7 +901,7 @@ const SERVER_ONLY: Case[] = [
 		pins: ['The initializer of signal `c` references'],
 	},
 	{
-		//: a compiler-generated query local is not a client rebinding
+		// A compiler-generated query local is not a client rebinding
 		// — the handler would log the queried <button>, not the arg.
 		name: 'a server arg named like a queried element',
 		code: 'LTC005',
@@ -982,7 +912,7 @@ const SERVER_ONLY: Case[] = [
 		pins: ['Event handler `onClick` references server-only name `button`'],
 	},
 	{
-		//: the record spelling (`messages.t.<key>`) flags the record
+		// The record spelling (`messages.t.<key>`) flags the record
 		// binding, so the report must route to the literal-key sentence —
 		// the generic exposed-prop fix would contradict it.
 		name: 'a record-spelled message read',
@@ -1073,10 +1003,7 @@ export function C({}: {}) {
 }`,
 }
 
-/**
- * A `<style>` block holding an expression in place of the stylesheet, per
- * surface (LTC078) — read before  as an empty sheet.
- */
+/** A `<style>` block holding an expression in place of the stylesheet, per surface (LTC078). */
 const STYLE_EXPRESSION = {
 	tsrx: `export function C({}: {})
 	@{
@@ -1107,7 +1034,7 @@ const FAMILIES: Case[] = [
 		pins: ['Drop the fragment so that the host element is the root'],
 	},
 	{
-		//: only the root's first direct `<style>` child is the
+		// Only the root's first direct `<style>` child is the
 		// stylesheet. A second direct one (here the builders' own block,
 		// which follows the body's) and a nested one are refused, not
 		// rendered empty with their CSS dropped.
@@ -1147,7 +1074,7 @@ const FAMILIES: Case[] = [
 		],
 	},
 	{
-		//: an expression child is no stylesheet on either surface;
+		// An expression child is no stylesheet on either surface;
 		// it compiled to an empty sheet with no message.
 		name: 'LTC078 an expression in place of the stylesheet',
 		code: 'LTC078',
@@ -1194,7 +1121,7 @@ const FAMILIES: Case[] = [
 		pins: ['which holds a'],
 	},
 	{
-		//: both surfaces cover the `async` keyword itself, so the
+		// Both surfaces cover the `async` keyword itself, so the
 		// covered texts agree without a `spans` pair.
 		name: 'LTC008 async component function',
 		code: 'LTC008',
@@ -1207,7 +1134,7 @@ const FAMILIES: Case[] = [
 			tsrx: tsrxSource({ body: '<p>x</p>' }).replaceAll('c-el', 'div'),
 			tsx: tsxSource({ body: '<p>x</p>' }).replaceAll('c-el', 'div'),
 		},
-		// The diagnostic covers the whole root element, and since  the
+		// The diagnostic covers the whole root element, and the
 		// root carries the `<style>` block — whose spelling differs by
 		// surface (the `css` tag). Allowlist that covered-text difference.
 		spans: [
@@ -1448,7 +1375,7 @@ const FAMILIES: Case[] = [
 		pins: ['read without a call'],
 	},
 	{
-		//  rider: an authored <script> element is refused on both
+		// An authored <script> element is refused on both
 		// surfaces, whatever its type — the page owns script loading.
 		name: 'LTC056 authored <script> element',
 		code: 'LTC056',
@@ -1466,7 +1393,7 @@ const FAMILIES: Case[] = [
 		pins: ['whatever their `type`'],
 	},
 	{
-		//  (D-20): formatted text does not parse back into state — a
+		// Formatted text does not parse back into state — a
 		// signal seeded from an arg needs a raw value source beside it.
 		name: 'LTC059 formatted-only signal with no raw value source',
 		code: 'LTC059',
@@ -1479,7 +1406,7 @@ const FAMILIES: Case[] = [
 		pins: ['formatted with `toLocaleString()`', '<data value={() => …}>'],
 	},
 	{
-		//: an authored <template> is refused on both surfaces — the
+		// An authored <template> is refused on both surfaces — the
 		// compiler owns template extraction, and the selector probe cannot
 		// see inside one.
 		name: 'LTC061 authored <template> element',
@@ -1488,9 +1415,9 @@ const FAMILIES: Case[] = [
 		pins: ['A `<template>` element in a component template'],
 	},
 	{
-		//: the sheet is parsed (ADR 0011 s9), and spec-grammar
+		// The sheet is parsed, and spec-grammar
 		// findings report identically on both surfaces — the CSS text is
-		// the same string on either side of the seam.: a warning.
+		// the same string on either side of the seam. This case: a warning.
 		name: 'LTC065 stylesheet: an invalid unit',
 		code: 'LTC065',
 		sources: {
@@ -1506,7 +1433,7 @@ const FAMILIES: Case[] = [
 		pins: ['`width`', '10pxx'],
 	},
 	{
-		//: a selector that descends past a compound an authored limit
+		// A selector that descends past a compound an authored limit
 		// excludes is dead on either surface.
 		name: 'LTC071 stylesheet: a selector descending past an authored limit',
 		code: 'LTC071',
@@ -1524,7 +1451,7 @@ const FAMILIES: Case[] = [
 		},
 		pins: ['`other-el > *`', 'remove the limit'],
 	},
-	//: the platform-CSS stylesheet contract reports identically on
+	// The platform-CSS stylesheet contract reports identically on
 	// both surfaces — the sheet text is the same string either side of the seam.
 	{
 		name: 'LTC066 stylesheet: a rule in @scope led by the own tag',
@@ -1557,7 +1484,7 @@ const FAMILIES: Case[] = [
 		pins: ['Remove the wrapper'],
 	},
 	{
-		//: a top-level rule the component's tag does not contain is a
+		// A top-level rule the component's tag does not contain is a
 		// warning, the same string on both surfaces.
 		name: 'LTC088 stylesheet: an unscoped top-level rule',
 		code: 'LTC088',
@@ -1588,7 +1515,7 @@ const FAMILIES: Case[] = [
 		},
 		pins: ['`cssTargets`', 'no flat-selector form'],
 	},
-	// LTC081 : a handler arg the composing parent cannot address.
+	// LTC081: a handler arg the composing parent cannot address.
 	{
 		name: 'LTC081 a handler arg with no function type',
 		code: 'LTC081',
@@ -1640,11 +1567,7 @@ const FAMILIES: Case[] = [
 	},
 ]
 
-/**
- * A reactive list whose body carries the item's setup (ADR 0024 s5):
- * `stmts` before the output, statement per line on `.tsrx`, a block body
- * with semicolons on `.tsx`.
- */
+/** A reactive list whose body carries the item's setup: `stmts` before the output, statement per line on `.tsrx`, a block body with semicolons on `.tsx`. */
 const itemSetup = (
 	stmts: string[],
 	body: string,
@@ -1665,10 +1588,7 @@ const itemSetup = (
 /** The covered-text pair of a statement refused on both surfaces. */
 const stmtSpan = (stmt: string): [string, string] => [stmt, `${stmt};`]
 
-/**
- * Per-item setup (ADR 0024 s5): the component-setup rules with the
- * item and key known, run in both phases — what one phase lacks is refused.
- */
+/** Per-item setup: the component-setup rules with the item and key known, run in both phases — what one phase lacks is refused. */
 const ITEM_SETUP: Case[] = [
 	{
 		name: 'a per-item const reading a server arg',
@@ -1848,10 +1768,10 @@ describe('diagnostic parity — the §2.3 drift shapes (negative pins)', () => {
 
 describe('diagnostic parity — reactive-list bodies', () => {
 	runCases(LIST_BODY)
-	// The slot-fill refusals ADR 0024 s1 retires : server-known
+	// The retired slot-fill refusals: server-known
 	// content (impure included), a body that renders the item nowhere, a
 	// server condition in the item, and the item signal read in arrows all
-	// compile on both surfaces now — the item is a Mount Scope, and the
+	// compile on both surfaces — the item is a Mount Scope, and the
 	// shared machinery owns every remaining shape error.
 	test.each([
 		[
@@ -1935,7 +1855,7 @@ describe('diagnostic parity — conditions (LTC005 condition face, ADR 0015 ride
 
 describe('diagnostic parity — server-only names in client positions (LT-347, LT-348)', () => {
 	runCases(SERVER_ONLY)
-	// The false positives the ticket's allowlist produced : browser
+	// The false positives the retired allowlist produced: browser
 	// globals outside `JS_GLOBALS` in handlers and maps, FactoryContext
 	// primitives, and an array-destructured callback parameter (the `.tsx`
 	// converter emitted its element as a shorthand Property, leaving the
@@ -2081,8 +2001,8 @@ export function C({}: {}) {
 			.diagnostics.filter(d => d.code === 'LTC078')
 			.map(d => [source.slice(d.location.start, d.location.end), d.message])
 
-	//: the `.tsx` template-literal shapes `.tsrx` has no spelling for.
-	// Each read as an empty sheet before, shipping no CSS without a word.
+	// The `.tsx` template-literal shapes `.tsrx` has no spelling for.
+	// Each read as an empty sheet, shipping no CSS without a word.
 	test.each([
 		[
 			'a `css` a component-scope declaration shadows',
@@ -2180,7 +2100,7 @@ export function C({}: {}) {
 
 	test('.tsrx: a `${}` in the CSS body is CSS text, not a substitution — a value position fails the parse', () => {
 		// The `.tsrx` body is parsed as CSS by `@tsrx/core`: it has no
-		// substitution to refuse ( item 2).
+		// substitution to refuse.
 		const { diagnostics } = compileComponent(
 			`export function C({}: {})
 	@{
@@ -2212,7 +2132,7 @@ export function C({}: {}) {
 	})
 })
 
-/* === Nested Mount Scopes (ADR 0024 s1–s2, LT-424) === */
+/* === Nested Mount Scopes === */
 
 const LISTS = `${LIST}\n\t\tconst others = createList<string>([], { keyConfig: 'x' })`
 
@@ -2259,9 +2179,9 @@ const NESTED_SCOPES: Case[] = [
 
 describe('diagnostic parity — nested Mount Scopes (LT-424)', () => {
 	runCases(NESTED_SCOPES)
-	// The refusals ADR 0024 s1 lifts: arm sets and lists inside arms and
+	// The lifted refusals: arm sets and lists inside arms and
 	// items, server-data loops and async boundaries inside items — and, with
-	// the list template hoisted to the host's end (ADR 0024 s2), a
+	// the list template hoisted to the host's end, a
 	// list whose container is the arm or item root.
 	test.each([
 		[
@@ -2346,7 +2266,7 @@ describe('diagnostic parity — nested Mount Scopes (LT-424)', () => {
 
 describe('diagnostic parity — per-item setup (LT-426)', () => {
 	runCases(ITEM_SETUP)
-	// What ADR 0024 s5 admits: a key-derived const, a per-item memo, a
+	// The admitted shapes: a key-derived const, a per-item memo, a
 	// `first()` naming the item root, a seeded sensor, a client-only side
 	// effect, a function const as an event handler.
 	test.each([

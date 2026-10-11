@@ -1,14 +1,5 @@
-/**
- * The setup-statement extraction loop and the context seeding that follows
- * it, shared verbatim by both front ends (ADR 0010 sub-design 6:
- * the anti-drift half of the dual front-end contract) — a change to either
- * lands on both surfaces at once. Front-end-neutral like the other
- * front-end stage modules: no parser values, only the loose `AstNode`
- * structural type; the node walks are estree-generic.
- */
-
-import type { AstNode } from './ast-node'
 import {
+	type AstNode,
 	asArray,
 	freeIdentifiers,
 	getterObjectName,
@@ -56,12 +47,6 @@ export type ElementRefEntry = {
 	node: AstNode
 }
 
-/**
- * Everything the setup-statement loop extracts. `signalByName` is the
- * lowered-template lookup map (not an IR field — the IR carries `signals`
- * and `exposeProps`); the rest map 1:1 onto `ComponentIR` fields, except
- * `elementRefs`, which template-output resolution turns into `firstRefs`.
- */
 export type SetupExtraction = {
 	setup: SetupStmt[]
 	clientSetup: SetupStmt[]
@@ -92,7 +77,7 @@ type ItemNameClass = 'both' | 'client' | 'server' | 'unknown'
 const nameList = (names: readonly string[]): string =>
 	names.map(n => `\`${n}\``).join(' and ')
 
-/** The setup refusal component setup reports, verbatim (ADR 0024 s5). */
+/** The setup refusal component setup reports, verbatim. */
 const setupStatementRefusal = (ctx: ExtractContext, stmt: AstNode) =>
 	diagnostic.unsupported(
 		ctx.source,
@@ -101,12 +86,7 @@ const setupStatementRefusal = (ctx: ExtractContext, stmt: AstNode) =>
 		'Move the logic into a `const` initializer, or into a `watch()` or `on()` handler.',
 	)
 
-/**
- * A `harvest()` marker call in a setup declaration's seed position (ADR
- * 0046 s7): the map form on a `createList` seed , the scalar form
- * on a scalar signal constructor's seed . Null when the statement
- * declares nothing or the seed is no marker call.
- */
+/** A `harvest()` marker call in a setup declaration's seed position: the map form on a `createList` seed, the scalar form on a scalar signal constructor's seed; null when the statement declares nothing or the seed is no marker call. */
 const seedHarvestOf = (
 	ctx: ExtractContext,
 	stmt: AstNode,
@@ -138,13 +118,7 @@ const misplacedHarvest = (
 		'`harvest()` declares the parser a client harvest reads a server-rendered seed through, so the compiler reads it only as the seed of a component-setup `createList()` or a scalar signal declaration — call it there, or drop it.',
 	)
 
-/**
- * A component-setup signal declaration with the marker read through (ADR
- * 0046 s7): the server's statement text and node name `seed` where the
- * call was, with source slices around the cut; the call itself stays on
- * the signal (`DeclaredSignalIR.harvest`) for the client to splice the
- * harvest read over.
- */
+/** A component-setup signal declaration with the marker read through: the server's statement text and node name `seed` where the call was, with source slices around the cut; the call itself stays on the signal for the client to splice the harvest read over. */
 const readThroughHarvest = (
 	source: string,
 	stmt: AstNode,
@@ -180,23 +154,14 @@ const readThroughHarvest = (
 const isFunctionNode = (node: unknown): node is AstNode =>
 	isNode(node) && /Function(Expression)?$/.test(String(node.type))
 
-/**
- * A `first()` call's parsed literal arguments , as both setup
- * loops record them.
- */
+/** A `first()` call's parsed literal arguments, as both setup loops record them. */
 type FirstCallRef = {
 	selectorText: string
 	reasonText: string | null
 	maybe: boolean
 }
 
-/**
- * The single-initialized-`const` guard both setup loops share. Returns
- * the first declaration's name and initializer; null when `stmt` is no
- * `VariableDeclaration` at all (the loops dispatch on that first) or —
- * after reporting the refusal — anything but one initialized `const`
- * with a plain identifier name.
- */
+/** The single-initialized-`const` guard both setup loops share: the first declaration's name and initializer, or null after reporting the refusal. */
 const singleConstDeclOf = (
 	ctx: ExtractContext,
 	stmt: AstNode,
@@ -224,16 +189,7 @@ const singleConstDeclOf = (
 	return { name, init: (decl as AstNode).init as AstNode }
 }
 
-/**
- * Parse a `first(selector, required?)` call's literal arguments and
- * validate the arity : one literal (a selector alone) is the
- * OPTIONAL form  — the reference may be absent at activation and
- * effects over it register under a presence guard; two literals (selector
- * + required-reason) is the required form; anything else is LTC025,
- * reported as `invalidFirstCall`. Only the refusal is shared: the
- * component loop records an `elementRefs` entry, the item loop pushes a
- * `kind: 'ref'` statement.
- */
+/** Parse a `first(selector, required?)` call's literal arguments and validate the arity: one literal (a selector alone) is the OPTIONAL form, two (selector + required-reason) the required form, anything else LTC025. */
 const firstCallOf = (
 	ctx: ExtractContext,
 	stmt: AstNode,
@@ -262,14 +218,7 @@ const firstCallOf = (
 	return { selectorText, reasonText, maybe: args.length === 1 }
 }
 
-/**
- * Refuse a ternary between two signal-constructor calls: with no single
- * `.callee` the loop recognizes no signal at all, so it is diagnosed
- * (`conditionalSignalConstructor`) rather than silently treated as an
- * ordinary setup const (ADR 0005 sub-design 12). True when refused; the
- * else paths stay with the loops (component: a plain const; item: the
- * plain-const classification).
- */
+/** Refuse a ternary between two signal-constructor calls — with no single `.callee` the loop recognizes no signal — rather than silently treating it as an ordinary setup const. */
 const refuseConditionalSignalConstructor = (
 	ctx: ExtractContext,
 	stmt: AstNode,
@@ -296,14 +245,7 @@ const refuseConditionalSignalConstructor = (
 	return false
 }
 
-/**
- * The signal IR both loops build from a recognized signal-constructor
- * call (ADR 0018 s2): mutable constructors declare a Slot-backed signal,
- * the rest derive one. `base` carries the family-neutral fields;
- * `declared`/`derived` the loop's family-specific extras — the
- * component's list fields and unresolvable-sensor mark, nothing for an
- * item signal.
- */
+/** The signal IR both loops build from a recognized signal-constructor call: mutable constructors declare a Slot-backed signal, the rest derive one. */
 const signalIROf = (
 	base: {
 		name: string
@@ -330,12 +272,7 @@ const signalIROf = (
 				...derived,
 			}
 
-/**
- * Why a `createSensor(start, options)` call has no server value, or null
- * when it has one (ADR 0024 s5): the `value` seed is the server value, so
- * a sensor without one is unresolvable, and so is a seed that reads a
- * stubbed API or a non-server fact (`resolutionOf`'s own limbs).
- */
+/** Why a `createSensor(start, options)` call has no server value, or null when it has one: the `value` seed is the server value, so a sensor without a resolvable one is unresolvable. */
 const sensorSeedResolution = (
 	options: unknown,
 ): Extract<Resolution, { by: 'none' }> | null => {
@@ -360,37 +297,26 @@ const sensorSeedResolution = (
 	return resolution.by === 'none' ? resolution : null
 }
 
-/**
- * Which of `#setAccessor`'s three landings an `expose()` initializer takes
- *  — see `ExposeKind`. One-sided on purpose: everything unrecognized
- * classifies as `slot`, the answer that raises no diagnostic, so a shape this
- * compiler has not met falls through to the Tier 2 runtime check instead of
- * failing a build on a guess (ADR 0007 sub-design 1).
- */
+/** Which of `#setAccessor`'s three landings an `expose()` initializer takes — see `ExposeKind`. One-sided on purpose: everything unrecognized classifies as `slot`, the answer that raises no diagnostic. */
 const classifyExposeInit = (
 	value: unknown,
 	signalByName: ReadonlyMap<string, SignalIR>,
 ): ExposeKind => {
 	if (!isNode(value)) return 'slot'
-	// `defineMethod(…)` → a plain member; `asString(…)` and friends → the
-	// Parser's RESULT reaches `#setAccessor`, so a Parser is Slot-backed.
+	// `defineMethod(…)` → a plain member; `asString(…)` and friends → the Parser's RESULT reaches `#setAccessor`, so a Parser is Slot-backed.
 	if (value.type === 'CallExpression') {
 		const callee = identifierName(value.callee)
 		if (callee === 'defineMethod') return 'method'
 		return 'slot'
 	}
-	// `sig.get` — a bare function, so `deriveCell` wraps it read-only
-	// however mutable `sig` is. The single most common expose shape in the
-	// corpus, and the one ADR 0011's motivating example is built on.
+	// `sig.get` — a bare function, so `deriveCell` wraps it read-only however mutable `sig` is.
 	if (isGetterMember(value)) return 'computed'
 	if (
 		value.type === 'ArrowFunctionExpression' ||
 		value.type === 'FunctionExpression'
 	)
 		return 'computed'
-	// `{ get, set }` is a SlotDescriptor; a `get`-only object literal is
-	// one too (`isSlotDescriptor` requires only `get`), but it can never be
-	// written through, so it is reported as read-only.
+	// `{ get, set }` is a SlotDescriptor; a `get`-only object literal can never be written through, so it is reported as read-only.
 	if (value.type === 'ObjectExpression') {
 		const keys = asArray(value.properties)
 			.filter(prop => prop.type === 'Property')
@@ -398,8 +324,7 @@ const classifyExposeInit = (
 		if (keys.includes('get')) return keys.includes('set') ? 'slot' : 'computed'
 		return 'slot'
 	}
-	// A bare signal identifier: mutable constructors give a Slot, derived
-	// ones do not.
+	// A bare signal identifier: mutable constructors give a Slot, derived ones do not.
 	if (value.type === 'Identifier') {
 		const signal = signalByName.get(identifierName(value) ?? '')
 		if (signal) return signal.family === 'declared' ? 'slot' : 'computed'
@@ -407,34 +332,12 @@ const classifyExposeInit = (
 	return 'slot'
 }
 
-/**
- * The setup-statement extraction loop, shared verbatim by both front ends
- * . Classifies each statement: single-const declarations (signals
- * vs. helpers), `first()` element references, `expose()`, and client-only
- * side effects — everything else is diagnosed. ADR 0008's setup routing
- * signals (LTC013/LTC043 shapes) are pushed here, at the same sites that
- * raised the pre-LT-165 diagnostics.
- *
- * `importedNames` are the authored import bindings (plain or real
- * `@zeix/le-truc` exports) — a bare client-only setup statement
- * (e.g. `throttle()` inside a `watch(() => el, () => { ... })` connect-time
- * effect) can freely reference either kind: `imports.ts`'s placement
- * inference already walks `clientSetup` free names
- * (`computeClientNeededNames`) to decide where each import lands, so a name
- * recognized here is guaranteed to resolve once emitted, exactly like
- * `setupInits`/`elementRefs` before it.
- */
 export const extractSetup = (
 	ctx: ExtractContext,
 	setupStmts: AstNode[],
 	paramsNode: AstNode | null,
 	paramNames: ReadonlySet<string>,
 	importedNames: ReadonlySet<string>,
-	/**
-	 * The client message channel (ADR 0009 s9): the component's `t`
-	 * bindings and declared keys. A client-only statement reading a declared
-	 * key statically (`t.outOfGamut`) passes the gate below.
-	 */
 	messages: {
 		tNames: ReadonlySet<string>
 		declaredKeys: Readonly<Record<string, string>>
@@ -443,26 +346,12 @@ export const extractSetup = (
 	const source = ctx.source
 	const setup: SetupStmt[] = []
 	const clientSetup: SetupStmt[] = []
-	// Plain (non-signal) setup consts ( follow-up fix): `component.setup`
-	// is emitted verbatim into the SERVER module only (`emit-server.ts`) —
-	// this subset also needs emitting into the CLIENT factory, since a plain
-	// const is documented (vocabulary.ts, diagnostics.ts) as available in
-	// both, but nothing previously emitted it client-side. Signals are
-	// excluded (already client-emitted via harvest); `expose()` is excluded
-	// (already client-emitted separately).
+	// Plain (non-signal) setup consts: `component.setup` is emitted verbatim into the SERVER module only — this subset also needs emitting into the CLIENT factory, since a plain const is documented as available in both. Signals (already client-emitted via harvest) and `expose()` (already client-emitted separately) are excluded.
 	const plainSetup: SetupStmt[] = []
 	const signals: SignalIR[] = []
 	const signalByName = new Map<string, SignalIR>()
 	const setupInits = new Map<string, AstNode>()
-	/**
-	 * `const name = first(selector, required)` declarations ,
-	 * pending post-lowering resolution — the template doesn't exist yet at
-	 * this point in the setup-statement loop (lowering runs later), and
-	 * structurally matching the selector against template elements needs
-	 * the template. Resolved once `root` exists, in `resolveTemplateOutput`.
-	 * `maybe` marks the one-literal OPTIONAL form , which
-	 * is verified only where the template can speak to it.
-	 */
+	/** `const name = first(selector, required)` declarations, pending post-lowering resolution in `resolveTemplateOutput`. */
 	const elementRefs = new Map<string, ElementRefEntry>()
 	let expose: ExposeStmt | null = null
 	const exposeProps = new Map<string, ExposePropDecl>()
@@ -470,9 +359,7 @@ export const extractSetup = (
 	const contextRefs = new Set<string>()
 	const typeCtx: TypeContext = { paramsNode, setupInits }
 	for (const stmt of setupStmts) {
-		// A `harvest()` seed (ADR 0024 s7) is consumed here; any other
-		// reference to the marker is the unclaimed-marker sweep's
-		// (`reportUnclaimedMarkers`, after extraction).
+		// A `harvest()` seed is consumed here; any other reference to the marker is the unclaimed-marker sweep's.
 		const seedHarvest = seedHarvestOf(ctx, stmt)
 		if (seedHarvest?.call.form === 'malformed') {
 			ctx.diagnostics.push(
@@ -485,9 +372,7 @@ export const extractSetup = (
 			)
 			continue
 		}
-		// A marker form mismatched to its constructor is refused, read
-		// through (neither generated module sees the marker), and recorded
-		// on nothing — the signal keeps its plain seed.
+		// A marker form mismatched to its constructor is refused, read through (neither generated module sees the marker), and recorded on nothing — the signal keeps its plain seed.
 		if (
 			seedHarvest &&
 			(seedHarvest.call.form === 'list'
@@ -513,8 +398,7 @@ export const extractSetup = (
 			const single = singleConstDeclOf(ctx, stmt)
 			if (!single) continue
 			const { name: declName, init: authoredInit } = single
-			// A `harvest()` seed is read through to its seed for every
-			// consumer of the statement; the signal keeps the marker call.
+			// A `harvest()` seed is read through to its seed for every consumer of the statement; the signal keeps the marker call.
 			const readThrough = seedHarvest
 				? readThroughHarvest(source, stmt, authoredInit, {
 						call: seedHarvest.call.marker.call,
@@ -522,14 +406,7 @@ export const extractSetup = (
 					})
 				: null
 			const init = readThrough?.init ?? authoredInit
-			// `first(selector, required)` element reference (replacing
-			// `ref={}`): doesn't exist server-side and has no server
-			// substitution the way `requestContext` does, so it must never
-			// reach `setup`/`setupInits`/`serverKnown` at all — a name known
-			// there but never actually declared server-side would suppress the
-			// `expose.argNode` `any`-stub below for a name that genuinely needs
-			// it (same as `ref={}` names, which never entered these either).
-			// Handled entirely separately, before the generic push/set below.
+			// `first(selector, required)` element reference: it doesn't exist server-side, so it must never reach `setup`/`setupInits`/`serverKnown` — a name known there but never actually declared server-side would suppress the `expose.argNode` `any`-stub below for a name that genuinely needs it. Handled entirely separately, before the generic push/set below.
 			if (identifierName(init.callee) === 'first') {
 				const firstRef = firstCallOf(ctx, stmt, init, declName)
 				if (firstRef) elementRefs.set(declName, { ...firstRef, node: init })
@@ -547,29 +424,13 @@ export const extractSetup = (
 				...(readThrough ? { slices: readThrough.slices } : {}),
 			}
 			setup.push(setupStmt)
-			//: this statement is now bound for the SERVER render function
-			// too (`emit-server.ts` re-declares `component.setup` verbatim), so
-			// an initializer that reads a `first()`-bound ref evaluates where no
-			// DOM exists. Reported here, at the push, rather than in the
-			// branches below, because it holds for every initializer shape
-			// alike — signal constructor, requestContext, or plain.
-			//
-			// A FUNCTION initializer is exempt: a setup helper is defined but
-			// never called server-side, so its ref reads never evaluate (that is
-			// form-spinbutton's `commit`/`typed`/`stepBy`, and rejecting it would
-			// reject the corpus). Everything else is evaluated, including a
-			// compute thunk handed to a derived constructor.
+			// This statement is bound for the SERVER render function too, so a non-function initializer reading a `first()`-bound ref evaluates where no DOM exists — reported at the push because it holds for every initializer shape alike. A FUNCTION initializer is exempt: defined but never called server-side, so its ref reads never evaluate.
 			if (!isFunctionNode(init)) {
 				const refReads = [...freeIdentifiers(init)]
 					.filter(n => elementRefs.has(n))
 					.sort()
 				if (refReads.length > 0) {
-					// ADR 0008 sub-design 5 ( step 5): a ROUTING SIGNAL,
-					// not a diagnostic. The realm has a real DOM, so the ref
-					// read the value harness could not evaluate is exactly what
-					// phase 2 answers — and the component routes Simulated so
-					// the tier-aware emit drops the statement from the server
-					// module instead of refusing the file.
+					// A ROUTING SIGNAL, not a diagnostic: the realm has a real DOM, so the ref read the value harness could not evaluate is exactly what phase 2 answers — the component routes Simulated so the tier-aware emit drops the statement from the server module instead of refusing the file.
 					ctx.routingSignals.push({
 						origin: 'LTC043',
 						detail: `\`${declName}\` reads element ref(s) ${refReads.join(', ')} in setup`,
@@ -580,15 +441,7 @@ export const extractSetup = (
 			}
 			const calleeName = identifierName(init.callee)
 			if (calleeName === 'requestContext') {
-				// Consumer side of the context protocol (ADR 0005
-				// sub-design 15): `const motion = requestContext(MEDIA_MOTION,
-				// 'unknown')`. Recognized separately from SIGNAL_CONSTRUCTORS —
-				// `requestContext` has no server behavior at all (it dispatches a
-				// DOM event against `host`), so the server substitutes the
-				// fallback argument as the signal's render-time value instead of
-				// running the call (emit-server.ts). The fallback must therefore
-				// be resolvable with what's server-known so far (params + prior
-				// setup names) — the same names `ctx.serverKnown` is built from.
+				// Consumer side of the context protocol: `requestContext` has no server behavior at all (it dispatches a DOM event against `host`), so the server substitutes the fallback argument as the signal's render-time value instead of running the call; the fallback must therefore be resolvable with what's server-known so far.
 				const args = asArray(init.arguments)
 				if (args.length !== 2) {
 					ctx.diagnostics.push(
@@ -628,11 +481,7 @@ export const extractSetup = (
 			} else if (calleeName && SIGNAL_CONSTRUCTORS.has(calleeName)) {
 				const args = asArray(init.arguments)
 				const computeArg = args[0] ?? null
-				// deriveCell/deriveStore/createMemo invoke their compute function
-				// synchronously at server-render time too (runtime.ts) — a
-				// host/internals read inside it would crash, since every signal
-				// declaration is re-emitted verbatim into both modules (ADR 0005
-				// sub-design 12; surfaced by the ticket's createMemo support).
+				// deriveCell/deriveStore/createMemo invoke their compute function synchronously at server-render time too — a host/internals read inside it would crash, since every signal declaration is re-emitted verbatim into both modules.
 				const isDerivedCallback =
 					(calleeName === 'deriveCell' ||
 						calleeName === 'deriveStore' ||
@@ -644,15 +493,7 @@ export const extractSetup = (
 						)
 					: []
 				if (badContextNames.length > 0) {
-					// ADR 0008 sub-design 5 ( step 5): a ROUTING SIGNAL,
-					// not a diagnostic — `host`/`internals` resolve in the
-					// realm, which is the whole difference between the harness
-					// and phase 2. The declaration still has to exist somewhere
-					// the component can run it: registered as a plain setup
-					// const, so the generated CLIENT module emits it when its
-					// name is needed (`computeClientNeededNames`), while the
-					// Simulated-tier server module drops it (`retainReferenced`
-					// — no server-known name can reach the markup).
+					// A ROUTING SIGNAL, not a diagnostic — `host`/`internals` resolve in the realm, which is the whole difference between the harness and phase 2. Registered as a plain setup const, so the generated CLIENT module emits it when its name is needed while the Simulated-tier server module drops it.
 					plainSetup.push(setupStmt)
 					ctx.routingSignals.push({
 						origin: 'LTC013',
@@ -668,10 +509,7 @@ export const extractSetup = (
 						init: computeArg,
 						inferredType: inferType(computeArg, typeCtx),
 					}
-					// A sensor's server value is its `{ value }` seed (ADR 0024
-					// s5). Without one — or with one no server phase can answer
-					// — every read is unresolvable (ADR 0008 s5): the sensor
-					// stays out of `serverKnown`, so each read site is omitted.
+					// A sensor's server value is its `{ value }` seed; without one — or with one no server phase can answer — every read is unresolvable: the sensor stays out of `serverKnown`, so each read site is omitted.
 					const sensorResolution =
 						calleeName === 'createSensor' ? sensorSeedResolution(args[1]) : null
 					if (sensorResolution)
@@ -681,10 +519,7 @@ export const extractSetup = (
 							...rangeFields(source, stmt),
 							resolution: sensorResolution,
 						})
-					// A list's item type and `harvest()` map feed the per-field
-					// harvest of an arg-seeded list (ADR 0024 s7); a
-					// scalar signal's `harvest()` parser feeds its text/attr
-					// harvest . A mismatched form records nothing.
+					// A list's item type and `harvest()` map feed the per-field harvest of an arg-seeded list; a scalar signal's `harvest()` parser feeds its text/attr harvest. A mismatched form records nothing.
 					const matchedMarker =
 						seedHarvest && seedHarvest.constructor === calleeName
 							? seedHarvest.call.marker
@@ -720,12 +555,7 @@ export const extractSetup = (
 					plainSetup.push(setupStmt)
 			} else {
 				plainSetup.push(setupStmt)
-				// A plain setup const calling a client-only primitive directly —
-				// the value harness cannot run it (ADR 0005 sub-design 12).
-				// ADR 0008 sub-design 5 ( step 5): a ROUTING SIGNAL, not
-				// a diagnostic — the const already sits in `plainSetup`, so the
-				// generated CLIENT module emits it when needed and the
-				// Simulated-tier server module drops it.
+				// A plain setup const calling a client-only primitive directly — the value harness cannot run it. A ROUTING SIGNAL, not a diagnostic: the const already sits in `plainSetup`, so the generated CLIENT module emits it when needed and the Simulated-tier server module drops it.
 				const badPrimitives = [...freeIdentifiers(init)]
 					.filter(n => CLIENT_ONLY_PRIMITIVES.has(n))
 					.sort()
@@ -740,10 +570,7 @@ export const extractSetup = (
 			}
 			continue
 		}
-		// React's component-return idiom : the template is the surface
-		// module's output expression, not a `return` in setup. Diagnosed with
-		// a dedicated fix-it rather than falling through to the generic
-		// "unsupported statement" message below.
+		// React's component-return idiom: the template is the surface module's output expression, not a `return` in setup — diagnosed with a dedicated fix-it rather than the generic message below.
 		if (
 			stmt.type === 'ReturnStatement' &&
 			isNode((stmt as AstNode).argument) &&
@@ -754,18 +581,6 @@ export const extractSetup = (
 			ctx.diagnostics.push(diagnostic.reactReturnJsx(source, stmt))
 			continue
 		}
-		// The client-only gate (widened by ) — one
-		// contract, two mechanisms, by ruling (iteration ruling, 2026-10-10):
-		// the component loop checks name-set membership (`clientKnownName`),
-		// the item loop classifies each name by phase (`classOf`), because
-		// the two read genuinely different inputs. The contract: a
-		// client-only statement may read what exists client-side — JS
-		// globals, context members, signals, earlier setup consts,
-		// `first()`-bound element refs, authored import bindings and the
-		// client-only primitives, plus each loop's own sets — but never a
-		// server arg or a bare message key; the one admitted server binding
-		// is a static `t.<key>` read of a declared key . Any other
-		// name may be server code.
 		const clientKnownName = (freeName: string): boolean => {
 			if (JS_GLOBALS.has(freeName)) return true
 			if (CONTEXT_NAMES.has(freeName)) {
@@ -827,24 +642,13 @@ export const extractSetup = (
 				const propName = identifierName(prop.key)
 				const value = prop.value
 				if (!propName) continue
-				// EVERY declared prop name, whatever its initializer shape
-				// : a prop harvested straight from the DOM (`label:
-				// labelSpan.textContent ?? ''`) is neither a signal getter
-				// nor a Parser factory, but it is still exposed at runtime.
-				//: `kind` is which of `#setAccessor`'s three landings
-				// this initializer takes, so another file's `pass={{ }}` can
-				// be decided against it. Default `slot` — the shape that
-				// makes no diagnostic — so an initializer this classifier
-				// does not recognize falls back to the Tier 2 runtime check
-				// rather than failing a build on a guess.
+				// EVERY declared prop name, whatever its initializer shape: `kind` is which of `#setAccessor`'s three landings this initializer takes, so another file's `pass={{ }}` can be decided against it. Default `slot` — the shape that makes no diagnostic — so an unrecognized initializer falls back to the Tier 2 runtime check rather than failing a build on a guess.
 				const decl: ExposePropDecl = {
 					kind: classifyExposeInit(value, signalByName),
 				}
 				const getterOf = getterObjectName(value)
 				if (getterOf) decl.signalName = getterOf
-				// Parser-backed attribute-driven props and method producers:
-				// the initializer is an ambient factory call, verbatim in the
-				// generated client (imports) and shimmed on the server.
+				// Parser-backed attribute-driven props and method producers: the initializer is an ambient factory call, verbatim in the generated client (imports) and shimmed on the server.
 				if (isNode(value) && value.type === 'CallExpression') {
 					const callee = identifierName(value.callee)
 					if (callee && PARSER_FACTORIES.has(callee)) {
@@ -866,11 +670,7 @@ export const extractSetup = (
 					value.type !== 'FunctionExpression' &&
 					value.type !== 'Identifier'
 				) {
-					//: a plain-value initializer IS the prop's client seed
-					// (`#initSignals` evaluates it once), so its expression is the
-					// prop's server truth. Only plain value shapes are recorded —
-					// a call's purity, a getter's body and a bare identifier's
-					// referent are seeds the fold cannot vouch for.
+					// A plain-value initializer IS the prop's client seed (`#initSignals` evaluates it once), so its expression is the prop's server truth. Only plain value shapes are recorded — a call's purity, a getter's body and a bare identifier's referent are seeds the fold cannot vouch for.
 					decl.initNode = value
 				}
 				exposeProps.set(propName, decl)
@@ -878,24 +678,7 @@ export const extractSetup = (
 			continue
 		}
 		if (stmt.type === 'ExpressionStatement' && expression) {
-			// Client-only setup side effect : connect-time statements
-			// (`internals?.states.add('clearable')`) whose free names are all
-			// client-known — context members, signals, expose ambients, JS
-			// globals, earlier plain setup consts, `first()`-bound element
-			// locals, `ref={}`-bound composed-element locals , authored
-			// non-compose import bindings ( — a shared client-only helper
-			// module, ADR 0024 s5) and the `watch`/`on`/`pass` ambients
-			//  — those touch connect-time APIs (ElementInternals, DOM,
-			// ResizeObserver/pointer capture) that don't exist render-time,
-			// same posture as the pre-existing cases.
-			// A plain-const reference is picked up client-side automatically:
-			// `imports.ts`'s `computeClientNeededNames` already walks
-			// `clientSetup` nodes' free names into its plain-setup fixpoint.
-			// A static `t.<key>` read of a declared key is the one server
-			// binding admitted : the message preamble precedes these
-			// statements, and `analysis/plan.ts` records the key into the
-			// root `i18n` attribute. Any other unknown name still means the
-			// statement may be server code.
+			// Client-only setup side effect: connect-time statements (`internals?.states.add('clearable')`) whose free names are all client-known — those touch connect-time APIs (ElementInternals, DOM, ResizeObserver/pointer capture) that don't exist render-time. A plain-const reference is picked up client-side automatically by `computeClientNeededNames`'s plain-setup fixpoint, and a static `t.<key>` read of a declared key is the one server binding admitted.
 			const bad = [...freeIdentifiers(expression)].filter(
 				n =>
 					!clientKnownName(n) &&
@@ -935,17 +718,6 @@ export const extractSetup = (
 	}
 }
 
-/**
- * Seed the extraction context from the setup extraction: the server-known
- * name set (args + signals + setup consts), the caller-supplied arg names
- *  consults alone, the exposed-prop set the lift rule consults for
- * LTC019, and the Parser hooks. Runs after setup extraction and before
- * template lowering.
- *
- * `config` has not been parsed yet when the managed form props are included
- * unconditionally — a string-literal `'validationMessage'` child is the
- * retired spelling whether or not formAssociated() is on.
- */
 export const seedExtractionContext = (
 	ctx: ExtractContext,
 	{
@@ -956,22 +728,13 @@ export const seedExtractionContext = (
 		extraction: SetupExtraction
 	},
 ): void => {
-	// @if conditions validate against server-known names — args and setup
-	// declarations, all parsed by this point. `isPending` is included: the
-	// server harness always provides it (the generated module binds it from
-	// the harness whenever its emitted text references it), so a reactive
-	// thunk reading `isPending(knownSignal)` folds server-side. This does
-	// NOT reopen `@if` over signals — `validateCondition` diagnoses signal
-	// reads before the unknown-name check.
+	// @if conditions validate against server-known names — args and setup declarations. `isPending` is included: the server harness always provides it, so a reactive thunk reading `isPending(knownSignal)` folds server-side; this does NOT reopen `@if` over signals (`validateCondition` diagnoses signal reads before the unknown-name check).
 	ctx.serverKnown = new Set<string>([...paramNames, 'isPending'])
-	//  consults the caller-supplied names alone (see
-	// `ExtractContext.argNames`), so they are kept apart from the
-	// signals/setup consts folded into `serverKnown` below.
+	// `bindsExposedArg` consults the caller-supplied names alone (see `ExtractContext.argNames`), so they are kept apart from the signals/setup consts folded into `serverKnown` below.
 	ctx.argNames = new Set<string>(paramNames)
 	for (const s of extraction.signals) ctx.serverKnown.add(s.name)
 	for (const n of extraction.setupInits.keys()) ctx.serverKnown.add(n)
-	// An unresolvable signal (an unseeded sensor, ADR 0024 s5) has no server
-	// value, so no read of it is server-known.
+	// An unresolvable signal (an unseeded sensor) has no server value, so no read of it is server-known.
 	for (const s of extraction.signals)
 		if ('unresolvable' in s && s.unresolvable) ctx.serverKnown.delete(s.name)
 	ctx.setupInits = extraction.setupInits
@@ -997,24 +760,8 @@ export const seedExtractionContext = (
 	}
 }
 
-/* === Per-item setup (ADR 0024 s5) === */
+/* === Per-item setup === */
 
-/**
- * Classify a reactive-list item's setup statements (ADR 0024 s5) by the
- * component-setup rules, with the item, the key and every enclosing item's
- * names known. Runs while the item and key are bound (`ctx.loopBound`);
- * `signals` are the signals in scope, enclosing items' included.
- *
- * A per-item statement runs in two places: per initial item in the
- * server's loop, and per entering item in `bindItem`. So a plain const and
- * a signal declaration read only names both phases bind — the item and
- * key, enclosing items' names, signals, setup consts, imports, globals.
- * The exceptions are positions the server defines but never calls: a
- * function const's body and a `createSensor` start callback may read
- * client-only names (`host`, refs, `on`), which the server leaves out or
- * stubs. Nothing may read a server arg: the client has none. A client-only
- * side effect is gated exactly like component setup's.
- */
 export const extractItemSetup = (
 	ctx: ExtractContext,
 	stmts: readonly AstNode[],
@@ -1025,18 +772,6 @@ export const extractItemSetup = (
 	const setup: ItemSetupStmt[] = []
 	const itemSignals: SignalIR[] = []
 	const own = new Map<string, ItemNameClass>()
-	// The client-only gate (widened by ) — one
-	// contract, two mechanisms, by ruling (iteration ruling, 2026-10-10):
-	// the component loop checks name-set membership (`clientKnownName`),
-	// the item loop classifies each name by phase (`classOf`), because
-	// the two read genuinely different inputs. The contract: a
-	// client-only statement may read what exists client-side — JS
-	// globals, context members, signals, earlier setup consts,
-	// `first()`-bound element refs, authored import bindings and the
-	// client-only primitives, plus each loop's own sets — but never a
-	// server arg or a bare message key; the one admitted server binding
-	// is a static `t.<key>` read of a declared key . Any other
-	// name may be server code.
 	const classOf = (name: string): ItemNameClass => {
 		const mine = own.get(name)
 		if (mine) return mine
@@ -1056,11 +791,7 @@ export const extractItemSetup = (
 		start: typeof stmt.start === 'number' ? stmt.start : 0,
 		end: typeof stmt.end === 'number' ? stmt.end : 0,
 	})
-	/**
-	 * Refuse a both-phase position reading a name one phase lacks; true
-	 * when it was refused. `clientOnlyOk` admits client-only names (a
-	 * position the server defines but never calls).
-	 */
+	/** Refuse a both-phase position reading a name one phase lacks; true when it was refused. `clientOnlyOk` admits client-only names (a position the server defines but never calls). */
 	const refusePhase = (
 		stmt: AstNode,
 		node: AstNode,
@@ -1095,11 +826,7 @@ export const extractItemSetup = (
 	}
 
 	for (const stmt of stmts) {
-		// The `harvest()` marker resolves against the item's scopes: its
-		// binding, key and setup names, and every enclosing item's
-		// (the ticket's rider). An item's list is seeded from the item on both
-		// sides, so nothing is harvested; any other reference here is the
-		// unclaimed-marker sweep's.
+		// The `harvest()` marker resolves against the item's scopes: its binding, key and setup names, and every enclosing item's. An item's list is seeded from the item on both sides, so nothing is harvested; any other reference here is the unclaimed-marker sweep's.
 		const enclosing = [...own.keys(), ...ctx.loopBound, ...signals.keys()]
 		if (seedHarvestOf(ctx, stmt, enclosing)) {
 			ctx.diagnostics.push(
@@ -1122,8 +849,7 @@ export const extractItemSetup = (
 				name: declName,
 			}
 			const calleeName = identifierName(init.callee)
-			// `first()` against the item's own `first` (ADR 0024 s2): resolved
-			// against the item's content once it is lowered.
+			// `first()` against the item's own `first`: resolved against the item's content once it is lowered.
 			if (calleeName === 'first') {
 				const firstRef = firstCallOf(ctx, stmt, init, declName)
 				if (!firstRef) continue
@@ -1153,8 +879,7 @@ export const extractItemSetup = (
 				const args = asArray(init.arguments)
 				const subject = `The per-item signal \`${declName}\``
 				if (calleeName === 'createSensor') {
-					// The seed is the sensor's server value (ADR 0024 s5), and every
-					// initial item renders from it.
+					// The seed is the sensor's server value, and every initial item renders from it.
 					if (sensorSeedResolution(args[1]) !== null) {
 						ctx.diagnostics.push(
 							diagnostic.unsupported(
@@ -1166,8 +891,7 @@ export const extractItemSetup = (
 						)
 						continue
 					}
-					// The start callback subscribes on the client and never runs on
-					// the server: client-only names are admitted there and stubbed.
+					// The start callback subscribes on the client and never runs on the server: client-only names are admitted there and stubbed.
 					const [start, options] = args
 					if (
 						(isNode(start) &&
@@ -1204,9 +928,7 @@ export const extractItemSetup = (
 				refuseConditionalSignalConstructor(ctx, stmt, init, declName)
 			)
 				continue
-			// A plain const. A function is defined in both phases and called on
-			// the client only, so its body may read client-only names — the
-			// server then leaves it out.
+			// A plain const. A function is defined in both phases and called on the client only, so its body may read client-only names — the server then leaves it out.
 			const isFunction = isFunctionNode(init)
 			if (
 				refusePhase(
@@ -1266,10 +988,5 @@ export const extractItemSetup = (
 	return { setup, signals: itemSignals }
 }
 
-/**
- * Whether the server's loop declares an item setup statement (ADR 0024
- * s5): every signal and every const but a function whose body reads a
- * client-only name. A ref and a client-only side effect are the client's.
- */
 export const onServer = (stmt: ItemSetupStmt): boolean =>
 	stmt.kind === 'signal' || (stmt.kind === 'const' && stmt.server)

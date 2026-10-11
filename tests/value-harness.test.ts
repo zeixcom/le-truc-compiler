@@ -1,9 +1,4 @@
-/**
- * The Value Harness follows the signal meaning (ADR 0024 s3, s5):
- * a list iterates the cells it hands out, keyed exactly as Cause & Effect
- * keys the same seed; a store's fields are signals; `createSensor` is a
- * signal constructor whose `{ value }` seed is its server value.
- */
+/** The Value Harness follows the signal meaning: a list iterates the cells it hands out, keyed exactly as Cause & Effect keys the same seed; a store's fields are signals; `createSensor` is a signal constructor whose `{ value }` seed is its server value. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import {
 	createList as realCreateList,

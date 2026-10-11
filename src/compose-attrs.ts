@@ -1,34 +1,5 @@
-/**
- * Compose-site addressing attributes on a composed element's rendered root
- * (). `class`/`id`/`data-*` authored on a compose site address the
- * COMPOSE SITE — the child's host element — not typed props (the ticket's discriminator
- * vocabulary): the compose emission filters them out of the forwarded
- * server args and applies them here instead, so the served DOM actually
- * carries the discriminator the client's `first('form-spinbutton.lightness')`
- * selector relies on. A required-overload `first()` throws when nothing
- * matches, so a dropped class is a broken component, not a cosmetic gap.
- *
- * Lives in its own module (imported by generated code through the runtime
- * re-export in `runtime.ts`) because it is markup post-processing, not a
- * signal/expose shim.
- */
-
 import { attr } from './runtime'
 
-/**
- * Splice `attrs` into `markup` immediately after the root open tag of the
- * child component `tag`.
- *
- * `markup` must start with the child's own root open tag — a generated
- * server module's first push is always its root element (ADR 0005
- * sub-design 5's single-root render shape). Anything else is a compiler
- * invariant violation and throws rather than silently dropping the
- * attributes back out of the DOM.
- *
- * Attribute rendering delegates to `attr()` (escaping, nil omission,
- * number coercion). A `class` value merges (token concat) with any class
- * the child root renders itself; today no corpus child does.
- */
 export const composeHostAttrs = (
 	markup: string,
 	tag: string,
@@ -64,10 +35,6 @@ export const composeHostAttrs = (
 	return opening + extra + markup.slice(tagClose)
 }
 
-/**
- * Add one class token to an existing ` class="…"` attribute inside an open
- * tag, or return null when the tag carries no class attribute of its own.
- */
 const mergeClassToken = (opening: string, token: string): string | null => {
 	const marker = ' class="'
 	const start = opening.indexOf(marker)

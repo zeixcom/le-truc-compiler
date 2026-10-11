@@ -3,10 +3,6 @@
 	<span id="attributed"></span>
 	<span id="unattributed"></span>
 	<basic-number id="child" value="0">0</basic-number>
-	<!--
-		A click target buried inside a structural-only custom element. The metaKey+click walk
-		must climb *past* it to reach the real host instead of stopping at
-		the first dashed tag it meets.
-	-->
+	<!-- A click target buried inside a structural-only custom element: the metaKey+click walk must climb *past* it to reach the real host instead of stopping at the first dashed tag it meets. -->
 	<module-demo><span id="wrapped">Wrapped</span></module-demo>
 </test-debug>

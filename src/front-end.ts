@@ -1,24 +1,11 @@
-/**
- * The shared front-end driver (LT-233; ADR 0010 sub-design 6's anti-drift
- * contract). Both surfaces run ONE script from a parsed module to a
- * `ComponentIR`: the module scans, locating the single component function,
- * the `async` rejection, the params contract, setup extraction, the output
- * shape, context seeding, template lowering, output resolution, the
- * post-lowering validation tail and IR assembly. A surface contributes only
- * what its grammar genuinely decides, through a `SurfaceAdapter`: the
- * component body's node type, how that body splits into setup and output,
- * how a `<style>` element carries its CSS, its children/element lowering,
- * and any grammar-specific pre-scans. Diagnostic wording comes from the
- * surface's vocabulary (`surface.ts`), never from this file.
- *
- * Each `compileSource*` is parse + adapter + `runFrontEnd`; parsing stays
- * surface-side because the two parsers fail differently (`@tsrx/core`
- * throws with a position the `.tsrx` driver turns into a grammar hint).
- */
-
 import { assembleComponentIR, readModuleDecls } from './assemble-ir'
-import type { AstNode } from './ast-node'
-import { asArray, collectBoundNames, identifierName, isNode } from './ast-utils'
+import {
+	type AstNode,
+	asArray,
+	collectBoundNames,
+	identifierName,
+	isNode,
+} from './ast-utils'
 import { diagnostic, type LocalDiagnostic } from './diagnostics'
 import type { EmitPaths } from './emit-paths'
 import type { ExtractContext } from './extract-context'
@@ -50,10 +37,6 @@ import { validateLoweredComponent } from './validate-lowered'
 export type CompileResult = {
 	component: ComponentIR | null
 	diagnostics: LocalDiagnostic[]
-	/**
-	 * Setup-extraction routing signals (ADR 0008). Merged with the
-	 * analysis pass's own in `pipeline.ts`, where the tier is classified.
-	 */
 	routingSignals: LocalRoutingSignal[]
 }
 
@@ -64,23 +47,11 @@ export type SurfaceAdapter = {
 	componentBodyType: string
 	/** Grammar-specific module scans, run before the shared ones. */
 	preScans?: (ctx: ExtractContext, ast: AstNode) => void
-	/**
-	 * Split the component function into setup statements and the output
-	 * node. Returns null after pushing a diagnostic when the body has no
-	 * recognizable output position; an output of the wrong SHAPE is the
-	 * driver's check, not this one's.
-	 */
 	splitSetupAndOutput: (
 		ctx: ExtractContext,
 		fn: AstNode,
 		filename: string,
 	) => { setup: AstNode[]; output: AstNode | undefined } | null
-	/**
-	 * The raw CSS of a `<style>` placeholder's source node, or why its
-	 * content is not a stylesheet spelling (LTC078, reported by the shared
-	 * hoist). `ctx` carries the marker bindings (`markerOf`), for a surface
-	 * that spells the sheet through the `css` marker.
-	 */
 	stylesheetOf: (ctx: ExtractContext, node: AstNode) => StylesheetRead
 	lowerElement: (
 		ctx: ExtractContext,
@@ -92,11 +63,6 @@ export type SurfaceAdapter = {
 
 /* === Internal Functions === */
 
-/**
- * Every name the component function's own scope declares: its args and its
- * setup statements' declarations — what a template read resolves to before
- * a module-level import.
- */
 const componentScopeNames = (
 	paramNames: ReadonlySet<string>,
 	setup: readonly AstNode[],
@@ -119,11 +85,6 @@ const componentScopeNames = (
 
 /* === Exported Functions === */
 
-/**
- * Drive a parsed module through the shared front-end script. Returns
- * `{ component: null }` with diagnostics when the source does not lower
- * cleanly; milestone gates (e.g. LTC001) surface as warnings.
- */
 export const runFrontEnd = (
 	ctx: ExtractContext,
 	ast: AstNode,
@@ -195,21 +156,7 @@ export const runFrontEnd = (
 		return done()
 	}
 
-	// An `async` component function (LTC008): every statement
-	// after the first `await` runs in a later microtask, when the ambient
-	// effect collector is gone (ADR 0018) — so `expose()`/`watch()`/`on()`
-	// there throw `NoActiveCollectorError`, contained and silent since
-	// . The server half is worse: `emit-server.ts` calls the render
-	// function synchronously and would stringify a Promise. Rejected
-	// outright rather than diagnosed per call site, since neither half of
-	// the isomorphic pair can honour it.
 	if (fn.async === true) {
-		// The `async` token itself , not the whole statement: one
-		// keyword, and when the file holds only the component the statement
-		// equals the file, so a line-label view would print no line. The
-		// parsers disagree on where the declaration starts but agree on the
-		// keyword's text, so the search from the statement start finds it on
-		// both; a miss falls back to the function node.
 		const at = ctx.source.indexOf('async', fnStmtStart)
 		ctx.diagnostics.push(
 			diagnostic.invalidSource(
@@ -229,8 +176,6 @@ export const runFrontEnd = (
 	if (!split) return done()
 	shadowMarkers(ctx, componentScopeNames(params.paramNames, split.setup))
 	const name = identifierName(fn.id) ?? 'Component'
-	// Read before setup extraction: its client-only gate admits a static
-	// `t.<key>` read of a declared key .
 	const decls = readModuleDecls(ctx, ast, name)
 	const extraction = extractSetup(
 		ctx,
@@ -244,11 +189,6 @@ export const runFrontEnd = (
 		},
 	)
 
-	// Output: a single root element — the host element spelled as the
-	// component's tag (ADR 0010 s1). There is no fragment root: the
-	// `<style>` block is a child of the root, and `resolveTemplateOutput`
-	// hoists it out of the root's children before anything emits. A fragment
-	// output is LTC060; anything else is the output-shape violation (LTC008).
 	const output = split.output
 	const bareRoot = output?.type === 'JSXElement' ? output : null
 	if (!bareRoot) {
@@ -282,7 +222,7 @@ export const runFrontEnd = (
 	)
 	if (!resolved) return done()
 
-	// Every marker reference no consumer read is refused (ADR 0012 s1).
+	// Every marker reference no consumer read is refused.
 	reportUnclaimedMarkers(ctx, fn, importedMarkers)
 	validateLoweredComponent(ctx, {
 		root: resolved.root,

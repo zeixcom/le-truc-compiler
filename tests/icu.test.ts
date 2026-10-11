@@ -1,10 +1,4 @@
-/**
- * The ICU MessageFormat 1 build half (ADR 0009 s4): our parser
- * adapter (`icu/parse.ts`) and our evaluator (`icu/evaluate.ts`), checked
- * differentially against `@messageformat/core` — the oracle, and the only
- * place core is imported. The server fold and the ticket's inlined client copy
- * run this one evaluator, so agreement here is agreement on both sides.
- */
+/** The ICU MessageFormat 1 build half: our parser adapter (`icu/parse.ts`) and our evaluator (`icu/evaluate.ts`), checked differentially against `@messageformat/core` — the oracle, and the only place core is imported. The server fold and the inlined client copy run this one evaluator, so agreement here is agreement on both sides. */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { readdirSync, readFileSync } from 'node:fs'
 import * as path from 'node:path'
@@ -15,10 +9,7 @@ import { corpusPatterns } from './corpus-fixture'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 
-// Core formats MF1's named date/time styles with `toLocaleDateString(lc, o)`
-// and no `timeZone`, i.e. in the process's zone; ours applies the record's
-// `timeZone` (ADR 0009 s2). Pin the process to UTC for the comparison and
-// restore it afterward — `bun test` shares one process across files.
+// Core formats MF1's named date/time styles with `toLocaleDateString(lc, o)` and no `timeZone`, i.e. in the process's zone; ours applies the record's `timeZone`. Pin the process to UTC for the comparison and restore it afterward — `bun test` shares one process across files.
 const previousTZ = process.env.TZ
 beforeAll(() => {
 	process.env.TZ = 'UTC'
@@ -54,8 +45,6 @@ const oracle = (
 		),
 	)
 
-/* === The corpus patterns === */
-
 describe('the corpus patterns, against the oracle', async () => {
 	const patterns = await corpusPatterns()
 
@@ -68,16 +57,13 @@ describe('the corpus patterns, against the oracle', async () => {
 	})
 })
 
-/* === The supported surface, against the oracle === */
-
 const COUNTS = [0, 1, 2, 3, 5, 11, 22, 101, 1.5]
 
 /** [locale, pattern, argument records] — each record compared separately. */
 const POSITIVES: [string, string, Record<string, unknown>[]][] = [
 	['en', 'Plain text, no arguments.', [{}]],
 	['en', "It''s '{'quoted'}' and '#' stays", [{}]],
-	// The parser's leniency, which core shares: an unmatched `}` and an empty
-	// `{}` are literal text, not syntax errors.
+	// The parser's leniency, which core shares: an unmatched `}` and an empty `{}` are literal text, not syntax errors.
 	['en', 'unopened} and {}', [{}]],
 	['en', 'Hello, {name}!', [{ name: 'Ada' }, { name: 42 }]],
 	[
@@ -167,8 +153,6 @@ describe('the supported MF1 surface, against the oracle', () => {
 	})
 })
 
-/* === Negatives === */
-
 /** Malformed MF1: both sides must refuse it. */
 const SYNTAX_ERRORS = [
 	'{unclosed',
@@ -203,8 +187,6 @@ describe('negatives', () => {
 		if (!result.ok) expect(result.error.length).toBeGreaterThan(0)
 	})
 })
-
-/* === What LT-308 reads: the argument signature === */
 
 describe('argument signatures', () => {
 	test('an argument-less pattern has none, and is its literal text', () => {
@@ -250,8 +232,6 @@ describe('argument signatures', () => {
 		expect(JSON.parse(JSON.stringify(message))).toEqual(message)
 	})
 })
-
-/* === The dependency boundary (ADR 0009 s8) === */
 
 describe('dependency boundary', () => {
 	const compilerFiles = (dir: string): string[] =>

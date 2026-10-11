@@ -1,19 +1,6 @@
-/**
- * Query-table naming (regrouping move M5): variable-name allocation
- * for the generated factory and the deduplicating query table. One home for
- * "what is this element called client-side" — and for its inverse, the
- * names only the server render binds (`renderOnlyBindings`).
- */
-
 import type { ComponentIR } from '../ir'
 import type { QueryPlan } from './plan'
 
-/**
- * The next free variable name from `base` (`base`, `base2`, `base3`, …),
- * claiming it in `usedNames` — the factory's own closure names (queries,
- * rebindings) must never collide with signals, refs, or the context
- * destructuring.
- */
 export const uniqueName = (usedNames: Set<string>, base: string): string => {
 	let name = base
 	let n = 2
@@ -22,13 +9,6 @@ export const uniqueName = (usedNames: Set<string>, base: string): string => {
 	return name
 }
 
-/**
- * Register (or reuse) one element query and return its variable name.
- * Deduplicates by selector+cardinality across the whole analysis — two
- * constructs addressing the same element share one query — and records
- * registry-child tags for the generated client's type-flow side-effect
- * imports (the tag-map augmentation lives in the child's module).
- */
 export const addQuery = (
 	usedNames: Set<string>,
 	queries: QueryPlan[],
@@ -39,10 +19,6 @@ export const addQuery = (
 	selector: string,
 	cardinality: 'one' | 'many' | 'maybe',
 ): string => {
-	//: an author-declared optional ref stays optional
-	// however unconditional its site looks — the component's
-	// markup may be page-authored, and a page may omit a child
-	// this template would have rendered.
 	const effective: 'one' | 'many' | 'maybe' =
 		cardinality === 'one' && component.firstRefs.get(base)?.required === false
 			? 'maybe'
@@ -51,9 +27,6 @@ export const addQuery = (
 		q => q.selector === selector && q.cardinality === effective,
 	)
 	if (existing) return existing.name
-	// Addressing another registry component means needing its element
-	// interface — the generated client imports its module for the tag-map
-	// augmentation (type flow by projection).
 	const tag = selector.match(/^[a-z][a-z0-9-]*/)?.[0] ?? ''
 	if (
 		tag.includes('-') &&
@@ -63,10 +36,6 @@ export const addQuery = (
 	)
 		childTags.add(tag)
 	const name = uniqueName(usedNames, base)
-	// A `first()`-declared reference's own required-reason text ()
-	// flows into the generated MissingElementError message verbatim — the
-	// one part of the author's call the compiler doesn't resynthesize (the
-	// selector itself stays compiler-proven, same as `ref={}` before it).
 	const message =
 		component.firstRefs.get(base)?.reason ??
 		`${component.tag}: ${selector} missing`
@@ -74,14 +43,6 @@ export const addQuery = (
 	return name
 }
 
-/**
- * The names the server render function binds and the client module never
- * does (LT-348; LT-231: the one copy): the component's parameters (nested
- * `{ i18n: { t } }` included) and the bindings of a server-data loop
- * (item, index, hoisted consts — `each()` rebinds none of them
- * client-side). Module-level declarations are the other server-only class;
- * callers that need them add `component.moduleBindings`.
- */
 export const renderOnlyBindings = (component: ComponentIR): Set<string> => {
 	const names = new Set<string>(component.paramNames)
 	for (const loop of component.fors.values()) {

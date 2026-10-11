@@ -1,22 +1,8 @@
-/**
- * `export const config = { … }` extraction (ADR 0005 sub-design 8) —
- * extension activation, one small self-contained parse `compiler.ts`'s
- * `compileSource` calls per module-level statement. (Compose-import
- * resolution moved to `imports.ts`.)
- */
-
-import type { AstNode } from './ast-node'
-import { asArray, identifierName, isNode } from './ast-utils'
+import { type AstNode, asArray, identifierName, isNode } from './ast-utils'
 import { diagnostic } from './diagnostics'
 import type { ExtractContext } from './extract-context'
 import type { ConfigIR } from './ir'
 
-/**
- * Extract and validate `export const config = { … }` — extension activation
- * (ADR 0005 sub-design 8). Unknown keys, wrong value shapes, and combined
- * form variants are errors; the observedAttributes ⊆ Parser-expose check
- * happens after the setup loop (expose is parsed later in source order).
- */
 export const readConfig = (
 	ctx: ExtractContext,
 	stmt: AstNode,

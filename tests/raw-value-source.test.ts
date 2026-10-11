@@ -1,17 +1,4 @@
-/**
- * The raw-value-source rule for formatted reactive values (D-20, HOST_PROFILE
- * data account bullet 6). Formatted text (`1,234`, a localized date)
- * does not parse back into state, so a signal seeded from server args that
- * renders only as formatted text needs a raw value source the client
- * harvests instead — a reactive `value`/`aria-valuenow`/`datetime`
- * attribute, or the arg rendered as an attribute. Without one the compile
- * fails with LTC059 (tier 1 Prevented), on both surfaces.
- *
- * The passing fixtures connect in the simulation realm: connect is a fixed
- * point, so a client that harvested the right value re-renders exactly the
- * server's formatted text. A harvest that read the raw attribute as a
- * string would render `1234` where the server rendered `1,234`.
- */
+/** The raw-value-source rule for formatted reactive values: formatted text (`1,234`, a localized date) does not parse back into state, so a signal seeded from server args that renders only as formatted text needs a raw value source the client harvests instead — a reactive `value`/`aria-valuenow`/`datetime` attribute, or the arg rendered as an attribute. Without one the compile fails with LTC059, on both surfaces. The passing fixtures connect in the simulation realm: connect is a fixed point, so a client that harvested the right value re-renders exactly the server's formatted text. */
 
 import { afterAll, describe, expect, test } from 'bun:test'
 import { pathToFileURL } from 'node:url'

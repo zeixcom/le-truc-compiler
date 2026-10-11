@@ -1,19 +1,4 @@
-/**
- * LT-514: BasicButton's visible label takes BOTH channels — non-interactive
- * `children` for rich static content (an icon plus text), and the reactive
- * `label` prop for runtime writes (module-ticker `pass()`es it).
- *
- * Server half: children render TRUSTED into `span.label` (String(children),
- * ADR 0026 s1 — the card-callout semantics), the `label` arg escaped through
- * the text sink. A page render carries no `data-children` marker; the
- * composed form is pinned by server.golden.test.ts's module-list case.
- *
- * Client half (the regression pin for the guarded watch): rich children
- * SURVIVE connect — the connect run's value IS the span's own text, and the
- * equality guard keeps that run from flattening the markup — while a
- * runtime `label` write has a different value and replaces the rich
- * content with that text.
- */
+/** BasicButton's visible label takes both channels — non-interactive `children` for rich static content, and the reactive `label` prop for runtime writes. Server half: children render trusted into `span.label`, the `label` arg escaped through the text sink; a page render carries no `data-children` marker. Client half: rich children survive connect — the connect run's value IS the span's own text, and the equality guard keeps that run from flattening the markup — while a runtime `label` write has a different value and replaces the rich content. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import { pathToFileURL } from 'node:url'
 import { collectCorpusSources, loadCorpusConfig } from '../src/corpus-scan'
@@ -81,9 +66,7 @@ describe('basic-button — the label takes children beside the reactive prop (LT
 			}),
 			component: 'basic-button',
 		})
-		// The connect run's harvested label IS the span's own text — the
-		// equality guard keeps that run off, so the markup is intact after
-		// the driver's post-connect serialization.
+		// The connect run's harvested label IS the span's own text — the equality guard keeps that run off, so the markup is intact after the driver's post-connect serialization.
 		expect(html).toContain(
 			'<span class="label"><b class="icon">★</b> Save</span>',
 		)

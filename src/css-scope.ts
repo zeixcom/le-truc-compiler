@@ -1,51 +1,3 @@
-/**
- * Scoped emission of authored `@scope` CSS (ADR 0011).
- *
- * A compiled sheet means what the same sheet would mean as an inline
- * `<style>` in its host. Scoping is authored with native `@scope`: a
- * prelude-less `@scope { … }` is scoped to the host, `to (…)` sets the
- * limits, and the compiler adds none of its own. The sheet leaves the host
- * for the component's stylesheet, so the emission restores what the inline
- * placement gave for free:
- *
- * - **Native** (every CSS target supports `@scope`): the sheet ships as
- *   authored. A prelude-less `@scope` gains the explicit root
- *   `@scope (<tag>)`; a preluded one, the block bodies and every other rule
- *   stay verbatim.
- * - **Lowered** (a target without `@scope`): each component `@scope` block
- *   unwraps into flat selectors. The root leads as `:where(<root>)` —
- *   the idiom's `:where(:scope)` host rule is exactly that lead — a bare
- *   `:scope` becomes the root compound padded to its (0,1,0) specificity,
- *   and each authored limit becomes a zero-specificity guard.
- *   Top-level rules outside `@scope` stay verbatim.
- *
- * EMISSION STRATEGY (the  review hazard): the lightningcss 1.33
- * WRITE path — returning nodes from a visitor — crashes with
- * "failed to deserialize … Specifier" whenever a nested rule's declaration
- * holds `var()` (upstream parcel-bundler/lightningcss#1065, tracked with
- * #1081; the read-only and plain-`transform` directions are unaffected).
- * Emission therefore never returns nodes: the sheet is partitioned at the
- * TEXT level over lightningcss's read-only parse, the lowered remainder is
- * flattened through a plain `transform()` (Rust→JS only, the direction
- * every plain build already exercises) so nesting never reaches the
- * surgery, and every selector rewrite is a string splice — the checks read
- * lightningcss's deserialized selector components, the emission never
- * parses selectors at all. Bumping lightningcss must re-probe the plain
- * path with `var()` in nested rules before any visitor-based emission is
- * considered.
- *
- * The flattening pass runs with the configured targets and nesting forced
- * into the lowering (ADR 0011 s4: the lowered emission is flat selectors).
- * Everything else lowers only as far as the real targets demand — the
- * default (Baseline widely available) keeps every Baseline-2023 feature
- * authored. `:where()` and complex `:not()` — the lowering's own
- * vocabulary — are Baseline 2021, within the runtime's baseline, so the
- * guard never needs lowering.
- *
- * `@keyframes`/`@font-face`/`@property` and the other hoisted at-rules emit
- * verbatim.
- */
-
 import { Features, transform } from 'lightningcss-wasm'
 import type { CssBrowser, CssTargets } from './emit-paths'
 import type { RenderedShape } from './ir'
@@ -72,7 +24,7 @@ export type ContractFace =
 	/** A top-level rule neither in `@scope` nor led by the component's own tag (warning). */
 	| 'unscoped'
 
-/** One authored-form finding over the sheet (ADR 0011 s6). */
+/** One authored-form finding over the sheet. */
 export type ContractFinding = {
 	face: ContractFace
 	/** The offending selector, summarized, for the message body. */
@@ -85,7 +37,7 @@ export type ContractFinding = {
 	end?: number | undefined
 }
 
-/** Why the lowering cannot express an authored `@scope` form (ADR 0011 s4). */
+/** Why the lowering cannot express an authored `@scope` form. */
 export type LoweringFace =
 	/** A `@scope` inside a component `@scope`. */
 	| 'nested-scope'
@@ -131,10 +83,6 @@ const SCOPE_SUPPORT: Record<CssBrowser, number> = {
 	safari: (17 << 16) | (4 << 8),
 }
 
-/**
- * Native `@scope` or the flat-selector lowering: native only when EVERY
- * browser the target names supports `@scope`; a target naming none lowers.
- */
 export const scopeModeOf = (targets: CssTargets): ScopeMode => {
 	const named = Object.entries(targets) as [CssBrowser, number][]
 	if (named.length === 0) return 'lowered'
@@ -143,10 +91,6 @@ export const scopeModeOf = (targets: CssTargets): ScopeMode => {
 		: 'lowered'
 }
 
-/**
- * The configured CSS target in prose, for a diagnostic that names it
- * (LTC089): `chrome 118, safari 17.3`, or the absence of any named browser.
- */
 export const describeCssTargets = (targets: CssTargets): string => {
 	const named = Object.entries(targets) as [CssBrowser, number][]
 	if (named.length === 0) return 'no named browser'
@@ -158,17 +102,6 @@ export const describeCssTargets = (targets: CssTargets): string => {
 		.join(', ')
 }
 
-/**
- * The flattening pass's transform options: the REAL targets, with nesting
- * forced on (`include`) — nesting always lowers (ADR 0011 s4: the lowered
- * sheet is flat), whatever the target names, and nothing else lowers
- * beyond what the targets demand (). `light-dark()` is EXCLUDED
- * from lowering: the default's Safari 17.4 predates it, and its lowering
- * rewrites a declaration into `var(--lightningcss-light, …)
- * var(--lightningcss-dark, …)`, a two-value background that is invalid at
- * computed-value time. Authored `light-dark()` ships and the page bundle's
- * own lowering (with its companion definitions) handles it.
- */
 const flatteningTargets = (
 	targets: CssTargets,
 ): { targets: CssTargets; include: number; exclude: number } => ({
@@ -177,14 +110,8 @@ const flatteningTargets = (
 	exclude: Features.LightDark,
 })
 
-/* === The authored-form checks (ADR 0011 s6) === */
+/* === The authored-form checks === */
 
-/**
- * At-rule types whose blocks hold real rules the checks descend into.
- * `@keyframes`/`@font-face`/`@property` hoist verbatim and their blocks
- * hold descriptors or keyframe selectors (`from`/`to`/percentages), never
- * component selectors — never descended into.
- */
 const RECURSABLE_AT_RULES = new Set([
 	'media',
 	'supports',
@@ -244,18 +171,11 @@ const selectorTextOf = (selector: LcSelector): string =>
 		})
 		.join('')
 
-/**
- * A rule finding's range (ADR 0022 s1): lightningcss locates a
- * rule by its start only, so the selector list runs from there to the
- * rule's `{`, trailing whitespace trimmed.
- */
 const withSelectorEnd = <F extends { offset?: number | undefined }>(
 	sheetText: string,
 	finding: F,
 ): F & { end?: number | undefined } => {
 	if (finding.offset === undefined) return finding
-	// A relative selector's parse anchor replaced the whitespace before it
-	// (`anchorRelativeSelectors`), so its loc sits one character early.
 	let offset = finding.offset
 	while (/\s/.test(sheetText[offset] ?? '')) offset++
 	const brace = sheetText.indexOf('{', offset)
@@ -277,14 +197,6 @@ const locToOffset = (
 	loc: { line: number; column: number },
 ): number => (lineStarts[loc.line] ?? 0) + Math.max(0, loc.column - 1)
 
-/**
- * The dedented sheet text, with how much each line lost: the emission
- * partitions and slices a canonical copy so the artifact never varies with
- * the authored sheet's indentation — a variant set's members may sit at
- * different depths, and their emissions must be byte-identical (the same
- * reasoning as LTC051's dedent comparison). `strip[line]` is what the
- * dedent removed from that line, so a parsed loc's column shifts by it.
- */
 const dedentWithStrips = (text: string): { text: string; strip: number[] } => {
 	const lines = text.split('\n')
 	const indents = lines
@@ -339,12 +251,6 @@ const compoundsOf = (selector: LcSelector): Compounds => {
 const sameCompound = (a: LcComponent[], b: LcComponent[]): boolean =>
 	JSON.stringify(a) === JSON.stringify(b)
 
-/**
- * Resolve one selector against one parent alternative into a flat
- * selector: `&` becomes the parent, a nested selector without `&` is
- * relative and gets an implicit `& ` lead. At the top of a `@scope` block
- * (no parent) `&` is the scope root, `:scope`.
- */
 const resolveAgainst = (
 	selector: LcSelector,
 	parent: LcSelector | null,
@@ -360,13 +266,6 @@ const resolveAgainst = (
 	)
 }
 
-/**
- * Whether a flat selector's subject always lies inside what one limit
- * excludes: some run of its compounds equals the limit and a descendant or
- * child combinator follows. A limit of the form `<X> > *` also excludes
- * everything inside `<X>`, so a run equal to `<X>` followed that way is
- * dead too — the shape `to (<child-tag> > *)` takes.
- */
 const deadByLimit = (selector: LcSelector, limit: LcSelector): boolean => {
 	const subject = compoundsOf(selector)
 	const excluded = compoundsOf(limit)
@@ -404,12 +303,6 @@ const deadByLimit = (selector: LcSelector, limit: LcSelector): boolean => {
 /** What a scope block hands its rules: its authored limits. */
 type ScopeBlock = { limits: LcSelector[] }
 
-/**
- * `styleDepth` counts enclosing STYLE rules only — a rule inside a
- * conditional group of a `@scope` is still a top-level scoped rule for the
- * own-tag-led face. `parents` carries each enclosing rule's resolved flat
- * alternatives for the limit check.
- */
 const checkRules = (
 	rules: readonly LcRule[],
 	tag: string,
@@ -467,7 +360,7 @@ const checkRules = (
 					if (isGlobalPseudo(component)) report('global', selector)
 				})
 				// A top-level rule outside `@scope` that the unique tag does
-				// not contain applies page-wide (ADR 0011 s1/s5, LTC088) —
+				// not contain applies page-wide (LTC088) —
 				// unless an error above already names the rule.
 				if (!scope && styleDepth === 0 && !tagLed && seen.size === 0)
 					report('unscoped', selector)
@@ -532,18 +425,6 @@ const checkRules = (
 	}
 }
 
-/**
- * Check a parsed component stylesheet against the authored `@scope` form
- * (ADR 0011 s6): a rule inside `@scope` led by the component's own tag
- * (fix-it: `:where(:scope)`), `:host` anywhere (fix-it: `:where(:scope)`), `::slotted()`
- * in a light-DOM component, `:host-context()` anywhere, `:global` anywhere
- * and a selector an authored limit always excludes — plus the LTC088
- * warning (ADR 0011 s5): a top-level rule neither in `@scope` nor led by
- * the component's own tag, unless one of the errors already names it. Runs over
- * lightningcss's read-only parse — the sheet syntax is already LTC064's, so
- * every shape here parsed clean. Offsets resolve against the sheet text
- * lightningcss parsed.
- */
 export const checkSheetContract = (
 	sheet: unknown,
 	sheetText: string,
@@ -562,18 +443,8 @@ export const checkSheetContract = (
 	return findings.map(finding => withSelectorEnd(sheetText, finding))
 }
 
-/* === Downward leaks into composed children (ADR 0011 s5, LTC087) === */
+/* === Downward leaks into composed children (LTC087) === */
 
-/**
- * One composed child as the leak check sees it: the host it renders in the
- * parent's DOM and the elements of its own template. `host` merges the
- * child's root attributes with the static ones its compose site adds, so an
- * authored limit can match either. `shapes` are the elements the child's
- * template renders below its host, content it passes on to its own children
- * included (that content is the child's markup); the content a parent
- * passes as `children` is the parent's and is never here (ADR 0026 s5).
- * `children` are the child's own composed children, recursively.
- */
 export type LeakChild = {
 	tag: string
 	host: { attrs: Record<string, string | null>; dynamic: readonly string[] }
@@ -598,11 +469,6 @@ type ShapeLike = {
 	dynamic: readonly string[]
 }
 
-/**
- * Could the simple selector `component` match an element of `shape`?
- * `definite` asks the other question — does it always match? A dynamic
- * attribute and any pseudo-class answer "may" but never "always".
- */
 const simpleMatches = (
 	component: LcComponent,
 	shape: ShapeLike,
@@ -672,13 +538,6 @@ const isRootCompound = (compound: readonly LcComponent[]): boolean =>
 				)),
 	)
 
-/**
- * The compound a limit's subject must match on an element for the limit to
- * exclude that element and everything below it, and — for `<X> > *` — the
- * compound whose element's subtree it excludes below the element itself.
- * The limit's ancestor compounds are not checked: a limit that may exclude
- * the child suppresses the warning, the lenient direction for a warning.
- */
 const limitHeads = (
 	limit: LcSelector,
 ): { self: LcComponent[]; below: LcComponent[] | null } => {
@@ -716,13 +575,6 @@ const excludesBelow = (
 		return heads.below !== null && compoundMatches(heads.below, element, true)
 	})
 
-/**
- * Could `subject` reach an element of `child`'s own markup, or of a
- * grandchild's, with no limit excluding it? A limit that matches the
- * child's host excludes the whole child; one of the form `<child> > *`
- * excludes everything below the host, which stays stylable. A grandchild's
- * host is an element of the child's markup.
- */
 const childLeaks = (
 	subject: readonly LcComponent[],
 	child: LeakChild,
@@ -741,13 +593,6 @@ const childLeaks = (
 	)
 }
 
-/**
- * The compounds strictly between the scope root and the subject when the
- * selector reaches the subject from the root through child combinators
- * only (`:scope > .a > b`), or `null` when it does not. Every ancestor of
- * such a subject below the host is named, so it lies inside a composed
- * child only when one of those compounds can match the child's host.
- */
 const anchoredChain = (
 	compounds: readonly LcComponent[][],
 	combinators: readonly string[],
@@ -853,16 +698,6 @@ const checkLeakRules = (
 	}
 }
 
-/**
- * The downward-leak check (ADR 0011 s5): a rule in the component's
- * `@scope` block whose subject can match an element a composed child
- * renders in its own template — transitively, through the child's own
- * composed children — with no authored limit excluding it. The subject is
- * tested on its own, against each element's static tag and attributes; a
- * dynamic attribute or a pseudo-class may match. Markup the compiler cannot
- * know (`truc:html`, an unregistered child, a raw custom element) has no
- * shapes and never warns. Top-level rules are LTC088's, not this check's.
- */
 export const checkSheetLeaks = (
 	sheet: unknown,
 	sheetText: string,
@@ -892,7 +727,7 @@ export const checkSheetLeaks = (
 	})
 }
 
-/* === Forms the lowering cannot express (ADR 0011 s4, LTC089) === */
+/* === Forms the lowering cannot express (LTC089) === */
 
 const hasScopeReference = (selector: LcSelector): boolean => {
 	let found = false
@@ -928,13 +763,6 @@ const checkLoweringRules = (
 	}
 }
 
-/**
- * The `@scope` forms the lowered emission cannot express (ADR 0011 s4): a
- * `@scope` inside a component `@scope`, and a limit that names `:scope`.
- * Only a lowered target fails on them — a native target ships the same
- * sheet verbatim, so the caller runs this check for `scopeModeOf(targets)
- * === 'lowered'` alone.
- */
 export const checkSheetLowering = (
 	sheet: unknown,
 	sheetText: string,
@@ -1054,11 +882,6 @@ const skipSpaceAndComments = (text: string, from: number): number => {
 /** One rule located in a stylesheet text: `[start, end)`, `{` at `brace`. */
 type TextRule = { start: number; end: number; brace: number }
 
-/**
- * The rules at ONE nesting level of a stylesheet text range, comments and
- * strings accounted for. Blockless statements (`@layer a, b;`) are no rule
- * and must not swallow the selector of the next one ().
- */
 const scanRules = (text: string, from: number, to: number): TextRule[] => {
 	const out: TextRule[] = []
 	let i = skipSpaceAndComments(text, from)
@@ -1141,22 +964,6 @@ const splice = (
 
 /* === Relative selectors at the top of a `@scope` block === */
 
-/**
- * The selector anchor written before a relative selector (`> p`) at the
- * top of a `@scope` block. lightningcss 1.33 refuses a relative selector
- * there ("Invalid empty selector") although the platform accepts it, so
- * every parse and transform reads an anchored copy:
- *
- * - `'&'` for the read-only parse the checks run over. It stands for the
- *   scope root there, and where whitespace precedes the combinator it
- *   REPLACES that character, so every parsed loc still resolves against
- *   the authored text;
- * - `':where(:scope)'` for the lowered emission's flattening pass and for
- *   the native emission — the implicit `:scope` of a relative selector,
- *   whose specificity is zero. (lightningcss flattens a top-level `&` into
- *   `:scope`, which counts.) Native ships it so every lightningcss-based
- *   bundler accepts the sheet ().
- */
 export type RelativeAnchor = '&' | ':where(:scope)'
 
 /** Edits that anchor each relative member of one selector list. */
@@ -1210,11 +1017,6 @@ const anchorRules = (
 	}
 }
 
-/**
- * The sheet text with every relative selector at the top of a `@scope`
- * block anchored (see `RelativeAnchor`). Nested rules need no anchor:
- * lightningcss reads `> p` inside a style rule as nesting.
- */
 export const anchorRelativeSelectors = (
 	text: string,
 	anchor: RelativeAnchor,
@@ -1226,10 +1028,6 @@ export const anchorRelativeSelectors = (
 
 /* === The scope block's prelude === */
 
-/**
- * A component `@scope` block as the emission reads it from its text: the
- * prelude (`(<root>)`, absent for the host) and the authored limits.
- */
 type ScopeHead = {
 	/** The text between `@scope` and `{`, trimmed. */
 	text: string
@@ -1263,12 +1061,6 @@ const scopeHeadOf = (head: string): ScopeHead => {
 
 /* === Native emission === */
 
-/**
- * Walk a canonical sheet's rules, giving every component `@scope` its
- * explicit root (ADR 0011 s3) and its relative selectors their implicit
- * `:where(:scope)` anchor (`RelativeAnchor`). A conditional group can hold
- * a `@scope`; everything else inside a `@scope` stays verbatim.
- */
 const nativeRules = (
 	text: string,
 	from: number,
@@ -1304,12 +1096,6 @@ const nativeRules = (
 
 /* === Lowered emission === */
 
-/**
- * The never-present attribute inside `:not()` that gives the root compound
- * the (0,1,0) specificity of `:scope`, on top of the zero-specificity
- * `:where(<root>)`. The compound still matches the host: the attribute is
- * not one any element carries.
- */
 const SCOPE_PAD = ':not([data-truc-scope-pad])'
 
 /** What lowering one component `@scope` block needs. */
@@ -1325,7 +1111,7 @@ type LoweringScope = {
 const loweringScopeOf = (head: ScopeHead, tag: string): LoweringScope => {
 	const root = head.root ?? tag
 	const listed = splitTopLevelCommas(root).length > 1 ? `:is(${root})` : root
-	// The re-include (ADR 0011 s4): an own-tag instance below the limit, or
+	// The re-include: an own-tag instance below the limit, or
 	// one the limit itself matches, is a scope root of its own, and so is
 	// everything inside it.
 	const guard = (limit: string): string =>
@@ -1341,14 +1127,6 @@ const loweringScopeOf = (head: ScopeHead, tag: string): LoweringScope => {
 const LEGACY_PSEUDO_ELEMENT =
 	/^:(?:before|after|first-line|first-letter)(?![\w-])/
 
-/**
- * Where a flat complex selector's subject compound starts, and where the
- * guard goes: before the first pseudo-element of the subject (`::before`,
- * legacy `:before`, `::part(x)`, `::-webkit-scrollbar-thumb`), else at the
- * end. `:where()` cannot follow a pseudo-element — only user-action
- * pseudo-classes may (`::part(x):hover`) — so the guard anchors on the
- * originating element, which constrains the same element ().
- */
 const subjectOf = (selector: string): { subject: number; guard: number } => {
 	let depth = 0
 	let subject = 0
@@ -1400,17 +1178,8 @@ const hasTopLevelScope = (compound: string): boolean => {
 	return false
 }
 
-/**
- * Rewrite one flat complex selector of a component `@scope` block. An
- * explicit `:scope` becomes the root compound and the selector needs no
- * lead; any other selector leads with `:where(<root>)`, the implicit
- * descendant prefix. The limits' guards close the subject — except where
- * the subject IS the root, which no limit can exclude.
- */
 const lowerSelector = (selector: string, scope: LoweringScope): string => {
 	const member = selector.trim()
-	// `:where(:scope)` — the authored way to a zero-specificity host rule —
-	// is the bare root lead; every other `:scope` is the padded compound.
 	const plain = member.replace(WHERE_SCOPE, () => scope.lead)
 	const rootSubject = hasTopLevelScope(
 		member.replace(WHERE_SCOPE, ':scope').slice(subjectOf(member).subject),
@@ -1429,12 +1198,6 @@ const lowerSelectorList = (list: string, scope: LoweringScope): string =>
 		.map(member => lowerSelector(member, scope))
 		.join(', ')
 
-/**
- * Lower the rules of a flattened sheet range. Outside a component
- * `@scope`, rules stay verbatim; a component `@scope` unwraps into its
- * lowered rules; conditional groups are entered to reach a `@scope` or to
- * lower the rules of one.
- */
 const lowerRules = (
 	text: string,
 	from: number,
@@ -1480,10 +1243,6 @@ const lowerRules = (
 
 /* === The partition === */
 
-/**
- * Partition of the authored sheet for the lowered emission: verbatim
- * fragments hoisted out of the flattening, and the remainder's text spans.
- */
 type Fragment = { start: number; end: number }
 
 const HOISTED_AT_RULES = new Set([
@@ -1500,11 +1259,6 @@ const HOISTED_AT_RULES = new Set([
 	'color-profile',
 ])
 
-/**
- * Top-level partition of the authored sheet, over the parsed rules' locs:
- * `@keyframes`/`@font-face`/`@property` and the other hoisted at-rules
- * become fragments; everything else stays in the remainder.
- */
 const partitionSheet = (
 	sheet: unknown,
 	sheetText: string,
@@ -1528,13 +1282,6 @@ const partitionSheet = (
 
 /* === The emission === */
 
-/**
- * Emit the component stylesheet (ADR 0011 s3/s4). Native: the canonical
- * (dedented) sheet with the explicit root on every prelude-less component
- * `@scope`. Lowered: the hoisted at-rules verbatim, then the remainder
- * flattened through a plain lightningcss `transform` (never the visitor
- * write path — see the module doc) and lowered block by block.
- */
 export const emitScopedSheet = (
 	sheet: unknown,
 	sheetText: string,
@@ -1552,8 +1299,6 @@ export const emitScopedSheet = (
 		.map(fragment => canonical.slice(fragment.start, fragment.end).trim())
 		.filter(fragment => fragment !== '')
 
-	// The remainder: the canonical sheet with every hoisted fragment's span
-	// removed, separators and all — lightningcss reformats what it re-emits.
 	const remainder = anchorRelativeSelectors(
 		splice(
 			canonical,

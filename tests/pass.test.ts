@@ -1,9 +1,4 @@
-/**
- * `truc:pass={{ }}` dispatch (ADR 0005 sub-design 10, amending sub-design 4):
- * the sole client-prop interop channel for custom-element targets, for both
- * raw dashed tags and composed (PascalCase) elements — replacing the old
- * shape-inferred "function-valued attribute on a custom tag" dispatch.
- */
+/** `truc:pass={{ }}` dispatch: the sole client-prop interop channel for custom-element targets, for both raw dashed tags and composed (PascalCase) elements. */
 import { describe, expect, test } from 'bun:test'
 import { compileComponent } from '../src/frontend/tsrx'
 
@@ -235,16 +230,9 @@ import { Child } from './child.tsrx'
 	})
 })
 
-/* === Per-prop legality against the target's own expose() (LT-158) === */
+/* === Per-prop legality against the target's own expose() === */
 
-/**
- * [ADR 0007](../adr/0007-tiered-error-surfacing.md) sub-design 6: a
- * `pass()` target whose prop EXISTS but is not Slot-backed is ADR 0011's own
- * motivating example, and the one shape TypeScript cannot carry — a
- * read-only prop is structurally identical to a writable one. The registry
- * now records how each `expose()` key lands on the host, which moves this
- * from Tier 2 (contained console line) to Tier 1 (build failure).
- */
+/** A `pass()` prop that exists but is not Slot-backed is the shape TypeScript cannot carry — a read-only prop is structurally identical to a writable one — so the registry records each `expose()` key's kind and the mismatch is a build failure. */
 describe('pass={{ }} prop legality against the target registry entry', () => {
 	const childWith = ({
 		imports = '',
@@ -382,9 +370,9 @@ describe('pass={{ }} prop legality against the target registry entry', () => {
 	test('a target with no registry entry keeps the Tier 2 runtime backstop', () => {
 		// A hand-written (non-.tsrx) child is registry-known via
 		// `childImports` but never has an entry, and the discovery pass has
-		// no compose registry at all. Silence here is the deliberate
-		// answer — ADR 0007 sub-design 1 keeps the runtime check for
-		// exactly this case ([M15] no-build components, foreign markup).
+		// no compose registry at all. Silence here is deliberate: the
+		// runtime check backstops exactly this case (no-build components,
+		// foreign markup).
 		const { component, diagnostics } = compileComponent(
 			parent,
 			'examples/parent/basic-parent.tsrx',

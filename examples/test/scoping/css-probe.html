@@ -1,18 +1,4 @@
-<!-- The page context of the platform-CSS contract probe (LT-501): the page
-     rules below are the page side of the comparisons — a page TYPE
-     selector that BEATS the probe's `:where(:scope)` host rule (the ADR
-     0033 s1 idiom) and LOSES to its bare `:scope` one (a pseudo-class
-     outweighs a type), and a page class
-     rule that reaches the light-DOM component's internals (the permanent
-     inward-reach difference from a real shadow root, ADR 0033). The
-     `<p class="probe-global">` outside the component is the unscoped
-     rule's page-wide proof, and the `<p class="tag-led">` outside it
-     shows the tag-led rule stays contained. `#page-child`, absent from the
-     template, is a page-authored child the component's own rules style. The
-     `css-probe-child` inside the probe is a compose site with children
-     (ADR 0048): its `code` carries the region marker the server writes.
-     The second, page-rendered `css-probe-child` carries none and renders
-     the same, because the marker adds no CSS. -->
+<!-- The page side of the platform-CSS contract probe: a page TYPE selector that BEATS the probe's `:where(:scope)` host rule and LOSES to its bare `:scope` one (a pseudo-class outweighs a type), and a page class rule that reaches the light-DOM component's internals (the permanent inward-reach difference from a real shadow root). The `<p class="probe-global">` outside the component is the unscoped rule's page-wide proof, the `<p class="tag-led">` outside it shows the tag-led rule stays contained, and `#page-child`, absent from the template, is a page-authored child the component's own rules style. -->
 <style>
 	css-probe {
 		border-top-color: rgb(0, 128, 0);

@@ -1,15 +1,4 @@
-/**
- * MF2 migration insurance (ADR 0009 Alternatives). MF1 is a bet
- * with a kept-open exit; this suite turns "the migration is mechanical"
- * into a gate. Every corpus pattern goes MF1 → MF2 source text → back
- * through the MF2 parser, and both sides render a matrix of arguments in
- * every locale that can render the pattern: our evaluator (what ships)
- * for MF1, `messageformat@4` for MF2. They must agree byte for byte.
- *
- * An MF1 pattern the exit cannot carry therefore fails here, at authoring
- * time. The known-lossy spots are pinned below; the rebaseline procedure
- * is in MF2_EXIT.md.
- */
+/** MF2 migration insurance: every corpus pattern goes MF1 → MF2 source text → back through the MF2 parser, and both sides render the full argument matrix byte-identically, so a pattern the exit cannot carry fails at authoring time. */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { readdirSync, readFileSync } from 'node:fs'
 import * as path from 'node:path'
@@ -58,11 +47,7 @@ const renderMF1 = (
 	return formatMessage(result.message, args, { lang, ...ENV })
 }
 
-/**
- * MF2's formatter recovers from a bad function or option with a fallback
- * rendering and a warning. The exit counts a warning as a failure: collect
- * them and throw.
- */
+/** MF2's formatter recovers from bad input with a fallback rendering and a warning; the exit counts any warning as a failure. */
 const renderMF2 = (
 	lang: string,
 	mf2: string,
@@ -77,11 +62,7 @@ const renderMF2 = (
 
 /* === The argument matrix === */
 
-/**
- * Counts covering every CLDR category in the six locales: ar few (3–10)
- * and many (11–99), cy's 0/1/2/3/6, lv zero (0, 10–20), pl few/many, the
- * ordinal arms, and a fraction.
- */
+/** Counts covering every CLDR category in the six locales (ar few/many, cy 0/1/2/3/6, lv zero, pl few/many), plus the ordinal arms and a fraction. */
 const COUNTS = [0, 1, 2, 3, 4, 5, 6, 10, 11, 12, 21, 22, 23, 101, 1.5]
 
 /** Select keys per argument, walked from the MF1 AST. */
@@ -223,9 +204,6 @@ describe('nested-to-flat arm expansion', () => {
 	})
 
 	test('arm count is the product of each locale’s spelled key sets', () => {
-		// The retired basic-pluralize's cy `tasks` (now the `c-plural`
-		// fixture's catalog): six cardinal arms, six ordinal arms,
-		// both under `type`.
 		const pattern = C_PLURAL_CATALOG.cy?.tasks
 		if (!pattern) throw new Error('c-plural-catalog lacks cy.tasks')
 		const data = toMF2Data(pattern)
@@ -319,8 +297,8 @@ describe('one argument, more than one selector type (the `c-plural` fixture’s 
 
 	test('every locale’s nested pattern round-trips (the retired catalogs, LT-467)', () => {
 		// The corpus walk no longer carries a select-over-selectordinal/plural
-		// pattern since basic-pluralize retired; the fixture's six catalog
-		// entries keep that shape in the matrix, each in its own locale.
+		// pattern; the fixture's six catalog entries keep that shape in the
+		// matrix, each in its own locale.
 		for (const [lang, { tasks }] of Object.entries(C_PLURAL_CATALOG))
 			expectRoundTrip(lang, tasks)
 	})
@@ -434,7 +412,7 @@ describe('the supported MF1 surface through the exit', () => {
 	})
 })
 
-/* === The dependency boundary (ADR 0009 s8) === */
+/* === The dependency boundary === */
 
 describe('dependency boundary', () => {
 	const compilerFiles = (dir: string): string[] =>

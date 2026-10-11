@@ -1,16 +1,4 @@
-/**
- * Harvest through a key alias, witnessed by the render (ADR 0025),
- * on both surfaces:
- *
- * - a flat host-level list seeded from args, rendered only through two
- *   levels of derived grouping, harvests per field from the alias scope:
- *   the client reads every alias root in document order across the
- *   enclosing items, and connects the list with its keys in list order;
- * - the server records the keys the alias scope renders and throws
- *   `HarvestWitnessError` when an item is missing or out of order;
- * - each ADR 0025 s1 condition is refused with LTC080, one message each,
- *   identically on both surfaces.
- */
+/** Harvest through a key alias, witnessed by the render, on both surfaces: a flat host-level list rendered only through two levels of derived grouping harvests per field from the alias scope (the client reads every alias root in document order across the enclosing items and connects with keys in list order); the server records the rendered keys and throws `HarvestWitnessError` when an item is missing or out of order; each unmet condition is refused with LTC080, identically on both surfaces. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import * as path from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -25,8 +13,6 @@ const FILE = 'tests/fixtures/c-alias'
 
 const generated = createGeneratedDir('key-alias-harvest')
 afterAll(() => generated.cleanup())
-
-/* === Helpers === */
 
 type Surface = 'tsrx' | 'tsx'
 const SURFACES: readonly Surface[] = ['tsrx', 'tsx']
@@ -174,8 +160,6 @@ const ROWS = [
 	{ symbol: 'BXY', price: 3, volume: 0 },
 ]
 
-/* === A flat list through two levels of derived grouping === */
-
 describe('a flat list harvests through its key alias (LT-453)', () => {
 	const tag = 'c-grouped'
 	const fromTsrx = compile('tsrx', grouped('tsrx', tag), tag)
@@ -278,8 +262,6 @@ describe('a flat list harvests through its key alias (LT-453)', () => {
 	})
 })
 
-/* === The render witness === */
-
 describe('the render witness (LT-453)', () => {
 	test('a block the server gates off fails the render, naming the key', async () => {
 		const tag = 'c-gated'
@@ -321,8 +303,6 @@ describe('the render witness (LT-453)', () => {
 		)
 	})
 })
-
-/* === LTC080: the four conditions === */
 
 /** A one-level alias over a host-level `symbols` list, with `alias` as the item setup. */
 const flat = (

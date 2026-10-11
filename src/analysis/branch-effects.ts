@@ -1,20 +1,4 @@
-/**
- * Pass 4's control-flow addressing: how `@if`
- * (union and optional addressing), `@switch`/`@try` (construct-free arms),
- * async boundaries and reactive conditionals lower to effect plans, plus
- * `validateArmSetPlacement` — the one whole-template check that every arm
- * set and reactive list sits where a mount reaches it.
- *
- * Dependency shape: `mount-scopes.ts` and this module call into each other
- * (`planNested` re-runs the branch handlers inside a Mount Scope; they plan
- * nested scopes and lists back through it), and both import effects.ts's
- * selector adapters while its drivers call these handlers. Every
- * cross-call on those edges sits inside a function body, so no cycle
- * resolves at module load.
- */
-
-import type { AstNode } from '../ast-node'
-import { freeIdentifiers, sanitizeVarName } from '../ast-utils'
+import { type AstNode, freeIdentifiers, sanitizeVarName } from '../ast-utils'
 import {
 	type BoundaryArmRoot,
 	boundaryDeepConstructOf,
@@ -84,12 +68,6 @@ import {
 } from './selectors'
 import { reportServerOnlyNames } from './server-only-names'
 
-/**
- * The context slice control-flow addressing reads — its own fields plus
- * everything the forwarded calls need (`emitConstructEffects`, the compose
- * and scope planners this module's handlers hand `fx` to). The full pass
- * context satisfies it structurally (ADR 0018 s5).
- */
 type BranchEffectsContext = Pick<
 	EffectsContext,
 	| 'component'
@@ -120,30 +98,10 @@ type BranchEffectsContext = Pick<
 	| 'reconcilePlans'
 >
 
-/**
- * A single branch whose root may not exist at all — the DOM-derived
- * mirror of the hand-written `if (clearBtn) { … }` pattern. The root (if
- * it carries client constructs) is addressed with a non-throwing
- * `first()`; its own construct effects, plus any bare client-only
- * statement sitting beside it in the branch , are all wrapped in
- * one `'guarded'` effect emitted client-side as `if (query) { … }`.
- *
- * Shared by a single-branch `@if` (no `@else`, `handleOptionalIfEffects`),
- * a plain `@try`'s two mutually-exclusive arms (`handleTryEffects`),
- * and — since  — each branch of an `@if`/`@else` whose branch roots
- * carry differing client constructs (`handlePerBranchIfEffects`): same
- * DOM-existence-guarded shape either way, just a different `label` for
- * diagnostics, a different `atNode` to attribute a bare-statement error
- * to when the branch has no element at all, and — for the two-branch
- * `@if`/`@else` case only — a `resolve` that yields each root's OWN
- * selector instead of the union across both branches (the default
- * `selectorFor` would union them, which is the other addressing mode).
- */
 const handleOptionalBranch = (
 	fx: BranchEffectsContext,
-	// Read-only: the body is filtered and iterated, never mutated. Declared
-	// `readonly` so `handlePerBranchIfEffects` can pass a branch out of its
-	// `readonly` tuple without a cast .
+	// readonly so `handlePerBranchIfEffects` can pass a branch out of its
+	// readonly tuple without a cast.
 	body: readonly TemplateNode[],
 	atNode: { node: AstNode },
 	label: string,
@@ -168,14 +126,11 @@ const handleOptionalBranch = (
 			n.kind === 'client-stmt',
 	)
 	const constructedRoots = roots.filter(hasOwnConstruct)
-	//: an element the author addressed with `first()` carries its
-	// OWN query and its OWN presence guard — exactly as it would outside
-	// a branch — so it is not being union-addressed and does not compete
-	// for the branch's single addressable root. The one-root limit exists
-	// because a branch ROOT with no ref is addressed by a synthesized
-	// selector standing in for "whichever branch rendered"; only those
-	// count. `refOf` is total over ref kinds: every
-	// `{kind:'ref'}` in the IR comes from an author's `first()` call.
+	//: an element the author addressed with `first()` carries its OWN query
+	// and presence guard, so it does not compete for the branch's single
+	// addressable root — the one-root limit covers only branch ROOTs with
+	// no ref, addressed by a synthesized selector standing in for
+	// "whichever branch rendered". `refOf` is total over ref kinds.
 	const unaddressed = constructedRoots.filter(el => !refOf(el))
 	if (unaddressed.length > 1) {
 		diagnostics.push(
@@ -281,22 +236,14 @@ const handleOptionalIfEffects = (
 	)
 
 /**
- * An `@if`/`@else` whose branch roots carry DIFFERING client constructs
- *  — addressed per branch: each branch root gets its own
- * non-throwing `first()` and its constructs wrap in a `'guarded'` effect,
- * exactly how a plain `@try`'s two arms are addressed , because
- * the branches are different content, not the same construct duplicated.
- * An effect planned inside a branch only activates when that branch
- * rendered — the branch that didn't render has no element, its guard is
- * false, its effects never bind. Exclusivity is therefore structural:
- * mutually-exclusive branches never double-bind.
- *
- * That soundness has one precondition, checked up front: each addressed
- * root's selector must not match the OTHER branch's markup
- * (`resolveExclusiveSelectorIn`) — two existence guards over one
- * selector would both be true on the one rendered element. Roots
- * indistinguishable by statics keep a LTC007 error naming the fix,
- * rather than a plausible-but-wrong double binding.
+ * An `@if`/`@else` whose branch roots carry DIFFERING client constructs —
+ * addressed per branch, like a plain `@try`'s two arms: exclusivity is
+ * structural, so mutually-exclusive branches never double-bind.
+ * Precondition checked up front (`resolveExclusiveSelectorIn`): each
+ * addressed root's selector must not match the OTHER branch's markup —
+ * two existence guards over one selector would both be true on the one
+ * rendered element. Roots indistinguishable by statics keep a LTC007
+ * error naming the fix, rather than a plausible-but-wrong double binding.
  */
 const handlePerBranchIfEffects = (
 	fx: BranchEffectsContext,
@@ -348,14 +295,14 @@ const handlePerBranchIfEffects = (
 }
 
 /**
- * @if branches : client constructs must sit on the branch ROOT
- * elements. With IDENTICAL construct text on every branch root, the
- * client addresses whichever branch rendered through a union selector
+ * @if branches: client constructs must sit on the branch ROOT elements.
+ * With IDENTICAL construct text on every branch root, the client
+ * addresses whichever branch rendered through a union selector
  * (`first('textarea, input[type="text"]')`) — one effect covers all.
- * With DIFFERING constructs , each branch is addressed on its
- * own — see `handlePerBranchIfEffects`. A branch with no `@else` may not
- * render at all — see `handleOptionalIfEffects` for that
- * (DOM-existence-guarded) case.
+ * With DIFFERING constructs, each branch is addressed on its own — see
+ * `handlePerBranchIfEffects`. A branch with no `@else` may not render at
+ * all — see `handleOptionalIfEffects` for that (DOM-existence-guarded)
+ * case.
  */
 export const handleIfEffects = (
 	fx: BranchEffectsContext,
@@ -382,12 +329,10 @@ export const handleIfEffects = (
 		(n): n is TemplateNode & { kind: 'client-stmt' } =>
 			n.kind === 'client-stmt',
 	)
-	// Each branch may only carry ONE UNADDRESSED element of its own —
-	// the union query addresses "whichever branch rendered", not
-	// multiple distinct siblings within a single branch. An element the
-	// author addressed with `first()` has its own query and its own
-	// guard and is exempt ; a branch carrying one routes to
-	// per-branch addressing below, which is where those are emitted.
+	// Each branch may carry only ONE UNADDRESSED element of its own — the
+	// union query addresses "whichever branch rendered", not siblings
+	// within a branch. An element addressed with `first()` is exempt; a
+	// branch carrying one routes to per-branch addressing below.
 	for (const branch of [thenOf(node), elseOf(node)]) {
 		const constructedInBranch = branch
 			.filter(isElement)
@@ -418,26 +363,19 @@ export const handleIfEffects = (
 			)
 		return
 	}
-	//  routing: identical construct signatures on every branch
-	// root AND an element root in every branch → union addressing (one
-	// query, one effect set, unchanged emission); any difference — a
-	// construct on only some roots (the old LTC031 hazard: union
-	// emission reads the FIRST constructed root only, so a sibling
-	// branch's construct was silently dropped, or worse, bound onto the
-	// wrong branch's element) or the same key with different text (the
-	// old "constructs differ" error) → per-branch addressing. A branch
-	// with no ELEMENT root at all (text-only) also routes per-branch:
-	// the union query is cardinality 'one' (an @else guarantees SOME
-	// branch rendered), which would throw on the branch-less side.
+	// routing: identical construct signatures on every branch root AND an
+	// element root in every branch → union addressing; any difference (a
+	// construct on only some roots — union emission reads the FIRST
+	// constructed root only — or the same key with different text) →
+	// per-branch. A text-only branch also routes per-branch: the union
+	// query is cardinality 'one' and would throw on the branch-less side.
 	const signatures = roots.map(constructSignatureOf)
 	const everyBranchHasElementRoot = [thenOf(node), elseOf(node)].every(branch =>
 		branch.some(isElement),
 	)
 	// A branch carrying MORE than one element root cannot be union-
-	// addressed even with matching signatures : the union query
-	// resolves to a single element per branch, so the siblings would go
-	// unbound. Route those to per-branch addressing, which gives each
-	// `first()`-addressed element its own query.
+	// addressed even with matching signatures: the union query resolves
+	// to a single element per branch, so the siblings would go unbound.
 	const everyBranchHasOneElementRoot = [thenOf(node), elseOf(node)].every(
 		branch => branch.filter(isElement).length === 1,
 	)
@@ -450,9 +388,8 @@ export const handleIfEffects = (
 		handlePerBranchIfEffects(fx, node)
 		return
 	}
-	// Union path. A bare client-only statement stays rejected here: a
-	// union query proves SOME branch rendered, never WHICH one, so a
-	// statement authored in one branch would run when the other rendered.
+	// Union path: a bare client-only statement stays rejected here — a
+	// union query proves SOME branch rendered, never WHICH one.
 	for (const stmt of clientStmts)
 		diagnostics.push(
 			diagnostic.unsupported(
@@ -511,12 +448,12 @@ export const handleSwitchEffects = (
 }
 
 /**
- * An async boundary (`@try`/`@pending`/`@catch`, ADR 0005 sub-design 13,
- * ; ADR 0015 s4): `lowerTry` already proved each arm has
- * exactly one root element. The server renders the winner live beside the
- * three arm templates (`emit-server.ts`); the client switches them through
- * `reconcile()`'s arm form, keyed by the guarded task's state, and the
- * `ok`/`err` mounts write the resolved value and the error text.
+ * An async boundary (`@try`/`@pending`/`@catch`): `lowerTry` already
+ * proved each arm has exactly one root element. The server renders the
+ * winner live beside the three arm templates (`emit-server.ts`); the
+ * client switches them through `reconcile()`'s arm form, keyed by the
+ * guarded task's state, and the `ok`/`err` mounts write the resolved
+ * value and the error text.
  */
 export const handleAsyncBoundary = (
 	fx: BranchEffectsContext,
@@ -528,11 +465,11 @@ export const handleAsyncBoundary = (
 		source,
 		diagnostics,
 		usedNames,
-		// The same scope rule as every other arm-set handler : inside
-		// a reactive-list item this is `badListBodyNames`, so a setup-const or
+		// The same scope rule as every other arm-set handler: inside a
+		// reactive-list item this is `badListBodyNames`, so a setup-const or
 		// import read in an arm's client positions — the ok arm's constructs
-		// and a compose arm root's pass entries — is LTC005 like on any other
-		// list-body position.
+		// and a compose arm root's pass entries — is LTC005 like on any
+		// other list-body position.
 		scopeBadNames: badNames,
 	} = fx
 	const wording = wordingOf(component)
@@ -546,10 +483,9 @@ export const handleAsyncBoundary = (
 	const errMsgEl = lazyCatchMessageEl(errRoot, catchParam)
 	// A composed element's server args are evaluated where the render call
 	// is emitted — in the live arm AND in the arm templates, which sit
-	// outside the catch binding . A child's own rendering of an arg
-	// has no client write channel, so a catch-parameter read in an arg has
-	// no lowering: the message must travel through composed content instead,
-	// where the arm's value channel writes it.
+	// outside the catch binding. A child's own rendering of an arg has no
+	// client write channel, so a catch-parameter read in an arg has no
+	// lowering: the message must travel through composed content instead.
 	if (catchParam !== null) {
 		for (const [armRoot, which] of [
 			[okRoot, wording.tryBody],
@@ -588,9 +524,8 @@ export const handleAsyncBoundary = (
 	// The ok/err arms' construct walk. An offender INSIDE composed content
 	// renders into the child's markup, where no write can address it — the
 	// fix is wrapping it in an element of the author's own, not moving it
-	// onto the arm root ( rework: the generic advice is impossible
-	// there, the root being a compose site or the construct sitting in the
-	// composed content of a child).
+	// onto the arm root (the generic advice is impossible there, the root
+	// being a compose site or the construct sitting in composed content).
 	const okOffender = boundaryDeepConstructOf(okRoot, null, null)
 	const errOffender = boundaryDeepConstructOf(errRoot, errMsgEl, catchParam)
 	const constructHit =
@@ -614,10 +549,10 @@ export const handleAsyncBoundary = (
 		)
 		return
 	}
-	// The pending arm keeps the DEEP construct walk ( rework round 2):
-	// `hasOwnConstruct` alone sees only the root's own attrs and direct lazy
-	// children, so a reactive construct nested below the pending root
-	// compiled silently after the ok/err walk grew offender attribution.
+	// The pending arm keeps the DEEP construct walk: `hasOwnConstruct`
+	// alone sees only the root's own attrs and direct lazy children, so a
+	// reactive construct nested below the pending root compiled silently
+	// after the ok/err walk grew offender attribution.
 	const pendingOffender = boundaryDeepConstructOf(pendingRoot, null, null)
 	if (
 		pendingRoot.kind === 'element'
@@ -660,9 +595,9 @@ export const handleAsyncBoundary = (
 		return
 	}
 	const signal = boundaryCandidates[0]?.name as string
-	// The attribute channel : the value reaches the arm root through
-	// the `truc:html` watch, so the root's own client constructs become the
-	// ok arm's effects. The child channel keeps the child-only contract.
+	// The attribute channel: the value reaches the arm root through the
+	// `truc:html` watch, so the root's own client constructs become the ok
+	// arm's effects. The child channel keeps the child-only contract.
 	// Element-root vocabulary: a compose root carries no `truc:html`.
 	const okElement = okRoot.kind === 'element' ? okRoot : null
 	const viaHtmlThunk =
@@ -745,23 +680,22 @@ export const handleAsyncBoundary = (
 	})
 	const okArm = arm('ok')
 	if (viaHtmlThunk && okElement !== null) {
-		// The ok root's client constructs are the ok arm's effects :
-		// the `truc:html` watch is the value channel, and a reactive
-		// style/class thunk rides beside it — both mounted inside
-		// `bindArm`'s ok branch, dying with the arm. No descendants: the
-		// deep-construct refusal above already kept the root the only
-		// construct-bearing element.
+		// The ok root's client constructs are the ok arm's effects: the
+		// `truc:html` watch is the value channel, and a reactive style/class
+		// thunk rides beside it — both mounted inside `bindArm`'s ok branch,
+		// dying with the arm. No descendants: the deep-construct refusal
+		// above kept the root the only construct-bearing element.
 		const rootName = uniqueName(usedNames, sanitizeVarName(okElement.tag))
 		okArm.root = { name: rootName, tag: okElement.tag }
 		fx.armSelectors.set(rootName, resolveSelector(fx, okElement).selector)
 		emitConstructEffects(fx, okElement, rootName, okArm.effects, badNames)
 	}
-	// The nested message element (through composed content since
-	// ) writes through an arm-scoped `first` local; the depth-0
-	// channel keeps writing the root. Inside composed content the selector
-	// must be a role or a class/id/data-* discriminator: the child renders
-	// markup the compiler cannot see, so a bare tag could match one of ITS
-	// elements and the arm's value would overwrite it ( rework).
+	// The nested message element (through composed content too) writes
+	// through an arm-scoped `first` local; the depth-0 channel keeps
+	// writing the root. Inside composed content the selector must be a
+	// role or a class/id/data-* discriminator: the child renders markup
+	// the compiler cannot see, so a bare tag could match one of ITS
+	// elements and the arm's value would overwrite it.
 	const errArm = arm('err')
 	if (errMsgEl !== null) {
 		const inComposed = isInsideCompose(component.root, errMsgEl)
@@ -785,11 +719,10 @@ export const handleAsyncBoundary = (
 			message: `the ${wording.catchArm}'s message element`,
 		})
 	}
-	//: a compose arm root's `truc:pass` entries plan in the arm's
-	// mount against the arm element parameter. The ok arm is absent here on
-	// purpose: a compose try-body root cannot reach planning at all — the
-	// driver detection above refuses a try body with no lazy-child or
-	// `truc:html` channel, and a compose root has neither.
+	//: a compose arm root's `truc:pass` entries plan in the arm's mount
+	// against the arm element parameter. The ok arm is absent on purpose:
+	// a compose try-body root has neither a lazy-child nor a `truc:html`
+	// channel, so the driver detection above already refused it.
 	const nilArm = arm('nil')
 	if (pendingRoot.kind === 'compose') {
 		const pendingTag = composeArmRootTag(fx, pendingRoot)
@@ -844,15 +777,13 @@ export const handleAsyncBoundary = (
  * @try error boundaries: the body and catch arm render mutually
  * exclusively — whichever one the server actually rendered is the only
  * one that exists in the DOM, exactly the DOM-existence-guarded shape a
- * single-branch `@if` has (each arm gets its own
- * `handleOptionalBranch` call, independently — NOT union addressing like
- * `@if`/`@else`, since the two arms are different content, not the same
- * construct duplicated).
+ * single-branch `@if` has (each arm gets its own `handleOptionalBranch`
+ * call, independently — NOT union addressing like `@if`/`@else`, since
+ * the two arms are different content, not the same construct duplicated).
  *
- * A `@pending` arm present routes to `handleAsyncBoundary` instead (ADR
- * 0024 sub-design 13) — its arms switch on the client through
- * `reconcile()` (ADR 0015 s4), where this plain boundary's arms are
- * decided once, at render time.
+ * A `@pending` arm present routes to `handleAsyncBoundary` instead — its
+ * arms switch on the client through `reconcile()`, where this plain
+ * boundary's arms are decided once, at render time.
  */
 export const handleTryEffects = (
 	fx: BranchEffectsContext,
@@ -870,21 +801,13 @@ export const handleTryEffects = (
 /**
  * The server-rendered branch a node sits under, named by the enclosure that
  * set it: a server-mode conditional's arms, or a server-only `try`'s body
- * vs its catch arm . The  refusal words its fix per enclosure
- * , and the nearest enclosure wins — a `try` inside a server
+ * vs its catch arm. The nearest enclosure wins — a `try` inside a server
  * conditional's arm, or a server conditional inside the `try`, re-keys the
  * flag to itself on the way down.
  */
 type ServerBranch = false | 'conditional' | 'try-body' | 'try-catch'
 
-/**
- * The  fix clause per server-branch enclosure. A server conditional's
- * remedy is the reactive condition, whose arm root may be the composed
- * child itself ; a server-only `try` has no condition — its body
- * takes no in-place remedy, and its catch arm's is a pending arm, which
- * makes the `try` an async boundary whose catch root plans the pass
- * entries .
- */
+/** The fix clause per server-branch enclosure for a `truc:pass` onto a composed child. */
 const serverBranchFix = (
 	branch: 'conditional' | 'try-body' | 'try-catch',
 ): string => {
@@ -896,10 +819,10 @@ const serverBranchFix = (
 }
 
 /**
- * The  fix clause per enclosure, for a content element a `first()`
- * reference addresses. The reference plans where the host walk reaches the
- * site; in an arm or a list item its elements are recreated besides, so the
- * clause names the staleness the author would hit there too.
+ * The fix clause per enclosure, for a content element a `first()` reference
+ * addresses. The reference plans where the host walk reaches the site; in
+ * an arm or a list item its elements are recreated besides, so the clause
+ * names the staleness the author would hit there too.
  */
 const contentRefFix = (
 	inArm: boolean,
@@ -920,13 +843,14 @@ const contentRefFix = (
 }
 
 /**
- * Every arm set (ADR 0015: a reactive conditional, an async boundary) and
- * every nested reactive list must sit where a mount reaches it: directly in
- * an element of the host or of a Mount Scope — an arm, a list item (ADR
- * 0046 s1) — never inside a server-rendered branch or composed content of
- * that scope, and never in a server-data loop body, whose `each()` binds
- * each item through its own element. One check over the whole template,
- * because a misplaced construct is exactly one the walk would never visit.
+ * Every arm set (a reactive conditional, an async boundary) and every
+ * nested reactive list must sit where a mount reaches it: directly in
+ * an element of the host or of a Mount Scope — an arm, a list item —
+ * never inside a server-rendered branch or composed content of that
+ * scope, and never in a server-data loop body, whose `each()` binds each
+ * item through its own element. One check over the whole template,
+ * because a misplaced construct is exactly one the walk would never
+ * visit.
  */
 export const validateArmSetPlacement = (fx: BranchEffectsContext): void => {
 	const { component, source, diagnostics } = fx
@@ -976,21 +900,18 @@ export const validateArmSetPlacement = (fx: BranchEffectsContext): void => {
 			)
 		}
 		// A `truc:pass` onto a composed child in a server-rendered branch of
-		// the host is refused here : the branch handlers never visit
-		// a compose node — probed before this refusal, the shape compiled
-		// clean on both surfaces with the pass silently unplanned — so
-		// without it the author's entries vanish with no error. The same
-		// fold-fixed once-only addressing the item walk refuses one scope
-		// down; the guarded alternative is rejected for the same reason (a
-		// pass entry has no reactive core to guard). Keyed on
+		// the host is refused here: the branch handlers never visit a compose
+		// node, so without it the author's entries vanish with no error. The
+		// same fold-fixed once-only addressing the item walk refuses one
+		// scope down; the guarded alternative is rejected for the same reason
+		// (a pass entry has no reactive core to guard). Keyed on
 		// `inServerBranch`, not `enclosed`: composed content also encloses,
 		// and a pass compose nested there is already the LTC011 nesting
 		// refusal — a second LTC005 naming a server branch would name the
-		// wrong enclosure (review of ). Skipped inside an arm (the arm
-		// walk refuses the shape through `unmountableInArm`, including
-		// nested server branches) and inside any list (the item walk refuses
-		// it in the item's own branches; an `each()` body keeps today's
-		// behavior). The fix clause is worded per enclosure : see
+		// wrong enclosure. Skipped inside an arm (the arm walk refuses the
+		// shape through `unmountableInArm`, including nested server branches)
+		// and inside any list (the item walk refuses it in the item's own
+		// branches). The fix clause is worded per enclosure: see
 		// `serverBranchFix`.
 		if (
 			node.kind === 'compose' &&
@@ -1011,10 +932,9 @@ export const validateArmSetPlacement = (fx: BranchEffectsContext): void => {
 		// (`planContentConstructs`) — which never reaches a site inside an
 		// arm, a loop body or a server-rendered branch. Refusing here, at the
 		// one whole-template checkpoint, keeps those positions from compiling
-		// with a silently inert binding  or a dropped declaration the
-		// authored statements still read . The data-reference
-		// `truc:html` form needs no client half, so it stays legal in every
-		// scope.
+		// with a silently inert binding or a dropped declaration the authored
+		// statements still read. The data-reference `truc:html` form needs
+		// no client half, so it stays legal in every scope.
 		if (node.kind === 'compose' && (inArm || loop !== null || inServerBranch))
 			for (const child of node.children)
 				walkTemplate(
@@ -1075,9 +995,9 @@ export const validateArmSetPlacement = (fx: BranchEffectsContext): void => {
 		let innerEnclosed = enclosed
 		let innerInArm = inArm
 		let innerInServerBranch = inServerBranch
-		// Set when this node is a server-only `try`: its body children and
-		// catch-arm children carry different enclosures, so the child loop
-		// below keys each child's branch kind by the arm holding it.
+		// Set when this node is a server-only `try`: body and catch-arm
+		// children carry different enclosures, so the child loop below keys
+		// each child's branch kind by the arm holding it.
 		let serverOnlyTry: TryNode | null = null
 		if (hasArmSet(node)) {
 			innerLoop = null
@@ -1093,16 +1013,15 @@ export const validateArmSetPlacement = (fx: BranchEffectsContext): void => {
 		} else if (node.kind === 'conditional' || node.kind === 'try') {
 			innerEnclosed = true
 			// A server-only `try` — no `@pending`, so not an arm set (the first
-			// branch took those) — folds once per render into its body or catch
-			// arm : both are server-rendered branches like a server
-			// conditional's, so its `truc:pass` composes take the same refusal,
-			// worded per arm .
+			// branch took those) — folds once per render into its body or
+			// catch arm: both are server-rendered branches like a server
+			// conditional's, so its `truc:pass` composes take the same
+			// refusal, worded per arm.
 			if (node.kind === 'try') serverOnlyTry = node
 		} else if (node.kind === 'compose') {
 			// Composed content encloses on its own: a pass compose nested in
 			// it is the LTC011 nesting refusal, server branch around the
-			// outer compose or not, so the flag does not survive the hop
-			// (review 2 of ).
+			// outer compose or not, so the flag does not survive the hop.
 			innerEnclosed = true
 			innerInServerBranch = false
 		}
@@ -1121,14 +1040,14 @@ export const validateArmSetPlacement = (fx: BranchEffectsContext): void => {
 }
 
 /**
- * A reactive conditional (ADR 0015): its arms lower to `reconcile()`'s arm
- * form — templates the server stamps beside the live winner, a key thunk
- * over the test, and one mount per arm whose effects address the arm root
- * and its descendants inside the arm (collector parity, ADR 0004). The
- * conditional sits directly in an element of its scope — the host or a Mount
- * Scope (ADR 0024 s1) — and that element is the container the arm switches
- * in, found at connect or at the enclosing mount. Each arm is a Mount Scope:
- * arm sets and lists inside it plan into its mount .
+ * A reactive conditional: its arms lower to `reconcile()`'s arm form —
+ * templates the server stamps beside the live winner, a key thunk over the
+ * test, and one mount per arm whose effects address the arm root and its
+ * descendants inside the arm (collector parity). The conditional sits
+ * directly in an element of its scope — the host or a Mount Scope — and
+ * that element is the container the arm switches in, found at connect or
+ * at the enclosing mount. Each arm is a Mount Scope: arm sets and lists
+ * inside it plan into its mount.
  */
 export const handleReactiveConditional = (
 	fx: BranchEffectsContext,
@@ -1151,8 +1070,8 @@ export const handleReactiveConditional = (
 	if (containerQuery === null) return
 
 	// Arm shape: one root element per arm that renders anything. A compose
-	// site is an arm root too  — its rendered root is the child's
-	// own element.
+	// site is an arm root too — its rendered root is the child's own
+	// element.
 	const label = isIf(node) ? wording.ifBranch : `${wording.caseLabel} arm`
 	for (const arm of node.arms) {
 		if (arm.children.length === 0) continue
@@ -1207,11 +1126,11 @@ export const handleReactiveConditional = (
 		isIf(node) ? wording.ifCondition : wording.switchDiscriminant,
 		badNames(node.test),
 	)
-	// No server phase can pick the winner: no live arm renders (ADR 0015
-	// s5), and the component leaves the Folded tier — the realm, when it
-	// can answer, renders the arm the client would. A test over an
-	// enclosing item is per-item state (ADR 0024 s1): the live item renders
-	// its winner with the item in scope, so it routes nothing.
+	// No server phase can pick the winner: no live arm renders, and the
+	// component leaves the Folded tier — the realm, when it can answer,
+	// renders the arm the client would. A test over an enclosing item is
+	// per-item state: the live item renders its winner with the item in
+	// scope, so it routes nothing.
 	const itemScoped = [...dependenciesOf(node.test)].some(name =>
 		fx.itemNames.has(name),
 	)
@@ -1222,8 +1141,8 @@ export const handleReactiveConditional = (
 			...rangeFields(source, node.test),
 			resolution: resolutionOf(node.test, component.serverKnown),
 		})
-		//: a test over the wall clock or the RNG (limb b) has no
-		// winner in ANY tier, the realm included — but the replayed client's
+		//: a test over the wall clock or the RNG (limb b) has no winner in
+		// ANY tier, the realm included — but the replayed client's
 		// `reconcile()` clones one at connect when the component is Simulated
 		// for another reason. Record the arm set so the driver strips that
 		// arm before serializing, as it reverts every other limb-(b) site.

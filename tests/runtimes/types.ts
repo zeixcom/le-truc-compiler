@@ -1,22 +1,4 @@
-/**
- * The runtime seam ().
- *
- * The build's file IO and process spawning go through this interface so the
- * repo's build system — the dev server and the reactive effects — is not
- * Bun-only. Two implementations exist: `bun.ts` (Bun.file / Bun.write /
- * Bun.spawn / Bun.Glob) and `node.ts` (node:fs / node:child_process),
- * selected once at module load (`index.ts`). Since  (D-32) the
- * compiler package owns its own file-system seam
- * (`server/compiler/fs.ts`) instead of importing this one; this module
- * serves the repo side. Everything here stays runtime-neutral all the
- * same, and the emitted `.ts`/`.css` files — the interface consumers
- * actually get — are standard output any bundler takes.
- *
- * Glob PATTERN semantics are deliberately NOT per-runtime: `glob.ts` holds
- * one shared translator used by both implementations, so a consumer's
- * configured globs cannot match one file set under Bun and another under
- * Node. What differs is only the machinery underneath read/write/spawn.
- */
+/** The runtime seam: the build's file IO and process spawning go through this interface so the repo's build system — the dev server and the reactive effects — is not Bun-only. Two implementations (`bun.ts`, `node.ts`) are selected once at module load (`index.ts`); the compiler package owns its own file-system seam (`src/fs.ts`) instead, and this module serves the repo side. Glob PATTERN semantics are deliberately NOT per-runtime: `glob.ts` holds one shared translator used by both implementations, so a consumer's configured globs cannot match one file set under Bun and another under Node. */
 
 /** Options for `scanGlob`. */
 export type GlobScanOptions = {
@@ -55,13 +37,7 @@ export type RuntimeIO = {
 	copyFile(source: string, dest: string): Promise<void>
 	/** Delete a file; a missing file is not an error. */
 	removeFile(path: string): Promise<void>
-	/**
-	 * Every FILE the glob selects under `cwd`, as sorted relative paths with
-	 * forward slashes. Dotfiles and directories inside dot-directories never
-	 * match unless the pattern segment itself starts with a dot. Synchronous
-	 * on purpose: both implementations have sync primitives, and the build's
-	 * discovery phases are sequential by construction.
-	 */
+	/** Every FILE the glob selects under `cwd`, as sorted relative paths with forward slashes. Dotfiles and directories inside dot-directories never match unless the pattern segment itself starts with a dot. Synchronous on purpose: both implementations have sync primitives, and the build's discovery phases are sequential by construction. */
 	scanGlob(pattern: string, options: GlobScanOptions): string[]
 	/** Full-path glob match — the same semantics `scanGlob` applies. */
 	matchGlob(pattern: string, path: string): boolean

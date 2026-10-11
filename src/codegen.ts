@@ -1,24 +1,3 @@
-/**
- * The shared code-generation kit (): what both emitters use to write
- * generated TypeScript. Three parts, one rule each.
- *
- * - `jsString()` / `jsTemplate()` are THE sanctioned ways to put an author
- *   string into generated source: a string literal, or a template literal
- *   whose static segments are escaped and whose interpolations are code. Raw
- *   `'${author}'` interpolation is a syntax error at best and a source
- *   injection at worst (review §1.2/§1.3, point-fixed by ).
- * - `HtmlWriter` collects one push argument's HTML: static markup (with
- *   attribute values HTML-escaped) and code expressions, rendered through
- *   `jsTemplate()`.
- * - `CodeBuilder` owns a generated block's lines, its indentation depth and
- *   the running character offset its span table is recorded against, so a
- *   caller never hand-manages a tab prefix or a `cursor.offset`.
- *
- * Pure string computation: no pipeline types, no runtime values beyond the
- * `spans.ts` reindent/span helpers. The kit's fourth part, `commonIndent()`,
- * lives in `indent.ts` beside the line classification it consumes.
- */
-
 import {
 	appendWithSpans,
 	type SourceSlice,
@@ -28,11 +7,6 @@ import {
 
 /* === Types === */
 
-/**
- * One segment of a template literal: escaped static text, or a code
- * expression. Not a **Hole** (CONTEXT.md, ADR 0021) — that is a request-time
- * template-target position with an escaping context; this is generated JS.
- */
 export type TemplatePart = { static: string } | { expr: string }
 
 /* === Internal Functions === */
@@ -54,12 +28,6 @@ const escapeAttrValue = (value: string): string =>
 
 /* === Exported Functions === */
 
-/**
- * A JS string literal for `value`. The default `'single'` form keeps plain
- * printable ASCII in single quotes and JSON-quotes everything else (a JSON
- * string literal IS a JS string literal); `'double'` is always JSON-quoted.
- * Both are sound for every input — the choice only fixes the bytes.
- */
 export const jsString = (
 	value: string,
 	quote: 'single' | 'double' = 'single',
@@ -68,11 +36,6 @@ export const jsString = (
 		? `'${value}'`
 		: JSON.stringify(value)
 
-/**
- * A JS template literal over `parts`: static segments escaped, code
- * expressions interpolated. A parts list with no expression is a plain
- * double-quoted string.
- */
 export const jsTemplate = (parts: readonly TemplatePart[]): string => {
 	if (parts.every(p => 'static' in p))
 		return jsString(
@@ -92,33 +55,14 @@ export const jsData = (value: unknown): string => JSON.stringify(value)
 export const isJsIdentifier = (name: string): boolean =>
 	/^[A-Za-z_$][\w$]*$/.test(name)
 
-/**
- * The client query for one arm set's inert `<template>`s (ADR 0015): the
- * exact selector the generated client modules run (`emit-client.ts`'s
- * `reconcile()` calls) and the realm's `liveArmOf` re-derives
- * (`sim/realm.ts`) — against the `<template data-arms data-key>` stamp the
- * server emitter writes (`stampArmTemplate`, emit-server.ts). One spelling
- * here, or the three drift.
- */
 export const dataArmsSelector = (armSet: string | number): string =>
 	`:scope > template[data-arms="${armSet}"]`
 
 /* === Classes === */
 
-/**
- * One push argument's HTML (generalising the server emitter's
- * `Part[]`): static markup and code expressions in order, rendered with
- * `jsTemplate()`. `attr()` HTML-escapes a static attribute value; `expr()`
- * takes generated code whose RESULT is markup (the harness's `attr()`,
- * `esc()` and friends escape at render time).
- */
 export class HtmlWriter {
 	readonly #parts: TemplatePart[] = []
 
-	/**
-	 * Static markup, verbatim. Adjacent static segments merge, so a `$` and
-	 * a `{` written apart are still escaped as one `${`.
-	 */
 	static(markup: string): this {
 		const last = this.#parts.at(-1)
 		if (last && 'static' in last) last.static += markup
@@ -155,21 +99,6 @@ export class HtmlWriter {
 	}
 }
 
-/**
- * A generated block's lines, its indentation depth and its span table
- * (). `line()` writes one statement at the current depth; `open()` /
- * `close()` / `between()` move the depth around a braced block, so no caller
- * computes a tab prefix. The character offset spans are recorded against is
- * kept as an invariant of every write, never by hand.
- *
- * In `reindent` mode a multi-line statement's continuation lines drop their
- * common indentation and take the current depth, and verbatim `slices` are
- * span-recorded (`appendWithSpans`); otherwise a statement's continuation
- * lines pass through as written. A statement written with `slices` takes the
- * `reindent` path in either mode, so its spans are recorded: a single-line
- * statement comes out the same, and a multi-line one is re-indented (the
- * server's text sinks over a multi-line authored arrow).
- */
 export class CodeBuilder {
 	readonly lines: string[] = []
 	readonly spans: SourceSpan[] = []
@@ -228,10 +157,6 @@ export class CodeBuilder {
 		return new CodeBuilder({ depth: this.depth, reindent: this.#reindent })
 	}
 
-	/**
-	 * Append another builder's output (or pre-formatted lines), rebasing its
-	 * spans onto this builder's offset.
-	 */
 	append(other: CodeBuilder | readonly string[]): this {
 		const base = this.#cursor.offset
 		if (other instanceof CodeBuilder)

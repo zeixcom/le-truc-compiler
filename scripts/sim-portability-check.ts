@@ -1,5 +1,5 @@
 /**
- * Cross-runtime check for the Server-Simulation driver (ADR 0027, LT-151).
+ * Cross-runtime check for the Server-Simulation driver.
  *
  * Prepares one probe job — the `form-colorgraph` stress case from the ADR
  * spike, the heaviest corpus component (canvas drawing, `ResizeObserver`,

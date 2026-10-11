@@ -1,22 +1,4 @@
-/**
- * A signal initializer reading a Parser-backed `host` prop (), on both
- * surfaces. The shape — `expose({ seed: asJSON(…) })`, then
- * `createList(host.seed, { keyConfig })` under a root `seed={…}` — compiled
- * clean and miscompiled three ways; each is pinned here:
- *
- * - the server folds `host.seed` through `hostSeedExpr` (the parser applied
- *   to the rendered root attribute), so the render shows the items instead
- *   of evaluating against `refStub`;
- * - the client emits setup in source order, so `createList` runs after
- *   `expose()` has installed `seed`, and connect raises nothing;
- * - a substituted declaration keeps the call's other arguments, so the
- *   client's list is keyed by `keyConfig` and `byKey` resolves.
- *
- * A prop with no server truth (no root attribute) routes per ADR 0008
- * instead: the signal leaves the server scope and the component goes to the
- * realm. A literal-free list rendered directly over `host.seed` takes the
- * verbatim route, as a literal seed does.
- */
+/** A signal initializer reading a Parser-backed `host` prop, on both surfaces — `expose({ seed: asJSON(…) })` then `createList(host.seed, { keyConfig })` under a root `seed={…}`, a shape that once miscompiled three ways. The server folds `host.seed` through `hostSeedExpr` (the parser applied to the rendered root attribute); the client emits setup in source order, so `createList` runs after `expose()` has installed `seed`; and a substituted declaration keeps the call's other arguments, so `byKey` resolves. A prop with no server truth routes to the realm instead; a list rendered directly over `host.seed` takes the verbatim route. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import * as path from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -29,8 +11,6 @@ const FILE = 'tests/fixtures/c-host-seeded'
 
 const generated = createGeneratedDir('host-seeded-signal')
 afterAll(() => generated.cleanup())
-
-/* === Helpers === */
 
 type Surface = 'tsrx' | 'tsx'
 
@@ -134,8 +114,6 @@ const ROWS = [
 
 const KEYED = `const tickers = createList<Row>(host.seed, { keyConfig: item => item.symbol })`
 
-/* === The ticker shape: an unrendered list, a derived one rendered === */
-
 const TICKER: Shape = {
 	rootAttrs: 'seed={JSON.stringify(rows)}',
 	setup: `${KEYED}
@@ -203,8 +181,6 @@ describe('a list seeded from a Parser-backed host prop (LT-451)', () => {
 	}
 })
 
-/* === A prop with no server truth routes per ADR 0008 === */
-
 describe('a host prop with no root attribute routes the signal to the realm (LT-451)', () => {
 	for (const surface of SURFACES) {
 		test(surface, async () => {
@@ -226,8 +202,7 @@ describe('a host prop with no root attribute routes the signal to the realm (LT-
 					"`tickers`'s createList() initializer reads host with no server value",
 				],
 			])
-			// No site renders the unresolvable list; the client evaluates it
-			// itself, after expose().
+			// No site renders the unresolvable list; the client evaluates it itself, after expose().
 			const markup = await render(component.serverCode, { rows: ROWS })
 			expect(markup).not.toContain('1.5')
 			const client = component.clientCode
@@ -237,8 +212,6 @@ describe('a host prop with no root attribute routes the signal to the realm (LT-
 		})
 	}
 })
-
-/* === A list rendered directly over host.seed === */
 
 describe('a list rendered directly over a Parser-backed host prop (LT-451)', () => {
 	for (const surface of SURFACES) {
@@ -279,8 +252,6 @@ describe('a list rendered directly over a Parser-backed host prop (LT-451)', () 
 		})
 	}
 })
-
-/* === A substituted declaration keeps the call's other arguments === */
 
 describe('a harvested declaration keeps its options argument (LT-451)', () => {
 	const sources: Record<Surface, string> = {

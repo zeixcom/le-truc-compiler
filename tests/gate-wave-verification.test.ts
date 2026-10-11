@@ -1,16 +1,4 @@
-/**
- * Gate-wave verification (LT-153 re-scope of LT-143/LT-133/LT-144/LT-145):
- * ADR 0006 turned four former compiler fold-route tasks into pinning tasks —
- * "does the simulated render come out right", not "can the compiler prove it
- * statically". `sim-driver.test.ts` already exercises the whole corpus
- * (including `basic-number`, `basic-gauge` and `form-listbox`) through the
- * driver; this file adds the fixtures those four tasks specifically call for
- * that the corpus's default ARGS don't exercise (several `count` values, the
- * `{host.count}`/`{count}` spelling pair, and `form-listbox`'s `filterable`
- * clear button). The LT-143/LT-144 legs pinned the corpus's
- * `basic-pluralize`; since its retirement  they compile the same
- * source as the `c-plural` compiler fixture.
- */
+/** Gate-wave verification: the former compiler fold-route tasks became pinning tasks — "does the simulated render come out right", not "can the compiler prove it statically". `sim-driver.test.ts` exercises the whole corpus through the driver; this file adds the fixtures those tasks call for that the corpus's default args don't exercise (several `count` values, the `{host.count}`/`{count}` spelling pair, and `form-listbox`'s `filterable` clear button). */
 import { afterAll, describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -73,16 +61,13 @@ const loadRealm = async (
 ): Promise<JsdomSimulationRealm> => {
 	const realm = createSimulationRealm({
 		composesTags: tag => registry[tag]?.composesTags ?? [],
-		//  step 7: registry-driven suppression (no corpus component
-		// carries records today).
+		// Registry-driven suppression (no corpus component carries records today).
 		suppressedSites: tag => registry[tag]?.suppressedSites ?? [],
 	})
 	for (const info of infos)
 		await realm.load(() => import(pathToFileURL(info.clientModulePath).href))
 	return realm
 }
-
-/* === LT-143 — c-plural renders correctly (LT-173: Folded; LT-252: one ICU pattern) === */
 
 const pluralizeCompiled = await compileCorpus(
 	[cPluralFixture()],
@@ -95,12 +80,7 @@ const pluralizeInfo = pluralizeCompiled.find(entry => entry.tag === 'c-plural')
 if (!pluralizeInfo) throw new Error('c-plural did not compile')
 const pluralizeRealm = await loadRealm(pluralizeRegistry, [pluralizeInfo])
 
-/**
- * The reserved `i18n` record a fixture passes for c-plural (the
- * compiler supplies the real one at every render boundary; see
- * `corpus-args.ts` for the shared copy's rationale). `en`, cardinal (no
- * `ordinal` arg).
- */
+/** The reserved `i18n` record a fixture passes for c-plural (the compiler supplies the real one at every render boundary; `corpus-args.ts` has the shared copy). `en`, cardinal (no `ordinal` arg). */
 const C_PLURAL_ARGS = (count: number): Record<string, unknown> => ({
 	count,
 	i18n: C_PLURAL_I18N,
@@ -117,11 +97,7 @@ const catalogEntry = (
 	return entry
 }
 
-/**
- * The record `i18nRecord('c-plural', locale)` would resolve: the
- * fixture catalog's strings, and its `tasks` pattern as an argument
- * message baked with the locale's plural rules.
- */
+/** The record `i18nRecord('c-plural', locale)` would resolve: the fixture catalog's strings, and its `tasks` pattern as an argument message baked with the locale's plural rules. */
 const localeArgs = (locale: string, overrides?: Record<string, unknown>) => ({
 	...C_PLURAL_ARGS(1),
 	lang: locale,
@@ -147,11 +123,7 @@ describe('LT-143 — c-plural renders correctly under simulation', () => {
 	afterAll(() => pluralizeRealm.dispose())
 
 	test('LT-173 acceptance: classifies Folded — no standing routing signals', () => {
-		// The reserved `i18n` parameter (ADR 0009) makes the locale
-		// server-known, so `Intl.PluralRules` folds  and the six
-		// LTC034 routing signals the six-span shape carried are gone. If a NEW
-		// signal appears here, the fold rule or the classifier moved underneath
-		// the fixture; investigate rather than reclassify.
+		// The reserved `i18n` parameter makes the locale server-known, so `Intl.PluralRules` folds. If a NEW signal appears here, the fold rule or the classifier moved underneath the fixture; investigate rather than reclassify.
 		expect(pluralizeRegistry['c-plural']?.tier).toBe('folded')
 		expect(pluralizeRegistry['c-plural']?.routingSignals).toHaveLength(0)
 	})
@@ -164,25 +136,12 @@ describe('LT-143 — c-plural renders correctly under simulation', () => {
 	})
 
 	test('LT-252: the byte delta against the six-span render (the ADR 0009 headline, pinned)', async () => {
-		// The  render at en, count=1, cardinal was 226 bytes: two
-		// pruned category spans — `<span class="one">task</span><span hidden
-		// class="other">tasks</span>`, 68 bytes — and no attribute. The pattern
-		// render's body carries ONE span, `<span class="tasks">task</span>`
-		// (31 bytes): the body shrinks by 37. The client-reactive argument
-		// (`count`) would put the pattern's parsed AST on the root `i18n`
-		// attribute (ADR 0009 s9), but at the source locale it equals the
-		// preamble's inlined source record, so the attribute is left out
-		// (; measured 539 bytes of it, 728 in total). The
-		// measurements were taken on `<basic-pluralize>`; the fixture's
-		// `<c-plural>` tag is 7 bytes shorter in both the open and the close
-		// tag , so every total below is 14 bytes under them.
+		// At en, count=1, cardinal the pre-pattern render was 226 bytes: two pruned category spans (68 bytes) and no attribute; the pattern render's body carries ONE span, so the body shrinks by 37. The measurements were taken on `<basic-pluralize>`, whose tag is 7 bytes longer than `<c-plural>` in open and close — hence TAG_DELTA. The root `i18n` attribute is left out at the source locale: the client-reactive `count` argument would put the pattern's parsed AST there, but at `en` it equals the preamble's inlined source record.
 		const TAG_DELTA = 2 * ('basic-pluralize'.length - 'c-plural'.length)
 		const html = await serverMarkupOf(pluralizeInfo, C_PLURAL_ARGS(1))
 		expect(html).not.toContain(' i18n=')
 		expect(Buffer.byteLength(html)).toBe(226 - 37 - TAG_DELTA)
-		// A translated locale still pays for it: cy carries both arms' six
-		// categories. Without a locale per node (ADR 0009 s6) the total is
-		// 957 bytes, down from the ticket's 1015.
+		// A translated locale still pays for it: cy carries both arms' six categories.
 		const welsh = await serverMarkupOf(pluralizeInfo, localeArgs('cy'))
 		const attribute = / i18n="[^"]*"/.exec(welsh)?.[0] ?? ''
 		expect(attribute).not.toContain('&quot;l&quot;')
@@ -203,10 +162,7 @@ describe('LT-143 — c-plural renders correctly under simulation', () => {
 		).toEqual(['tasks'])
 	})
 
-	// ADR 0009's consequence list: "the served markup for a component
-	// differs per locale beyond its text — a fact fixtures must pin per
-	// locale rather than once." Since  the shape is one span in every
-	// locale; the arms live inside each committed catalog pattern.
+	// The served markup differs per locale beyond its text — pinned per locale. The shape is one span in every locale; the arms live inside each committed catalog pattern.
 	test.each([
 		// Welsh: all six cardinal categories inside one value
 		['cy', 0, 'tasg'],
@@ -276,11 +232,7 @@ describe('LT-143 — c-plural renders correctly under simulation', () => {
 	)
 
 	test('LT-191: a client-authored instance inherits lang from the nearest [lang] ancestor', async () => {
-		// Hand-authored light DOM — the demo-page shape: no server render
-		// owns the root lang attribute, so the connect-time walk answers and
-		// materializes. With no `i18n` attribute the instance speaks the
-		// source locale (ADR 0009 s9): Welsh 2 is `two`, which the en
-		// pattern does not spell, so it falls to `other`.
+		// Hand-authored light DOM — the demo-page shape: no server render owns the root lang attribute, so the connect-time walk answers and materializes. With no `i18n` attribute the instance speaks the source locale: Welsh 2 is `two`, which the en pattern does not spell, so it falls to `other`.
 		const markup = `<div lang="cy"><c-plural count="2">
 			<p class="none">none</p>
 			<p class="some"><span class="count"></span><span class="tasks"></span></p>
@@ -307,9 +259,7 @@ describe('LT-143 — c-plural renders correctly under simulation', () => {
 	})
 
 	test('LT-252: changing count after connect re-evaluates the pattern', async () => {
-		// ADR 0009 s6: a message with a client-reactive argument is
-		// recomputed from the pattern, not selected among pre-rendered
-		// alternatives.
+		// A message with a client-reactive argument is recomputed from the pattern, not selected among pre-rendered alternatives.
 		const { html } = await pluralizeRealm.render({
 			markup: await serverMarkupOf(pluralizeInfo, C_PLURAL_ARGS(1)),
 			component: 'c-plural',
@@ -361,10 +311,7 @@ describe('LT-143 — c-plural renders correctly under simulation', () => {
 	)
 
 	test('LT-252: a page of per-locale renders — every instance connects to its own wording', async () => {
-		// The retired example page's shape : one instance per locale,
-		// each carrying the `i18n` attribute its server render wrote, plus a
-		// client-authored instance that inherits `cy` from an ancestor.
-		// Connect them together and read each, as its Playwright spec did.
+		// One instance per locale, each carrying the `i18n` attribute its server render wrote, plus a client-authored instance inheriting `cy` from an ancestor — connected together, each read in turn.
 		const instances: Array<[string, string, number]> = [
 			['de', 'german', 3],
 			['zh', 'chinese', 5],
@@ -406,8 +353,6 @@ describe('LT-143 — c-plural renders correctly under simulation', () => {
 		)
 	})
 })
-
-/* === LT-133 — basic-number renders the formatted value under simulation === */
 
 const numberGauge = await compileSubset(['basic-number', 'basic-gauge'])
 const numberInfo = numberGauge.compiled.find(
@@ -454,16 +399,11 @@ describe('LT-133 — basic-number renders the formatted value under simulation',
 	})
 })
 
-/* === LT-144 — {host.count} and {count} converge on the same initial render === */
-
 const withArgSource = cPluralFixture()
 
 const spellingVariant = (tag: string, spelling: 'host.count' | 'count') => ({
 	...withArgSource,
-	// `path` (not just `filename`) must be distinct per variant: the corpus
-	// runner keys its per-file compose registry off `relative(root, file.path)`,
-	// so two variants sharing the source's original `path` collide and only
-	// the last one compiled survives.
+	// `path` (not just `filename`) must be distinct per variant: the corpus runner keys its per-file compose registry off `relative(root, file.path)`, so two variants sharing the source's original `path` collide and only the last one compiled survives.
 	path: `${withArgSource.path}.${tag}`,
 	filename: `examples/synth/${tag}/${tag}.tsrx`,
 	content: withArgSource.content
@@ -510,19 +450,12 @@ describe('LT-144 — {host.count} and {count} converge on the same initial rende
 		},
 	)
 
-	// The convergence is in the SERIALIZED OUTPUT only. `{host.count}` plans a
-	// live `watch(() => host.count, bindText(...))`; `{count}` is a
-	// compile-time literal substitution with no client binding at all — the
-	// real, still-standing distinction (the ticket's one-site-three-roles,
-	// untouched by ). A later `host.count` mutation updates one and not
-	// the other; that is a binding-plan difference, not a silent-empty bug.
+	// The convergence is in the serialized output only: `{host.count}` plans a live `watch(() => host.count, bindText(...))`, `{count}` is a compile-time literal substitution with no client binding at all. A later `host.count` mutation updates one and not the other — a binding-plan difference, not a silent-empty bug.
 	test('the reactive spelling plans a client binding the static spelling does not', () => {
 		expect(hostVariant.spans).toBeTruthy()
 		expect(bareVariant.spans).toBeTruthy()
 	})
 })
-
-/* === LT-145 — a Parser-exposed prop with no server arg renders its fallback === */
 
 const listboxCombobox = await compileSubset(['form-listbox', 'form-combobox'])
 const listboxInfo = listboxCombobox.compiled.find(
@@ -570,9 +503,7 @@ describe('LT-145 — a Parser-exposed prop with no server arg renders its fallba
 			}),
 			component: 'form-combobox',
 		})
-		// form-combobox composes its own listbox without `filterable`, so no
-		// clear button is expected here — this pins that the composed render
-		// still succeeds and matches the corpus snapshot's shape.
+		// form-combobox composes its own listbox without `filterable`, so no clear button is expected here — this pins that the composed render still succeeds and matches the corpus snapshot's shape.
 		expect(html).toContain('<form-listbox')
 	})
 })

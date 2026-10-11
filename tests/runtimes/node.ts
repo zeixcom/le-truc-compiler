@@ -1,11 +1,4 @@
-/**
- * The Node implementation of the runtime seam ().
- *
- * Uses only node: APIs — fs for files, child_process for spawning and the
- * shared glob walk. Every node: module used here is implemented by Bun and
- * Deno as well, so this file also loads anywhere; it is simply not the one
- * selected outside Node (`index.ts`).
- */
+/** The Node implementation of the runtime seam: only node: APIs — fs for files, child_process for spawning and the shared glob walk. Every node: module used here is implemented by Bun and Deno as well, so this file also loads anywhere; it is simply not the one selected outside Node (`index.ts`). */
 
 import { spawn as spawnProcess } from 'node:child_process'
 import {
@@ -31,7 +24,7 @@ const io: RuntimeIO = {
 
 	async fileExists(path) {
 		// A regular file, per the interface — a directory answers false, as
-		// `Bun.file(path).exists()` does ().
+		// `Bun.file(path).exists()` does.
 		try {
 			return (await stat(path)).isFile()
 		} catch {

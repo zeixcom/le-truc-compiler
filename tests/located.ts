@@ -1,8 +1,4 @@
-/**
- * Test helpers over a diagnostic's range (ADR 0022 s1): the line
- * it starts on and the authored text it covers. They read the published
- * record (`location`) and the stages' local one (`range`) alike.
- */
+/** Helpers over a diagnostic's range: its start line and covered text, in either the published (`location`) or local (`range`) shape. */
 
 import { lineOf } from '../src/diagnostics'
 

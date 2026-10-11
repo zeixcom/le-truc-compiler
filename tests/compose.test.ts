@@ -1,11 +1,4 @@
-/**
- * Component composition — server-side PascalCase invocation (ADR 0005
- * sub-design 10). Scoped to server splicing: a capitalized JSX tag
- * bound to an `import` of another `.tsrx` module resolves against a
- * corpus-wide compose registry (keyed by resolved source path, mirroring
- * `server/effects/compile.ts`'s two-pass compile) and the parent's generated
- * server module imports and calls the child's `render<Name>()`.
- */
+/** Component composition — server-side PascalCase invocation: a capitalized JSX tag bound to an `import` of another `.tsrx` module resolves against a corpus-wide compose registry (keyed by resolved source path) and the parent's generated server module imports and calls the child's `render<Name>()`. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import { analyzeClient } from '../src/analysis/plan'
 import type { LocalDiagnostic } from '../src/diagnostics'
@@ -14,10 +7,7 @@ import { compileComponentTsx } from '../src/frontend/tsx'
 import type { InternalRegistryEntry } from '../src/registry'
 import { createGeneratedDir } from './helpers/generated-corpus'
 
-// `value` is exposed from a plain literal, i.e. Slot-backed : the
-// parent fixtures below pass to it, and since LTC012 now decides a pass
-// target's prop against the CHILD's own expose(), a child that exposed
-// nothing would make every one of them a compile error.
+// `value` is exposed from a plain literal, i.e. Slot-backed: the parent fixtures below pass to it, and LTC012 decides a pass target's prop against the child's own expose(), so a child exposing nothing would make every one of them a compile error.
 const child = `export function BasicChild({ label }: { label: string })
 	@{
 		expose({ value: '' })
@@ -40,10 +30,7 @@ const compileChild = (path: string, source = child) => {
 const composeRegistryOf = (...entries: InternalRegistryEntry[]) =>
 	new Map(entries.map(e => [e.source, e]))
 
-// Generated server modules must exist for in-process execution ;
-// the effect normally writes them, tests must not depend on a prior build.
-// Same harness as server.golden.test.ts — a per-run directory, never the
-// build pipeline's own output .
+// Generated server modules must exist for in-process execution — the effect normally writes them, and tests must not depend on a prior build. Same harness as server.golden.test.ts: a per-run directory, never the build pipeline's own output.
 const generated = createGeneratedDir('compose')
 afterAll(() => generated.cleanup())
 const ensureEmitted = (tag: string, code: string): void => {
@@ -173,7 +160,7 @@ export function BasicParent({}: {})
 		)
 		if (!component)
 			throw new Error(`parent must compile: ${JSON.stringify(diagnostics)}`)
-		// Spliced onto the child's root, not forwarded as an arg .
+		// Spliced onto the child's root, not forwarded as an arg.
 		expect(component.serverCode).toContain(
 			'composeHostAttrs(renderBasicChild({  }), "basic-child", { "data-testid": "hello" })',
 		)
@@ -363,11 +350,10 @@ export function BasicParent({ title }: { title: string })
 			throw new Error(`parent must compile: ${JSON.stringify(diagnostics)}`)
 		expect(component.serverCode).toContain('const __children1: string[] = []')
 		expect(component.serverCode).toContain(
-			// The region owner rides as the second argument (ADR 0026 s1).
+			// The region owner rides as the second argument.
 			'renderBasicChild({ "label": title, children: __children1.join(\'\') }, "basic-parent")',
 		)
-		// The child's root encloses the insertion: it carries the marker,
-		// and only when a compiled owner passed its tag.
+		// The child's root encloses the insertion: it carries the marker, and only when a compiled owner passed its tag.
 		expect(childComponent.serverCode).toContain('__owner?: string): string {')
 		expect(childComponent.serverCode).toContain(
 			"attr('data-children', __owner)",
@@ -489,8 +475,7 @@ export function BasicParent({ title }: { title: string }) {
 	)
 }`
 		const declared = [
-			// A required reference whose reason is the default message: the
-			// auto-addressed query is required, with that same message.
+			// A required reference whose reason is the default message: the auto-addressed query is required with that same message.
 			"const basicChild = first('basic-child.a', 'basic-parent: basic-child.a missing')",
 			"const basicChild2 = first('basic-child.b', 'basic-parent: basic-child.b missing')",
 		].join('\n')
@@ -664,8 +649,7 @@ export function BasicParent({ title }: { title: string }) {
 					).toHaveLength(1)
 				})
 			test(`${surface.name}: a group member with its own first() never compiles silently (LT-339)`, () => {
-				// `[label="a"]` is unique, but `label` is not a discriminator
-				// attribute, so neither site has a unique clause of its own.
+				// `[label="a"]` is unique, but `label` is not a discriminator attribute, so neither site has a unique clause of its own.
 				const { component, diagnostics } = surface.compile(
 					` label="a" truc:pass={{ value: () => 'v' }}`,
 					" truc:pass={{ value: () => 'v' }}",
@@ -935,8 +919,7 @@ export function BasicParent({ title }: { title: string })
 			expect(component.clientCode).not.toContain("first('basic-child.a'")
 		})
 
-		// A child whose own template renders <basic-child>: raw, and through
-		// a composed grandchild.
+		// A child whose own template renders <basic-child>: raw, and through a composed grandchild.
 		const cardWith = (inner: string, imports = '') =>
 			compileChild(
 				'examples/card/basic-card.tsrx',
@@ -1035,10 +1018,7 @@ export function BasicParent({ title }: { title: string })
 		)
 		if (!component)
 			throw new Error(`must compile: ${JSON.stringify(diagnostics)}`)
-		// Render through the generated server module (same in-process
-		// execution as server.golden.test.ts) — the discriminator the client
-		// selector relies on (`first('basic-child.a')`) must exist in the
-		// served DOM, not just in the query string.
+		// The discriminator the client selector relies on must exist in the served DOM, not just in the query string.
 		ensureEmitted('basic-child', childComponent.serverCode)
 		ensureEmitted('basic-parent', component.serverCode)
 		const mod = await generated.importModule('basic-parent.server.ts')
@@ -1078,8 +1058,7 @@ export function BasicParent({ title }: { title: string })
 		)
 		if (!component)
 			throw new Error(`must compile: ${JSON.stringify(diagnostics)}`)
-		// "May be absent" includes "the page, not this template, authors it"
-		// — the same latitude an unmatched optional RAW selector gets.
+		// "May be absent" includes "the page, not this template, authors it" — the same latitude an unmatched optional raw selector gets.
 		expect(diagnostics.filter(d => d.severity === 'error')).toEqual([])
 		expect(component.clientCode).toContain("first('other-child')")
 	})
@@ -1100,9 +1079,7 @@ export function BasicParent({ title }: { title: string })
 }</style>
 			</basic-parent>
 	}`
-		// No composeRegistry: this is pass 1, which only harvests each file's
-		// own registry entry. It must not reject the file — pass 2 never gets
-		// to compile a file pass 1 dropped.
+		// No composeRegistry: this is pass 1, which only harvests each file's own registry entry. It must not reject the file — pass 2 never gets to compile a file pass 1 dropped.
 		const { component, diagnostics } = compileComponent(
 			parent,
 			'examples/parent/basic-parent.tsrx',
@@ -1139,8 +1116,7 @@ export function BasicParent({ title }: { title: string })
 			composeRegistryOf(childComponent.entry),
 		)
 		expect(component).toBeNull()
-		// One diagnostic per unresolvable reference, and no second helping
-		// of LTC012 for the same two compose sites.
+		// One diagnostic per unresolvable reference, and no second helping of LTC012 for the same two compose sites.
 		expect(diagnostics.filter(d => d.code === 'LTC027')).toHaveLength(2)
 		expect(diagnostics.filter(d => d.code === 'LTC012')).toHaveLength(0)
 	})
@@ -1198,11 +1174,7 @@ export function BasicParent({ title }: { title: string })
 })
 
 describe('compose-ref attachment idempotence (LT-221 §1.4)', () => {
-	// `resolveComposeRefs` attaches the synthetic `{kind: 'ref'}` attr onto
-	// the shared IR — the pipeline runs it once inside `analyzeClient`, and
-	// any SECOND `analyzeClient` over the same IR (a test harness, a future
-	// caller) used to trip the claimed-ref check and report a spurious
-	// LTC041 against the pass's own attachment.
+	// `resolveComposeRefs` attaches the synthetic `{kind: 'ref'}` attr onto the shared IR; a second `analyzeClient` over the same IR used to trip the claimed-ref check and report a spurious LTC041 against the pass's own attachment.
 	const parentWithRef = `import { BasicChild } from '../child/basic-child.tsrx'
 
 export function BasicParent({ title }: { title: string })
@@ -1241,21 +1213,11 @@ export function BasicParent({ title }: { title: string })
 })
 
 describe('compose site inside a @pending arm (LT-221 §1.4 probe, overruled by LT-460)', () => {
-	// The  probe refused a compose site as a @pending arm root: the
-	// arm-shape rule filtered `kind === 'element'`, so a single compose
-	// root could never satisfy it, and the compose walks omitting pending
-	// arms was ruled consistent garbage-in protection.  overruled
-	// that (owner: bug — the arm root path was never routed through compose
-	// lowering): an arm root that is a compose site lowers as a compose
-	// site, and `data-key` splices onto the child's rendered root through
-	// the same `composeHostAttrs` path as `class`/`id`/`data-*`. Pinned
-	// below, in the arm-positions band.
+	// The old refusal here is overruled: an arm root that is a compose site lowers as a compose site, and `data-key` splices onto the child's rendered root through the same `composeHostAttrs` path as `class`/`id`/`data-*`. Pinned in the arm-positions band below.
 })
 
 describe('compose site nested below a @pending root (LT-230 walk policy)', () => {
-	// Every walk enters `@pending` arms (walk.ts): the arm's markup renders —
-	// the winner live, the other arms as inert templates (ADR 0015 s4) — so a
-	// compose site nested below its root coexists in the DOM with the body's.
+	// Every walk enters `@pending` arms: the winner renders live, the other arms as inert templates, so a compose site nested below its root coexists in the DOM with the body's.
 	const parentWith = (
 		pendingChild: string,
 	) => `import { BasicChild } from '../child/basic-child.tsrx'
@@ -1308,18 +1270,9 @@ export function BasicParent({}: {})
 })
 
 describe('compose sites in arm positions (LT-460)', () => {
-	// An arm root that is a compose site lowers as a compose site, and the
-	// children of a compose site render inside every binding scope that
-	// encloses the site. The async boundary is the one scope whose
-	// templates sit OUTSIDE the catch binding, so the sanctioned
-	// binding-scope read is the catch parameter — written by the live arm,
-	// baked empty in the inert templates, and rebound on the client through
-	// the boundary's err watch on a parent-authored message element inside
-	// the composed content.
+	// An arm root that is a compose site lowers as a compose site, and the children of a compose site render inside every binding scope enclosing the site. The async boundary is the one scope whose templates sit outside the catch binding, so the sanctioned binding-scope read is the catch parameter — written by the live arm, baked empty in the inert templates, rebound on the client through the boundary's err watch.
 
-	// A child that renders the reserved `{children}` substitution — the
-	// composed content's message element must exist in the child's DOM for
-	// the arm-scoped `first()` to reach it.
+	// A child that renders the reserved `{children}` substitution — the composed content's message element must exist in the child's DOM for the arm-scoped `first()` to reach it.
 	const childrenChild = `export function ChildrenChild({ label, children }: {
 	label: string
 	children?: string
@@ -1386,20 +1339,17 @@ export function BasicParent({}: {})
 		)
 		expect(diagnostics).toEqual([])
 		if (!component) throw new Error('parent must compile')
-		// The live nil arm: `data-key` spliced onto the child's rendered
-		// root, beside the authored `class`.
+		// The live nil arm: `data-key` spliced onto the child's rendered root, beside the authored `class`.
 		expect(component.serverCode).toContain(
 			'composeHostAttrs(renderBasicChild({ "label": "loading" }), "basic-child", { "class": "pending", "data-key": "nil" })',
 		)
-		// The inert template carries the arm content, unkeyed — the
-		// `<template data-key>` names the arm.
+		// The inert template carries the arm content, unkeyed — the `<template data-key>` names the arm.
 		expect(component.serverCode).toContain(
 			'composeHostAttrs(renderBasicChild({ "label": "loading" }), "basic-child", { "class": "pending" })',
 		)
 		// The client switches arms through `reconcile()`'s arm form.
 		expect(component.clientCode).toContain('reconcile(')
-		// In-process execution: the child root carries `data-key` in the
-		// served DOM (the pending state wins at first render).
+		// The child root carries `data-key` in the served DOM (the pending state wins at first render).
 		ensureEmitted('basic-child', childComponent.serverCode)
 		ensureEmitted('basic-parent', component.serverCode)
 		const mod = await generated.importModule('basic-parent.server.ts')
@@ -1427,20 +1377,16 @@ export function BasicParent({}: {})
 		)
 		expect(diagnostics).toEqual([])
 		if (!component) throw new Error('parent must compile')
-		// The LIVE err arm evaluates the read where `e` is bound...
+		// The live err arm evaluates the read where `e` is bound...
 		expect(component.serverCode).toContain('text(e.message)')
-		// ...exactly once: the err arm TEMPLATE bakes the site empty —
-		// before  the generated module read `e` there, out of scope
-		// (TS2552 under check:corpus; a ReferenceError at execution).
+		// ...exactly once: the err arm template bakes the site empty (a second emission would read `e` out of scope).
 		expect(component.serverCode.match(/text\(e\.message\)/g)).toHaveLength(1)
-		// The client rebinds through the boundary's err watch, targeting the
-		// parent-authored message element inside the composed content.
+		// The client rebinds through the boundary's err watch, targeting the parent-authored message element inside the composed content.
 		expect(component.clientCode).toContain("'p.error'")
 		expect(component.clientCode).toContain(
 			'err: error => bindText(errMessage)(error.message)',
 		)
-		// Execution must not throw (the pre-fix module read `e` outside the
-		// catch callback while rendering the err template).
+		// Execution must not throw (rendering the err template must not read `e` outside the catch callback).
 		ensureEmitted('children-child', childComponent.serverCode)
 		ensureEmitted('basic-parent', component.serverCode)
 		const mod = await generated.importModule('basic-parent.server.ts')
@@ -1484,14 +1430,11 @@ export function BasicParent({}: {})
 		)
 		expect(diagnostics).toEqual([])
 		if (!component) throw new Error('parent must compile')
-		// The composed callout IS the err arm root: data-key and the
-		// discriminator splice onto the child's rendered root.
+		// The composed callout IS the err arm root: data-key and the discriminator splice onto the child's rendered root.
 		expect(component.serverCode).toContain(
 			'"class": "danger", "data-key": "err"',
 		)
-		// The message read is bound in the live arm, baked empty in the
-		// err template (the miscompile regression), and the arm-scoped
-		// write targets the parent-authored message element by role.
+		// The message read is bound in the live arm, baked empty in the err template, and the arm-scoped write targets the parent-authored message element by role.
 		expect(component.serverCode.match(/text\(e\.message\)/g)).toHaveLength(1)
 		expect(component.clientCode).toContain('first(\'p[role="alert"]\'')
 		ensureEmitted('card-callout', childComponent.component.serverCode)
@@ -1499,9 +1442,7 @@ export function BasicParent({}: {})
 	})
 
 	test('a bare-tag message element inside composed content is refused — the child renders markup the compiler cannot see (LT-460 rework)', () => {
-		// The child's own label <p> shares the tag with the parent-authored
-		// message element; a bare `p` selector would hit the child's markup
-		// on an err flip and overwrite the label instead of the message.
+		// The child's own label <p> shares the tag with the parent-authored message element; a bare `p` selector would hit the child's markup on an err flip and overwrite the label instead of the message.
 		const labeledChild = `export function ChildrenChild({ label, children }: {
 	label: string
 	children?: string
@@ -1567,10 +1508,7 @@ export function BasicParent({ busy }: { busy: boolean })
 			undefined,
 			composeRegistryOf(childComponent.entry),
 		)
-		// Regression: splitting the deep-construct check per arm in the
-		// first rework left the pending arm with `hasOwnConstruct` only,
-		// so this compiled silently and planned no client code for the
-		// span.
+		// The deep-construct check must cover the whole pending arm, not just its own constructs — otherwise this compiles silently and plans no client code for the span.
 		expect(component).toBeNull()
 		const hit = diagnostics.find(d => d.code === 'LTC005')
 		expect(hit?.severity).toBe('error')
@@ -1602,8 +1540,7 @@ export function BasicParent({ busy }: { busy: boolean })
 		const hit = diagnostics.find(d => d.code === 'LTC005')
 		expect(hit?.severity).toBe('error')
 		expect(hit?.message).toContain('A client construct below the root element')
-		// The generic "move it onto the arm's root element" advice is
-		// impossible here — the fix names the wrapper element instead.
+		// The generic "move it onto the arm's root element" advice is impossible here — the fix names the wrapper element instead.
 		expect(hit?.message).toContain('wrap the read in an element of your own')
 	})
 
@@ -1638,19 +1575,15 @@ export function BasicParent({}: {})
 		)
 		expect(diagnostics).toEqual([])
 		if (!component) throw new Error('parent must compile')
-		// The live winner's child root carries the arm key; the inert
-		// then-template holds the composed arm unkeyed.
+		// The live winner's child root carries the arm key; the inert then-template holds the composed arm unkeyed.
 		expect(component.serverCode).toContain(
 			'"class": "branch", "data-key": "then"',
 		)
 		expect(component.serverCode).toContain(
 			'composeHostAttrs(renderBasicChild({ "label": "open" }), "basic-child", { "class": "branch" })',
 		)
-		// The client switches arms through `reconcile()`'s arm form; with no
-		// constructs on the compose root the mount itself is a no-op body,
-		// so the key thunk carries the arm switching.
+		// With no constructs on the compose root the mount is a no-op body, so the key thunk carries the arm switching.
 		expect(component.clientCode).toContain("? 'then' : 'else'")
-		// Execution: the true arm renders, keyed on the child's root.
 		ensureEmitted('basic-child', childComponent.serverCode)
 		ensureEmitted('basic-parent', component.serverCode)
 		const mod = await generated.importModule('basic-parent.server.ts')
@@ -1713,8 +1646,7 @@ export function BasicParent({ rows }: { rows: string[] })
 		)
 		expect(diagnostics).toEqual([])
 		if (!component) throw new Error('parent must compile')
-		// The composed content's read evaluates inside the render loop,
-		// where the loop variable is bound.
+		// The composed content's read evaluates inside the render loop, where the loop variable is bound.
 		expect(component.serverCode).toContain('text(row)')
 		ensureEmitted('children-child', childComponent.serverCode)
 		ensureEmitted('basic-parent', component.serverCode)
@@ -1831,19 +1763,9 @@ export function BasicParent({}: {}) {
 })
 
 describe('compose arm roots plan their `truc:pass` entries (LT-481)', () => {
-	//  made a compose site legal as an arm root but never planned its
-	// `truc:pass` entries: the arm walk checked only the root's DESCENDANTS
-	// against `unmountableInArm`, so a pass on the root was neither refused
-	// nor lowered — the silent drop the ticket's remedy ("make the condition
-	// reactive: the composed child then renders as its arm's root") steered
-	// authors into. The entries now plan as `pass()` effects in the arm's
-	// mount against the arm element parameter — the arm root IS the child's
-	// rendered element, so no query or local is minted — and a `first()` on
-	// the site stays refused.
+	// A pass on a compose arm root plans as `pass()` effects in the arm's mount against the arm element parameter — the arm root IS the child's rendered element, so no query or local is minted — and a `first()` on the site stays refused.
 
-	// A child that renders its passed prop, so a flip test can see the
-	// pass: `value` is exposed from a plain literal, i.e. Slot-backed
-	// , and `{host.value}` is the reactive lazy child over it.
+	// A child that renders its passed prop, so a flip test can see the pass: `value` is Slot-backed and `{host.value}` is the reactive lazy child over it.
 	const valueChild = `export function ValueChild({}: {})
 	@{
 		expose({ value: '' })
@@ -1973,8 +1895,7 @@ export function BasicParent({}: {}) {
 			)
 			expect(diagnostics).toEqual([])
 			if (!component) throw new Error('parent must compile')
-			// The arm root IS the child's element: the mount casts the arm
-			// element parameter and passes against it — no host query.
+			// The arm root IS the child's element: the mount casts the arm element parameter and passes against it — no host query.
 			expect(component.clientCode).toContain(
 				"const valueChild = armElement as ElementFromSelector<'value-child'>",
 			)
@@ -2002,8 +1923,7 @@ export function BasicParent({}: {}) {
 		const markup = (
 			mod as { renderBasicParent: (args: Record<string, unknown>) => string }
 		).renderBasicParent({})
-		// The server folds the initial winner: the adopted arm renders the
-		// child live, keyed; the other arm sits in its inert template.
+		// The server folds the initial winner: the adopted arm renders the child live, keyed; the other arm sits in its inert template.
 		expect(markup).toContain('<value-child')
 		expect(markup).toContain('data-key="then"')
 
@@ -2033,11 +1953,9 @@ export function BasicParent({}: {}) {
 					mode: string
 				}
 			await settle()
-			// The adopted arm: the pass swapped the signal into the child's
-			// slot at its mount.
+			// The adopted arm: the pass swapped the signal into the child's slot at its mount.
 			expect(child().textContent).toBe('from-a')
-			// The flip clones the other arm, inserts it, THEN mounts it —
-			// the pass meets an upgraded child and binds again.
+			// The flip clones the other arm, inserts it, THEN mounts it — the pass meets an upgraded child and binds again.
 			host().mode = 'b'
 			await settle()
 			expect(child().textContent).toBe('from-b')
@@ -2056,9 +1974,7 @@ export function BasicParent({}: {}) {
 			)
 			expect(diagnostics).toEqual([])
 			if (!component) throw new Error('parent must compile')
-			// The nil arm gains a mount branch with the pass; the err arm's
-			// branch emits the root local and the pass beside its err watch
-			// channel (absent here — no catch-parameter read).
+			// The nil arm gains a mount branch with the pass; the err arm's branch emits the root local and the pass beside its err watch channel (absent here — no catch-parameter read).
 			expect(component.clientCode).toContain(`} else if (armKey === 'nil') {`)
 			expect(component.clientCode).toContain(
 				"pass(valueChild, { value: { get: () => 'loading' } })",
@@ -2123,12 +2039,7 @@ export function BasicParent({}: {}) {
 })
 
 describe('a pass entry on a boundary compose root in a list item refuses setup-const reads (LT-483)', () => {
-	// The pending/err compose roots' pass entries rode `badFreeNames`, the
-	// host-level rule, where the ok arm's constructs now read
-	// `fx.scopeBadNames` : inside a reactive-list item the entry is
-	// LTC005's list-body face, like a pass on a composed child anywhere else
-	// in an item. The probe compiled clean BEFORE the alignment — the const
-	// was emitted and worked — so the point is the uniform authoring rule.
+	// Inside a reactive-list item the pending/err compose roots' pass entries are LTC005's list-body face, like a pass on a composed child anywhere else in an item — the point is the uniform authoring rule.
 	const valueChild = `export function ValueChild({}: {})
 	@{
 		expose({ value: '' })

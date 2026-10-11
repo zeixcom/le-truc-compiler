@@ -1,35 +1,4 @@
-/**
- * Realm-side suppression for unresolvable expressions (ADR 0008 sub-design
- * 1's implementation constraint step 7).
- *
- * The generated client module is the shipped artifact and the realm replays
- * it: for a Simulated-tier component the connect installs EVERY binding,
- * including one whose thunk reads `Date.now()`/`Math.random()`, so without
- * suppression the serialized HTML bakes the build machine's reading into
- * the page permanently — exactly what sub-design 1 forbids ("the realm must
- * not fold one"). The compiler records each unresolvable site
- * (`RegistryEntry.suppressedSites`); the driver snapshots the sites'
- * skeleton state from an INERT parse of the markup — provably pre-connect,
- * because an already-defined tag upgrades DURING the `innerHTML` assignment
- * that parses the markup — and restores that state after the connect window
- * stabilizes, before serializing.
- *
- * The ordering is load-bearing, mapped onto today's mechanism (there is no
- * discrete two-pass gate module; the drain IS the stability mechanism):
- * revert strictly after `drainToQuiescence` has stabilized and before the
- * final serialization snapshot — never inside the drain loop, whose
- * stability comparison must observe the unsuppressed tree. A revert inside
- * the loop would either oscillate against the live binding or mask a
- * genuine non-quiescence.
- *
- * An impure reactive site ALONE does not make a component Simulated (step 5:
- * it stays Folded, phase 1 omits the site, no realm ever runs), so the
- * fixtures carry an impure site (attribute form and text-child form) AND a
- * genuine Simulated-tier routing signal — an unharvested signal. No corpus
- * component has this shape (`module-ticker` reads `Math.random()` only in
- * handlers, so no rendered site is suppressed), so the synthetic fixture is
- * the pin, in the step-5 synthetic-Static-fixture pattern.
- */
+/** Realm-side suppression for unresolvable expressions: for a Simulated-tier component the connect installs EVERY binding, including one reading `Date.now()`/`Math.random()`, so without suppression the serialized HTML bakes the build machine's reading into the page permanently. The compiler records each unresolvable site (`RegistryEntry.suppressedSites`); the driver snapshots the sites' skeleton state from an INERT parse of the markup — provably pre-connect, because an already-defined tag upgrades DURING the `innerHTML` assignment that parses the markup — and restores it after the connect window stabilizes, before serializing. The ordering is load-bearing: revert strictly after `drainToQuiescence` has stabilized and before the final serialization snapshot, never inside the drain loop, whose stability comparison must observe the unsuppressed tree. An impure reactive site ALONE does not make a component Simulated, so the fixtures carry an impure site AND a genuine Simulated-tier routing signal (an unharvested signal) — the synthetic fixture is the pin. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import { cpSync } from 'node:fs'
 import { join } from 'node:path'
@@ -39,16 +8,7 @@ import { compileComponentTsx } from '../src/frontend/tsx'
 import { createSimulationRealm } from '../src/sim/realm'
 import { createGeneratedDir } from './helpers/generated-corpus'
 
-/**
- * Simulated-tier fixture with all three record forms: an impure reactive
- * ATTRIBUTE (`title`, attribute dispatch), an impure lazy TEXT CHILD
- * (`p`'s sole content — whole-textContent by the emission gate), and an
- * impure DIRTY-FLAG attribute (`value` on an `<input>` property
- * dispatch). The unharvested `seed` is the routing signal that makes the
- * component Simulated (resolution `realm`); its literal initializer keeps
- * the client module realm-executable (an initializer naming a server param
- * has no client representation — emit-client.ts).
- */
+/** Simulated-tier fixture with all three record forms: an impure reactive ATTRIBUTE (`title`, attribute dispatch), an impure lazy TEXT CHILD (`p`'s sole content — whole-textContent by the emission gate), and an impure DIRTY-FLAG attribute (`value` on an `<input>` property dispatch). The unharvested `seed` is the routing signal that makes the component Simulated; its literal initializer keeps the client module realm-executable (an initializer naming a server param has no client representation — emit-client.ts). */
 const simulatedFixture = `import { asString, createCell } from '@zeix/le-truc'
 
 export function C({ name }: { name: string })
@@ -68,11 +28,7 @@ export function C({ name }: { name: string })
 
 }`
 
-/**
- * The same shape with the impure lazy child on the component ROOT — the
- * site the record addresses with the `'host'` sentinel, the one selector
- * the realm resolves against the rendered root rather than the document.
- */
+/** The same shape with the impure lazy child on the component ROOT — the site the record addresses with the `'host'` sentinel, the one selector the realm resolves against the rendered root rather than the document. */
 const simulatedRootFixture = `import { asString, createCell } from '@zeix/le-truc'
 
 export function C({ name }: { name: string })
@@ -88,13 +44,7 @@ export function C({ name }: { name: string })
 		</r-el>
 }`
 
-/**
- * The Folded control (step 5's pin, plus the suppression record): the
- * impure attribute site is recorded — unresolvability is per-EXPRESSION,
- * not per-tier — but the component stays Folded (the impure site is not a
- * routing signal), no realm ever opens for it, and its phase-1 output is
- * unchanged.
- */
+/** The Folded control: the impure attribute site is recorded — unresolvability is per-EXPRESSION, not per-tier — but the component stays Folded (the impure site is not a routing signal), no realm ever opens for it, and its phase-1 output is unchanged. */
 const foldedFixture = `import { createCell } from '@zeix/le-truc'
 
 export function C({}: {})
@@ -113,17 +63,7 @@ export function C({}: {})
 
 }`
 
-/**
- * Simulated-tier fixture with three reactive conditions whose tests no tier
- * answers (): an `@if` and a `@switch` in nested containers, and an
- * `@if` at the component root (the `'host'` sentinel). The `@if` tests read
- * the RNG, the `@switch` reads the wall clock — limb (b)'s two sources. No
- * tier picks a winner (ADR 0015 s5), so the server renders only the arm
- * templates — but the replayed client's `reconcile()` clones an arm at
- * connect, which the driver must strip. The root test always holds and the
- * switch has a `@default`, so the unwired control can pin that their arms
- * really are cloned; the compiler still cannot answer either test.
- */
+/** Simulated-tier fixture with three reactive conditions whose tests no tier answers: an `@if` and a `@switch` in nested containers, and an `@if` at the component root (the `'host'` sentinel). The `@if` tests read the RNG, the `@switch` reads the wall clock. No tier picks a winner, so the server renders only the arm templates — but the replayed client's `reconcile()` clones an arm at connect, which the driver must strip. The root test always holds and the switch has a `@default`, so the unwired control can pin that their arms really are cloned; the compiler still cannot answer either test. */
 const simulatedArmsFixture = `import { asString, createCell } from '@zeix/le-truc'
 
 export function C({ name }: { name: string })
@@ -142,11 +82,7 @@ export function C({ name }: { name: string })
 		</a-el>
 }`
 
-/**
- * The `.tsx` twin of `simulatedArmsFixture` (): the ternary, the
- * switch IIFE and `&&` faces of the same three arm sets, under its own tag
- * so one realm serves both surfaces.
- */
+/** The `.tsx` twin of `simulatedArmsFixture`: the ternary, the switch IIFE and `&&` faces of the same three arm sets, under its own tag so one realm serves both surfaces. */
 const simulatedArmsTsxFixture = `import { asString, createCell } from '@zeix/le-truc'
 import type { FactoryContext } from '@zeix/le-truc'
 
@@ -236,7 +172,7 @@ describe('the compile-time suppression record', () => {
 	test('each unresolvable site is recorded with its realm address', () => {
 		// Three forms: attribute dispatch, whole-textContent child, and the
 		// dirty-flag attribute whose `prop` names the IDL property the
-		// binding writes instead of the attribute ().
+		// binding writes instead of the attribute.
 		expect(simulated.component?.entry.tier).toBe('simulated')
 		expect(simulated.component?.entry.suppressedSites).toEqual([
 			{ kind: 'attr', selector: 'span', attr: 'title' },
@@ -246,7 +182,7 @@ describe('the compile-time suppression record', () => {
 		expect(simulatedRoot.component?.entry.suppressedSites).toEqual([
 			{ kind: 'text', selector: 'host' },
 		])
-		//: an arm set whose test no tier answers is recorded by its
+		// An arm set whose test no tier answers is recorded by its
 		// container and `data-arms` index.
 		// Both surfaces record the same three sets: `@if`/ternary in `div`,
 		// `@switch`/switch IIFE (the wall-clock test) in `section`, and
@@ -276,8 +212,8 @@ describe('the compile-time suppression record', () => {
 
 	test('an impure site alone is not what makes the fixture Simulated', () => {
 		// The routing signal is the unharvested signal (resolution `realm`);
-		// the suppressed sites contribute no signal — the conjunction step 5
-		// pinned, restated here so the fixture cannot silently lose the limb
+		// the suppressed sites contribute no signal — the conjunction
+		// restated here so the fixture cannot silently lose the limb
 		// that makes the realm run at all.
 		expect(
 			simulated.component?.entry.routingSignals.map(
@@ -287,9 +223,9 @@ describe('the compile-time suppression record', () => {
 	})
 
 	test('the shipped client still binds every suppressed site', () => {
-		// The realm cannot decline to install a binding (ADR 0008 s1's
-		// implementation constraint): the generated client is the shipped
-		// artifact and stays byte-honest — suppression is realm-side.
+		// The realm cannot decline to install a binding: the generated
+		// client is the shipped artifact and stays byte-honest — suppression
+		// is realm-side.
 		const client = simulated.component?.clientCode ?? ''
 		expect(client).toContain('Date.now()')
 		expect(client).toContain('Math.random()')
@@ -302,7 +238,7 @@ describe('the compile-time suppression record', () => {
 /* === The realm-side revert === */
 
 describe('the realm reverts suppressed sites before serializing', () => {
-	// One realm for both Simulated fixtures (ADR 0006 sub-design 2/10).
+	// One realm for both Simulated fixtures.
 	const realm = createSimulationRealm({
 		suppressedSites: tag =>
 			tag === 'c-el'
@@ -338,7 +274,7 @@ describe('the realm reverts suppressed sites before serializing', () => {
 		async (_, tag) => {
 			const render = await serverRenderOf(`${tag}.server.ts`)
 			const markup = render({ name: 'x' })
-			// The server renders no live arm (ADR 0015 s5) — templates only.
+			// The server renders no live arm — templates only.
 			expect(markup).not.toMatch(/<(b|i|s|u|q|em) [^>]*data-key/)
 			const { html } = await realm.render({ markup, component: tag })
 			// The connect cloned an arm into each set (the unwired control
@@ -468,7 +404,7 @@ describe('the realm reverts suppressed sites before serializing', () => {
 				expect((input as unknown as { value: string }).value).toMatch(
 					/^\d{13}$/,
 				)
-				//: unwired, the client's `reconcile()` clones an arm
+				// Unwired, the client's `reconcile()` clones an arm
 				// into each arm set on both surfaces, and it ships.
 				for (const tag of ['a-el', 'x-el']) {
 					await realm2.load(
@@ -493,8 +429,8 @@ describe('the realm reverts suppressed sites before serializing', () => {
 			} finally {
 				// LIFO against the file-level realm (its restores re-install
 				// the outer realm's patches) — disposed before this file's
-				// afterAll runs. Awaited: the restores follow the final settle
-				// (), so an un-awaited dispose would race the afterAll's.
+				// afterAll runs. Awaited: the restores follow the final settle,
+				// so an un-awaited dispose would race the afterAll's.
 				await realm2.dispose()
 			}
 		} finally {
@@ -514,8 +450,8 @@ describe('a Folded-tier component with an impure site', () => {
 		expect(folded.component?.entry.suppressedSites).toEqual([
 			{ kind: 'attr', selector: 'div', attr: 'title' },
 		])
-		// Phase-1 output unchanged: the site is omitted exactly as before
-		// step 7, the rendered signal still renders.
+		// Phase-1 output unchanged: the site is omitted, the rendered
+		// signal still renders.
 		expect(folded.component?.serverCode).not.toContain('Date.now')
 		const render = (
 			await generated.importModule<{

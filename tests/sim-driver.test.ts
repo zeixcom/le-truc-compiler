@@ -1,50 +1,4 @@
-/**
- * Stage-1 server-simulation driver (ADR 0006 sub-design 7).
- *
- * Runs the WHOLE `.tsrx` corpus (`server/generated/components/` scope only — page
- * chrome is out of stage 1) through the driver in `server/compiler/sim/`:
- * one shared realm, each component's client module loaded exactly once
- * (`realm.load()`'s own assertion enforces that — see `realm.ts`), every
- * component rendered from its server-rendered markup through the hermetic-
- * quiescence boundary, children-first replay driven by the compiler's
- * compose graph (`RegistryEntry.composesTags`). Disposal happens once, at
- * the end of this whole file (end-of-process posture review) — not
- * between renders.
- *
- * Fixture-pinned: this is what "the old render function remains the
- * template-tree source, the client connect is simulated against it, and
- * serialization overlays the computed initial state" looks like end to end.
- * A snapshot diff here is either a real behavior change (re-approve with
- * `--update-snapshots`) or a driver regression — same posture as
- * `server.golden.test.ts` for hand-picked tags, but corpus-wide and through
- * the simulation rather than the template alone. `server.golden.test.ts`
- * itself is unaffected in kind : template lowering does not retire
- * (ADR 0006 sub-design 1), so the server modules stay byte-pinned there.
- *
- * The simulated goldens are PER-SUBSTRATE bytes (LT-153 decision 3).
- * Inline-style serialization is substrate-specific: happy-dom terminates
- * inline custom-property declarations with `;` where jsdom omits it
- * , so swapping the substrate re-baselines every snapshot in this
- * file at once. A mass re-baseline immediately after a substrate change is
- * the expected shape, not a behavior change. A single tag moving with NO
- * substrate change is the dangerous kind — treat it as a behavior change or
- * a driver regression.
- *
- * Two corpus invariants live here too :
- *
- * - The double-connect fixed-point gate (sub-design 8): every fixture feeds
- *   its own output back through a second `realm.render()`, mirroring the
- *   browser parsing the served HTML and connecting again over it, and
- *   requires byte-identical serialization. A component whose second pass
- *   differs is a build error against that component.
- * - The two-order hermeticity test (sub-design 10): the corpus renders in
- *   two different orders on two realms and reproduces identical per-tag
- *   output. Order 2 needs its own module tree — one module cache per
- *   process means re-importing order 1's client modules records no
- *   definitions (the load-once assertion throws) — so the compiled tree is
- *   copied to a second generated dir: fresh resolved specifiers, identical
- *   code, so any output difference is order, not rebuild variance.
- */
+/** Stage-1 server-simulation driver over the whole `.tsrx` corpus: one shared realm, each component's client module loaded exactly once, every component rendered from its server-rendered markup through the hermetic-quiescence boundary, children-first replay driven by the compose graph, disposal once at end of file. Fixture-pinned: a snapshot diff here is either a real behavior change or a driver regression. The simulated goldens are PER-SUBSTRATE bytes — inline-style serialization is substrate-specific, so a substrate swap re-baselines every snapshot in this file at once; a single tag moving with NO substrate change is the dangerous kind and a behavior change. Two corpus invariants live here: the double-connect fixed-point gate, and two-order hermeticity on a copied module tree (one module cache per process means order 2 cannot re-import order 1's clients). */
 import { afterAll, describe, expect, test } from 'bun:test'
 import { cpSync } from 'node:fs'
 import { join, relative } from 'node:path'
@@ -57,10 +11,10 @@ import {
 	createSimulationRealm,
 	type JsdomSimulationRealm,
 } from '../src/sim/realm'
-//  step 8: the args table and the tag→render-fn mapping moved to
+// The args table and the tag→render-fn mapping live in
 // `corpus-args.ts` so the equivalence audit (equivalence-audit.test.ts)
 // drives BOTH mechanisms from the identical fixture inputs this file uses —
-// one copy, no drift. Data is unchanged.
+// one copy, no drift.
 import {
 	CORPUS_ARGS as ARGS,
 	argMessage,
@@ -79,12 +33,11 @@ const registry = JSON.parse(
 	await Bun.file(`${generated.path}/registry.internal.json`).text(),
 ) as InternalComponentRegistry
 
-// One realm for the whole corpus (ADR 0006 sub-design 2/10): disposed once,
-// after every render this file will ever do — never between them (LT-152
-// review's disposal finding).
+// One realm for the whole corpus: disposed once,
+// after every render this file will ever do — never between them.
 const realm = createSimulationRealm({
 	composesTags: tag => registry[tag]?.composesTags ?? [],
-	//  step 7: revert each unresolvable expression's site to its
+	// Revert each unresolvable expression's site to its
 	// skeleton state after the drain — a no-op while no corpus component
 	// carries records, and what keeps the fixed-point gate below honest
 	// the day one does (the synthetic pin in suppression.test.ts).
@@ -97,7 +50,7 @@ afterAll(() => realm.dispose())
 // form-colorgraph → form-spinbutton) gets recorded as a side effect of the
 // parent's load, so this loop skips it when it reaches the child's own
 // entry — calling load() on an already-cached module records nothing NEW
-// and load()'s own assertion (sub-design 10) would otherwise throw.
+// and load()'s own assertion would otherwise throw.
 for (const info of compiled) {
 	if (realm.definitions.some(entry => entry.name === info.tag)) continue
 	await realm.load(() => import(pathToFileURL(info.clientModulePath).href))
@@ -142,7 +95,7 @@ describe('stage-1 server-simulation driver — corpus fixtures (LT-154)', () => 
 				await serverMarkupOf(info),
 			)
 			expect(html).toContain(`<${info.tag}`)
-			// Double-connect fixed-point gate (sub-design 8): the
+			// Double-connect fixed-point gate: the
 			// browser parses the simulation's own output and runs connect
 			// AGAIN over it, so enhancement must be idempotent over what
 			// enhancement produced. Feed the first pass's output back through
@@ -163,9 +116,9 @@ describe('stage-1 server-simulation driver — corpus fixtures (LT-154)', () => 
 	}
 
 	test('form-tokenbox: the client-message attribute stays in the low hundreds of bytes (LT-219)', async () => {
-		// ADR 0009 s9's payload measure: only client-referenced keys the
+		// Payload measure: only client-referenced keys the
 		// locale changes ride the attribute, as parsed ASTs. At en every key
-		// equals the source, so there is none ; at de tokenbox
+		// equals the source, so there is none; at de tokenbox
 		// carries three event-time messages, and the served attribute
 		// (entity-escaped, as the page ships it) must stay small enough that
 		// per-instance duplication is noise.
@@ -202,11 +155,10 @@ describe('stage-1 server-simulation driver — corpus fixtures (LT-154)', () => 
 	})
 
 	test('module-lazyload: the served instance keeps its arms through simulated connect', async () => {
-		//: the compiled component OWNS its markup (the twin's
-		// missing-required-element demo instance is retired with the
-		// scenario), so the simulated connect runs over the compiled server
-		// render: the pending arm live, the three arm templates inert beside
-		// it, and the fixed-point pass byte-identical.
+		// The compiled component OWNS its markup, so the simulated connect
+		// runs over the compiled server render: the pending arm live, the
+		// three arm templates inert beside it, and the fixed-point pass
+		// byte-identical.
 		const info = compiled.find(entry => entry.tag === 'module-lazyload')
 		if (!info) throw new Error('module-lazyload is not in the corpus')
 		const page = await Bun.file(
@@ -227,9 +179,8 @@ describe('stage-1 server-simulation driver — corpus fixtures (LT-154)', () => 
 		// The docs build's page order: module-coloreditor's last occurrence,
 		// then module-lazyload's demo instance. Detaching coloreditor's tree
 		// restores its composed form-colorgraph's passed `value`, which
-		// re-fires the child's canvas effects — before  that ran in
-		// lazyload's window and failed the build on two unclassified
-		// `getContext` notices against a component with no canvas.
+		// re-fires the child's canvas effects — the canvas notices must land
+		// attributed to coloreditor, never to the component rendered next.
 		const tagged = (tag: string) => {
 			const info = compiled.find(entry => entry.tag === tag)
 			if (!info) throw new Error(`${tag} is not in the corpus`)
@@ -310,7 +261,7 @@ describe('build-report baseline (LT-163) — the wave-4 regression signal', () =
 	})
 
 	test('the tier census rides its own channel, never the diagnostic one (ADR 0008 s6)', () => {
-		// The census ( step 6) is a second KIND of build-report record,
+		// The census is a second KIND of build-report record,
 		// not a diagnostic: none of its reasons may be admitted by — or be
 		// needed by — the classification table, and the zero-unclassified gate
 		// above is unchanged by the census's existence. A census record that
@@ -332,7 +283,7 @@ describe('two-order hermeticity (sub-design 10, LT-164)', () => {
 		// Order 1 — the compiled (glob scan) order, on this file's own realm.
 		// Re-rendered here rather than read from the fixtures above: repeat
 		// renders of the same component being byte-stable is part of the same
-		// invariant (sub-design 10).
+		// invariant).
 		const forward = new Map<string, string>()
 		for (const info of compiled)
 			forward.set(
@@ -393,7 +344,7 @@ describe('two-order hermeticity (sub-design 10, LT-164)', () => {
 				// end-of-its-renders posture, not a between-renders disposal.
 				// It must dispose BEFORE the file-level realm (its restores
 				// re-install realm's patches), and this test is the file's last.
-				// Awaited: the restores follow the final settle , so an
+				// Awaited: the restores follow the final settle, so an
 				// un-awaited dispose would race the file realm's own afterAll.
 				await realm2.dispose()
 			}

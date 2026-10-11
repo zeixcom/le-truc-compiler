@@ -1,41 +1,4 @@
-/**
- * Typed `.tsrx` compose imports for authored `.tsx`, generated ().
- *
- * The compiler resolves a `.tsx` parent's compose import of a `.tsrx` child
- * (`imports.ts` accepts both specifiers), but tsc cannot read a `.tsrx`
- * module. The corpus compile therefore writes `tsrx-imports.d.ts` into the
- * output root: one ambient `declare module` per compiled `.tsrx` source,
- * typing its component function through the GENERATED server module's args
- * — the compiled contract itself, so a compose site is checked against the
- * child's real args with no second copy to drift. `examples/tsconfig.json`
- * includes the file. Until  it was hand-listed (), one entry
- * added per migration.
- *
- * An ambient pattern matches the import SPECIFIER as written, not the
- * resolved path, so each entry is keyed by the shortest path suffix no other
- * listed source shares: `*\/basic-button.tsrx` while the name is unique, a
- * longer `*\/basic/button/basic-button.tsrx` once two sources share it. Two
- * same-named files never collide on one pattern — the specifier that stops
- * matching is a loud "cannot find module", not a silent mistype.
- *
- * A child with Slot-backed exposed props also gets a `'truc:pass'` key over
- * exactly those props () — the `.tsx` host profile's rule that only a
- * pass target declares one, derived from the registry's `exposedProps`
- * instead of hand-declared on the `.tsrx` args. A key the child cannot take
- * (a computed or method prop, a typo) is an excess-property tsc error at
- * the parent's compose site.
- *
- * A tag whose SERVED source is `.tsrx` also gets its `HTMLElementTagNameMap`
- * entry (): a `.tsx` parent's `first`/`all('<tag>…')` types through
- * the map, and tsc cannot read the `.tsrx` source's own `declare global`.
- * The entry references the generated client's exported props type and the
- * same host type the source declares, so it is IDENTICAL to the client's
- * copy and merges when both are in one program (the root `tsconfig.json`
- * includes every generated client). A tag served from `.tsx` gets none — its
- * authored source carries the entry, under a different props-type symbol,
- * so a second copy would be a TS 2717 mismatch. Until  the clients
- * themselves were hand-listed in `examples/tsconfig.json` .
- */
+/** Typed `.tsrx` compose imports for authored `.tsx`: the generated `tsrx-imports.d.ts` ambient typings, written by the corpus compile so tsc can check a `.tsx` parent's compose import of a `.tsrx` child. */
 
 /* === Types === */
 
@@ -71,11 +34,6 @@ const LIBRARY_IMPORT = '@zeix/le-truc'
 
 /* === Internal Functions === */
 
-/**
- * The shortest `/`-segment suffix of `source` that no other path equals or
- * ends with. Falls back to the whole path when every suffix is shared —
- * possible only when one root-relative path is a suffix of another.
- */
 const uniqueSuffix = (source: string, others: readonly string[]): string => {
 	const segments = source.split('/')
 	for (let k = 1; k <= segments.length; k++) {
@@ -88,14 +46,6 @@ const uniqueSuffix = (source: string, others: readonly string[]): string => {
 
 /* === Exported Functions === */
 
-/**
- * The `tsrx-imports.d.ts` text for `sources` and `tags`, sorted by pattern
- * and tag so the file is stable across compile orders. With neither it is
- * the header alone: the file always exists, so the tsconfig that includes it
- * never dangles. No top-level `import`/`export` — the file must stay a
- * script for its `declare module` patterns to be ambient and its
- * `HTMLElementTagNameMap` to augment the global one.
- */
 export const tsrxImportTypings = (
 	sources: readonly TsrxImportSource[],
 	tags: readonly TsrxTagMapEntry[] = [],

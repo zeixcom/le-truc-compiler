@@ -1,34 +1,13 @@
-/**
- * The designated export surface pin (ADR 0010 amended 2026-09-19;
- * reshaped to the D-32 ruling at ).
- *
- * `src/contract.ts` names the exact symbol set the published
- * `@zeix/le-truc-compiler` package will carry (`exports` entry rides ).
- * These tests make widening or shrinking that set a DELIBERATE act: the value
- * set is pinned at runtime, and the type set — erased at runtime — is pinned
- * textually against the module's own `export type` re-export statements.
- * Both lists below must change in the same commit as the module and its
- * stability policy, and the change is a public-API decision (minor or major
- * per the policy, never a patch).
- */
+/** The designated export surface pin: widening or shrinking `src/contract.ts`'s symbol set must be a deliberate act — the value set is pinned at runtime, the type set textually against the module's own `export type` re-exports; both lists change in the same commit as the module and its stability policy. */
 
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import * as designated from '../src/contract'
 
-/** The one published entry point: the corpus pass (D-32). */
+/** The one published entry point: the corpus pass. */
 const DESIGNATED_VALUES = ['compileCorpus'].sort()
 
-/**
- * The D-32 set: the corpus entry point's exchange types, the public
- * `RegistryEntry` projection and its `ExposeKind` vocabulary, the five
- * diagnostic record shapes, and `EvaluationTier` (the registry entry's
- * `tier`). The per-file front end (`compileComponentTsx`,
- * `CompileFileResult`, `CompiledComponent`, `SourceSpan`, `EmitPaths`,
- * `DEFAULT_EMIT_PATHS`) left with , as did `HandlerPlacement`
- * (handler args are internal, ruling 4) and the `RoutingSignal` family —
- * no public type names them once `routingSignals` left `RegistryEntry`.
- */
+/** The corpus entry point's exchange types, the public `RegistryEntry` projection and its `ExposeKind` vocabulary, the five diagnostic record shapes, and `EvaluationTier`. */
 const DESIGNATED_TYPES = [
 	'CompileDiagnostic',
 	'CorpusConfig',

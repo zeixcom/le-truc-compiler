@@ -1,26 +1,4 @@
-/**
- * Golden tests — CEM equivalence (ADR 0005): the Custom Element
- * Manifest entries extracted by `@zeix/cem-plugin-le-truc` from GENERATED
- * clients must equal the entries the same plugin extracted from the
- * hand-written components. This pins the staged CEM decision — plugin over
- * generated clients now, compiler-emitted fragments at v3 — by proving the
- * one extractor produces identical declarations from both input shapes.
- *
- * Mechanism: compile the corpus in-process, run `cem analyze` with a shadow
- * config (globs at this run's own gitignored output directory only, never
- * the build pipeline's server/generated/components/ — ), then compare
- * declarations against the pinned
- * hand-written-derived expectations below — captured from the committed
- * manifest before the globs switched (2026-08-22).
- *
- * basic-counter and module-tabgroup are byte-equal (their .tsrx sources are
- * converged copies). form-textbox is structural: the .tsrx fixture is a
- * deliberate subset of the hand-written component (no `length`/
- * `description` props yet — see NOTES.md), but it exercises what the
- * hand-written trio never had: a Parser-exposed attribute (`value` with its
- * default) extracted from a generated `expose()` call, and extension-derived
- * members from the emitted third argument.
- */
+/** CEM equivalence: entries the plugin extracts from generated clients must equal those extracted from the hand-written components, compared against pinned hand-written-derived expectations. basic-counter and module-tabgroup are byte-equal; form-textbox is a deliberate subset of the hand-written component but exercises Parser-exposed attributes from a generated `expose()` call. */
 import { afterAll, describe, expect, test } from 'bun:test'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
@@ -39,10 +17,7 @@ const registry = new Set<string>([
 	'form-textbox',
 	'form-checkbox',
 ])
-// Every tag asserted below must be listed here. Until  gave this file
-// its own output directory, form-checkbox was asserted but never compiled —
-// its declaration came from a client another writer had left in the shared
-// server/generated/components/.
+// Every tag asserted below must be listed here, or its declaration may come from a stale client left in a shared output directory.
 const SOURCES = [
 	'examples/basic/counter/basic-counter.tsrx',
 	'examples/module/tabgroup/module-tabgroup.tsrx',
@@ -82,7 +57,6 @@ export default {
 type CemDeclaration = Record<string, unknown> & { tagName: string }
 
 const declarationsByTag = async (): Promise<Map<string, CemDeclaration>> => {
-	// Compile the corpus fresh and stage the generated clients.
 	for (const rel of SOURCES) {
 		const { component, diagnostics } = compileComponent(
 			read(rel),
@@ -187,7 +161,6 @@ describe('CEM golden — generated clients extract like hand-written components'
 	test('form-textbox: hand-written entries plus the Parser-exposed attribute', async () => {
 		const textbox = (await declarationsByTag()).get('form-textbox')
 		if (!textbox) throw new Error('form-textbox declaration missing')
-		// Description and demo ride the carried JSDoc — identical text.
 		expect(textbox.description).toBe(
 			'A single-line or multiline text input with validation, optional clear button, and helper text.\n' +
 				'Use it when you need a styled text field — the underlying native input provides\n' +
@@ -209,11 +182,7 @@ describe('CEM golden — generated clients extract like hand-written components'
 				description: 'Interactive preview and usage examples',
 			},
 		])
-		// The fixture's Props (value, length, description, clear,
-		// focusControl) + the formAssociated() member set. `description` isn't wired through
-		// expose() (it's authored render-time content, not a live DOM-derived
-		// prop like the hand-written .ts's descriptionMemo) but it's still a
-		// real member of FormTextboxProps, so CEM extraction picks it up.
+		// `description` isn't wired through expose() (authored render-time content, not a live DOM-derived prop) but is still a real member of FormTextboxProps, so extraction picks it up.
 		expect(
 			(textbox.members as Array<{ kind: string; name: string }>).map(
 				m => m.name,
@@ -235,9 +204,7 @@ describe('CEM golden — generated clients extract like hand-written components'
 			'reportValidity',
 			'setCustomValidity',
 		])
-		// Parser-exposed `value` leads the attributes (expose() scan precedes
-		// extension members); its default is the plugin's literal rendering of
-		// asString('') — a quoted empty string.
+		// Parser-exposed `value` leads the attributes (expose() scan precedes extension members); its default is the plugin's literal rendering of asString('').
 		expect(textbox.attributes).toEqual([
 			{
 				name: 'value',
@@ -271,7 +238,6 @@ describe('CEM golden — generated clients extract like hand-written components'
 			'reportValidity',
 			'setCustomValidity',
 		])
-		// The checked variant's Parser-exposed boolean with its literal default
 		expect(checkbox.attributes).toEqual([
 			{
 				name: 'checked',
