@@ -109,7 +109,8 @@ The session never implements in the main checkout. The worktree is `.worktrees/T
 
 `queue/ITERATION.md` has a `**The chain.**` section that orders the iteration; it drives the board's lane order and the pick. A contributor session started without a TC-ID picks from it with no Architect present, so keep it mechanical:
 
-- Group the tasks into tracks with one line of purpose each. Inside a track, list the tasks in pick order.
+- Group the tasks into tracks with one line of purpose each (a `- **Track name**` bullet). Inside a track, list the tasks in pick order as a numbered list, one task per item, the TC-ID leading the item (`  1. TC-NNN — title`); a struck lead (`~~TC-NNN~~`) closes the item.
+- Only a numbered item names a chain position, and only through its leading TC-ID. A TC-ID anywhere else — the track's header or description prose, or later in an item's title — is a citation, never a position (owner ruling 2026-10-10): it neither stalls the track nor enters the pick, so a design task may be cited in prose freely. An ID leading two numbered items keeps its first position, and `check:queue` flags the second.
 - A task is **ready** when four things hold: it has no suffix, its `Area` is not `design`, every TC-ID in its `**Needs:**` is satisfied, and every earlier task in its track is satisfied or `blocked ⛔`.
 - The pick first takes any `— changes requested ↩` task, in chain order. Then it takes the first ready task, tracks in order. When nothing is ready, the session stops and reports why. It does not guess.
 - A track whose next task is claimed (`⚙`) or on a non-contract status **stalls**: that task and everything behind it in that track is skipped, and the scan falls through to the next track. A `blocked ⛔` task is skipped and the track continues.

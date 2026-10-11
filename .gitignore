@@ -183,3 +183,6 @@ dataset/
 
 # Agent skill proposals (mirrored .agents/ replacements, transitory)
 .agents-proposals/
+
+# Claude Code agent worktrees
+.claude/worktrees/
