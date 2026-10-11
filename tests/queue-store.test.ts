@@ -13,6 +13,7 @@ import {
 	flatChain,
 	loadStore,
 	parseTaskFile,
+	pickByIdStore,
 	pickStore,
 	renderTaskFile,
 } from '../scripts/lib/queue-store'
@@ -44,8 +45,12 @@ const ITERATION = `# Iteration — test
 
 **The chain.**
 
-- **First track** TC-101 → TC-102 ∥ TC-103
-- **Second track** TC-104
+- **First track** The first purpose. In pick order:
+  1. TC-101 — First
+  2. TC-102 — Second
+  3. TC-103 — Third
+- **Second track** The second purpose:
+  1. TC-104 — Fourth
 `
 
 // The double-card bug's shape: the second track cites TC-101 in prose —
@@ -56,8 +61,42 @@ const CITED_ITERATION = `# Iteration — test
 
 **The chain.**
 
-- **First track** TC-101 → TC-102 ∥ TC-103
-- **Second track** behind TC-101, whose helper dissolves the closures first: 1. TC-104
+- **First track** The first purpose. In pick order:
+  1. TC-101 — First
+  2. TC-102 — Second
+  3. TC-103 — Third
+- **Second track** Behind TC-101, whose helper dissolves the closures
+  first; TC-102 lands alongside:
+  1. TC-104 — Fourth, after TC-103's census
+`
+
+// The TC-065 stall: an open design task cited only in a track's description
+// stood ahead of the track's first numbered item.
+const PROSE_DESIGN_ITERATION = `# Iteration — test
+
+**Next free task ID:** TC-900
+
+**The chain.**
+
+- **Track 1 — The walk.** The construct becomes projectable. TC-059 (the
+  boundary's authored form) is design work outside the chain. In pick order:
+  1. TC-021 — The operation layer
+  2. TC-065 — One walk
+`
+
+// A genuine duplicate: one id leads numbered items in two tracks.
+const DOUBLED_ITERATION = `# Iteration — test
+
+**Next free task ID:** TC-900
+
+**The chain.**
+
+- **First track** The first purpose:
+  1. TC-101 — First
+  2. TC-102 — Second
+- **Second track** The second purpose:
+  1. TC-101 — First, again
+  2. TC-104 — Fourth
 `
 
 const scaffold = (iteration: string = ITERATION): string => {
@@ -109,20 +148,32 @@ describe('task file round-trip', () => {
 })
 
 describe('chain parsing', () => {
-	test('tracks, order and separators reduce to id sequences', () => {
-		const { tracks } = chainOrder(ITERATION)
+	test('numbered items reduce to id sequences per track', () => {
+		const { tracks, duplicates } = chainOrder(ITERATION)
 		expect(tracks.map(t => t.name)).toEqual(['First track', 'Second track'])
 		expect(tracks[0]?.ids).toEqual(['TC-101', 'TC-102', 'TC-103'])
 		expect(tracks[1]?.ids).toEqual(['TC-104'])
+		expect(duplicates).toEqual([])
+	})
+
+	test('an item led by a struck id is closed, not a position', () => {
+		const struck = ITERATION.replace(
+			'  1. TC-104 — Fourth',
+			'  1. ~~TC-104~~ — Fourth',
+		)
+		const { tracks, closed } = chainOrder(struck)
+		expect(tracks.map(t => t.name)).toEqual(['First track'])
+		expect([...closed]).toEqual(['TC-104'])
 	})
 })
 
 describe('first-mention chain positions (2026-10-10)', () => {
-	test('a prose citation of another track adds no position', () => {
-		const { tracks } = chainOrder(CITED_ITERATION)
+	test('a TC-ID in track description prose is not a position', () => {
+		const { tracks, duplicates } = chainOrder(CITED_ITERATION)
 		expect(tracks.map(t => t.name)).toEqual(['First track', 'Second track'])
 		expect(tracks[0]?.ids).toEqual(['TC-101', 'TC-102', 'TC-103'])
 		expect(tracks[1]?.ids).toEqual(['TC-104'])
+		expect(duplicates).toEqual([])
 		expect(flatChain(loadStore(store(CITED_ITERATION)))).toEqual([
 			'TC-101',
 			'TC-102',
@@ -131,14 +182,35 @@ describe('first-mention chain positions (2026-10-10)', () => {
 		])
 	})
 
-	test('a repeated id inside one track keeps its first position', () => {
-		const doubled = ITERATION.replace(
-			'- **First track** TC-101 → TC-102 ∥ TC-103',
-			'- **First track** TC-101 → TC-101 ∥ TC-103',
-		)
-		const { tracks, duplicates } = chainOrder(doubled)
-		expect(tracks[0]?.ids).toEqual(['TC-101', 'TC-103'])
-		expect(duplicates).toEqual([{ id: 'TC-101', tracks: ['First track'] }])
+	test('a TC-ID cited in an item title after the leading id is not a position', () => {
+		const { tracks } = chainOrder(CITED_ITERATION)
+		// `1. TC-104 — Fourth, after TC-103's census` names TC-104 only
+		expect(tracks[1]?.ids).toEqual(['TC-104'])
+	})
+
+	test('an open design task cited only in prose does not stall the track', () => {
+		const root = store(PROSE_DESIGN_ITERATION)
+		write(root, 'TC-021', { status: 'reviewed' })
+		write(root, 'TC-059', { area: 'design' })
+		write(root, 'TC-065', {})
+		expect(chainOrder(PROSE_DESIGN_ITERATION).tracks[0]?.ids).toEqual([
+			'TC-021',
+			'TC-065',
+		])
+		const pick = pickByIdStore('TC-065', root)
+		expect(pick.reason ?? '').not.toContain('TC-059')
+		expect(pick.picked).toBe(true)
+		expect(pick.task?.id).toBe('TC-065')
+		expect(pickStore(root).task?.id).toBe('TC-065')
+	})
+
+	test('an id leading two numbered items keeps its first position', () => {
+		const { tracks, duplicates } = chainOrder(DOUBLED_ITERATION)
+		expect(tracks[0]?.ids).toEqual(['TC-101', 'TC-102'])
+		expect(tracks[1]?.ids).toEqual(['TC-104'])
+		expect(duplicates).toEqual([
+			{ id: 'TC-101', tracks: ['First track', 'Second track'] },
+		])
 	})
 
 	test('the board renders a cited task exactly once', () => {
@@ -153,8 +225,8 @@ describe('first-mention chain positions (2026-10-10)', () => {
 		expect(inProgress?.map(t => t.id)).toEqual(['TC-101'])
 	})
 
-	test('check flags an id the chain names at more than one position', () => {
-		const root = store(CITED_ITERATION)
+	test('check flags an id leading two numbered items', () => {
+		const root = store(DOUBLED_ITERATION)
 		for (const id of ['TC-101', 'TC-102', 'TC-103', 'TC-104'])
 			write(root, id, {})
 		buildViews(root)

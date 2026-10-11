@@ -268,13 +268,14 @@ export function loadStore(root: string): Store {
 const byIdNumber = (a: QueueTask, b: QueueTask): number =>
 	Number(a.id.slice(3)) - Number(b.id.slice(3))
 
-/** The chain's bare TC-IDs in pick order: parentheticals, possessive citations and
- * `∥`/`→` structure reduced to one flat sequence per track. Positions are
- * first-mention (owner ruling 2026-10-10): a task stands where the chain names
- * it first, in document order — a later track's prose citation of it adds no
- * position, for prerequisites ride the task's `needs:`. `duplicates` reports
- * every id the raw chain names at more than one position, with the track
- * names, so the check can flag the citation. */
+/** The chain's TC-IDs in pick order, one sequence per track. Only a track's
+ * numbered pick-order items name positions, one leading TC-ID each
+ * (`  1. TC-NNN — title`); the track's header and description prose and the
+ * rest of an item line name none, for a prose citation is never a position
+ * (owner ruling 2026-10-10) and prerequisites ride the task's `needs:`. An
+ * item led by a struck id (`~~TC-NNN~~`) lands in `closed` instead. Positions
+ * are first-mention: an id leading a second item keeps its first position,
+ * and `duplicates` reports it with the track names so the check can flag it. */
 export function chainOrder(iteration: string): {
 	tracks: { name: string; ids: string[] }[]
 	closed: Set<string>
@@ -285,49 +286,31 @@ export function chainOrder(iteration: string): {
 	const raw: { name: string; ids: string[] }[] = []
 	const closed = new Set<string>()
 	if (start === -1) return { tracks: [], closed, duplicates: [] }
-	let pending: string | null = null
-	let name = ''
+	let current: { name: string; ids: string[] } | null = null
 	const flush = () => {
-		if (pending === null) return
-		const rest = pending
-		pending = null
-		for (const m of rest.matchAll(/~~\s*(TC-\d+)/g)) if (m[1]) closed.add(m[1])
-		let flat = rest
-		let prev = ''
-		while (flat !== prev) {
-			prev = flat
-			flat = flat.replace(/\([^()]*\)/g, ' ').replace(/~~.*?~~/g, ' ')
-		}
-		const ids: string[] = []
-		for (const segment of flat.split(/\s*[→∥]\s*/)) {
-			for (const m of segment.matchAll(/TC-\d+/g)) {
-				const after = segment.slice((m.index ?? 0) + m[0].length)
-				if (/^'s|^’s/.test(after) || /^\s+step\s+\d+['’]s/.test(after)) continue
-				ids.push(m[0])
-			}
-		}
-		// A track whose ids are all struck is closed (the gate-zero pattern) and
-		// contributes nothing; a track with live positions stays open even when
-		// it also strikes one id (`~~TC-371~~ → TC-375 → …`).
-		if (ids.length) raw.push({ name, ids })
+		// A track whose items are all struck is closed (the gate-zero pattern)
+		// and contributes nothing.
+		if (current?.ids.length) raw.push(current)
+		current = null
 	}
 	for (let i = start + 1; i < lines.length; i++) {
 		const line = lines[i] ?? ''
 		if (line.trim() === '') continue
-		const bullet = /^- \*\*(.+?)\*\*(.*)$/.exec(line)
+		const bullet = /^- \*\*(.+?)\*\*/.exec(line)
 		if (bullet) {
 			flush()
-			name = bullet[1] ?? ''
-			pending = bullet[2] ?? ''
-		} else if (pending !== null && /^\s/.test(line)) {
-			pending += ` ${line.trim()}`
-		} else break
+			current = { name: bullet[1] ?? '', ids: [] }
+			continue
+		}
+		if (current === null || !/^\s/.test(line)) break
+		const item = /^\s+\d+\.\s+(~~\s*)?(TC-\d+)\b/.exec(line)
+		if (!item?.[2]) continue
+		if (item[1]) closed.add(item[2])
+		else current.ids.push(item[2])
 	}
 	flush()
-	// First mention wins: every raw occurrence feeds `duplicates` (the check
-	// flags the citation), the deduped ids drop each later mention — a track
-	// whose ids were all citations contributes nothing, like the all-struck
-	// one above.
+	// First mention wins: every raw occurrence feeds `duplicates`, the deduped
+	// ids drop each later one; a track left with no ids contributes nothing.
 	const seen = new Set<string>()
 	const counts = new Map<string, number>()
 	const tracksOf = new Map<string, string[]>()
