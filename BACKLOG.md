@@ -8,77 +8,15 @@ stays here until the Architect and the owner refine it back to `open`.
 ## P1 — committed next
 
 The v3.0 emission track: template emission against the ruled target-emitter
-interface (TC-021 → TC-022 → TC-023, ADR 0021).
+interface (ADR 0021). The shared walk (TC-021 → TC-059/TC-060/TC-061) runs in
+iteration 3. Two design sessions come before Twig: TC-062 (SSG as a backend of the
+walk) and TC-063 (optional chaining, the URL context). The Twig target (TC-022)
+and its PHP CI job (TC-023, after TC-025) follow.
 
-
-- [ ] TC-021: Template emission — the shared walk, the operation layer, the census routing, the boundary fixture, and the test-only second target (ADR 0021)
-  **Area:** compiler
-  **Gates:** typecheck, test, check:contract
-  **Context:** REQUIREMENTS §9.2 and ADR 0021 (as revised 2026-10-10, the target-emitter
-  interface): the shared walk owns every decision; a target owns only syntax. The
-  prerequisites landed before the split — the contract surface, the registry pair, the
-  reactivity classifier and the indent/CodeBuilder work — and the IR carries the
-  `conditional` node, the `try` node and reactive lists. This repository is the emission
-  home (ADR 0027's sequencing); the split bootstrap it waited on is this repository itself.
-
-  **Do:**
-
-  - The emission-operation vocabulary over the settled IR — text, hole, segment list,
-    conditional, **boundary**, loop, **list template**, include, message format, arm
-    template — with `HtmlWriter` as the only output path. The operation layer never sees
-    IR nodes.
-  - The **boundary operation** (ADR 0021 s4): the three-state result arg (`T` /
-    `{ error: { code, message } }` / null → `ok` / `err` / `nil`), the err scope (catch
-    parameter → member paths over `error`), inert arm templates beside the winner.
-    Emittable only when the task's initial value routes from a server arg; an opaque
-    driver routes the partial Static (`non-portable initial`). The synchronous `try` is
-    not emittable (census reason, no diagnostic).
-  - **Reactive lists** (ADR 0021 s5): the initial items reuse the loop operation verbatim
-    (source: the seed arg; key and raw sources as item-scope holes); the list-template
-    operation is the inert item shape — no holes, client-written sites empty — stamped
-    `data-list="N"`, a direct child of the host in document order whatever the nesting
-    depth. Extend the loop-source grammar: a source may be a member path over an
-    enclosing item scope (nested lists nest as native loops).
-  - **Children capture** (ADR 0021 s3/s5): the parent-owned region captured with its
-    holes in parent scope, `truc:html` hooked at its site inside the capture, passed as
-    one more arg in the new **composed-markup** escaping context (raw, no hook); the
-    child writes `data-children` from the implicit, minted `owner` arg only when a
-    compiled parent passed children. The escaping-context union gains the eighth member;
-    every target's switch is exhaustive over it.
-  - In every inert template (arm, list, boundary): server-arg sites emit as holes the
-    backend fills per request; client-written sites bake empty.
-  - Portable-subset classification and the shared refusals, both only when a template
-    target is configured; SSG-only builds and the zero-warning baseline unchanged.
-  - The census routing outcomes per component: `non-portable initial` (reactive and
-    task), sync `try`, key-alias harvest (ADR 0025 s4), `ambiguous result shape` —
-    census rows, never warnings (REQUIREMENTS §9.2, §11.2).
-  - A **boundary fixture component** (no corpus component uses `Try` yet; the
-    consequence note in ADR 0019): a result-arg-seeded task with all three arms, in this
-    repository's fixture corpus (`examples/`); offered to the Le Truc corpus at its
-    cutover.
-  - The test-only second target under `tests/targets/` (directory the task creates): an
-    operation dump plus a small in-process interpreter, byte-compared with SSG for every
-    emittable fixture × locale.
-
-  **New diagnostics (compiler channel, tier 1 Prevented, only when a template target is
-  configured):** LTC057 — a non-portable expression in a hole position (one face for
-  `Intl` formatting over a hole, naming the ICU-pattern fix); LTC058 — a hole in a
-  refused position (faces: `<script>`/`<style>` content or comment, `on*`/`srcdoc`,
-  attribute or tag name, whole-string `style`); LTC090 — a boundary result type with its
-  own `error` member (the three-state test is ambiguous; fix: rename the field). These
-  three codes are reserved for this task (see the ITERATION header). Copy follows
-  `writer` → error-messages.
-
-  **Check:** every fixture component emits through the dump target in its tier;
-  dump-target renders are byte-identical to SSG for every emittable component × locale;
-  the census carries each routing reason; builds with no target configured show zero new
-  warnings and no census change.
-
-  *Adopted from Le Truc LT-527, 2026-10-11; paths, gates and ADR numbers adapted.*
 
 - [ ] TC-022: Template emission — the Twig target (ADR 0021): syntax table, exhaustive escaping map, boundary/list/children emission, one partial per component × locale, byte-equivalence on the real engine
   **Area:** compiler
-  **Needs:** TC-021
+  **Needs:** TC-021, TC-059, TC-060, TC-061, TC-062, TC-063
   **Gates:** typecheck, test
   **Context:** REQUIREMENTS §9.2 and ADR 0021. The target owns only syntax: a syntax
   table plus an escaping map, switching exhaustively over the operation set and the
@@ -119,7 +57,7 @@ interface (TC-021 → TC-022 → TC-023, ADR 0021).
 
 - [ ] TC-023: Template emission — the PHP CI job (twig/twig + intl): Twig equivalence, the adversarial escaping corpus and the ICU equivalence corpus on the real engine; local runs skip without php
   **Area:** compiler
-  **Needs:** TC-022
+  **Needs:** TC-022, TC-025
   **Context:** ADR 0021 s8 and REQUIREMENTS §9.2: equivalence is byte identity with SSG,
   checked on the real engine — `twig.js` was rejected as the reference renderer
   (divergent escaping, no ICU).
@@ -145,6 +83,57 @@ interface (TC-021 → TC-022 → TC-023, ADR 0021).
   output changes.
 
   *Adopted from Le Truc LT-529, 2026-10-11.*
+
+- [ ] TC-062: Converge emit-server.ts onto the shared template walk — SSG as a backend of the walk (ADR 0021, REQUIREMENTS §9.2)
+  **Area:** design
+  **Needs:** TC-061
+  **Context:** REQUIREMENTS §9.2: a target emitter is "a backend of the same IR walk as the
+  SSG render, never a sibling interpretation". ADR 0021 s8 relies on this ("holes render
+  where the client harvests because it is one walk"). TC-021 landed `template/walk.ts` as a
+  sibling of `emit-server.ts` that copies its decisions construct by construct. The two are
+  held in step only by the dump-target byte comparison (owner ruling at TC-021's review,
+  2026-10-11). TC-059–TC-061 add the boundary, lists and children to the walk, so after
+  TC-061 the operation set is complete and the convergence can be designed against all of
+  it.
+
+  **Design questions** (Architect and owner, before this becomes an implementation task):
+
+  - How does SSG carry an expression outside the portable subset? Options: an SSG-only
+    opaque-code operation that no template target accepts, a second expression layer, or
+    SSG keeps its own expression lowering under a shared structural walk.
+  - Generated-code shape: the render module's output must stay byte-identical, since the
+    goldens are unchanged. Does SSG become an ops → JS target, or does the walk call an
+    emitter interface that both implement?
+  - What the walk must learn that only `emit-server.ts` knows today: Simulated and Static
+    skeleton retention (`retainReferenced`), key-alias witness calls, span recording.
+  - Does this amend ADR 0021, or does it only make the code match it?
+
+  **Check (for the implementation task this design produces):** one walk. `emit-server.ts`
+  no longer decides markup structure, goldens are byte-identical, and the dump comparison
+  keeps passing.
+
+- [ ] TC-063: Portable-subset and escaping edges before Twig — optional chaining, and the URL context's allowlist (ADR 0021 s1, s3)
+  **Area:** design
+  **Context:** Two questions came out of TC-021's review (2026-10-11). TC-022 cannot
+  proceed without the answers, because both decide what Twig must translate or check.
+
+  1. **Optional chaining.** ADR 0021 s1's subset, `initial-winner.ts` and TC-021's
+     `portable.ts` all leave out `?.`. As a result, form-listbox, form-radiogroup and
+     module-listnav route Static (`options[0]?.value`, which also uses a computed member).
+     Should `?.` join the subset, and should a literal index join it alongside? How do
+     Twig and HTL translate it with byte identity to JS semantics, given that `null` and
+     `undefined` both short-circuit to `undefined`? Adding it amends ADR 0021 s1, either in
+     place or by superseding it (`references/adr.md`).
+  2. **The URL context.** ADR 0021 s3 says the target "must reject exactly what the fold
+     rejects", but the SSG fold rejects no protocol: a URL attribute value passes through
+     `attr()` unchanged. TC-022's bullet "the safe-protocol allowlist as a Twig check"
+     contradicts that. Should the fold gain the runtime's allowlist (a behavior change to
+     SSG output, with its own channel and tier), or should the Twig URL context escape like
+     a quoted attribute, with ADR 0021 s3 and TC-022 corrected to match?
+
+  **Outcome:** rulings recorded on TC-022, which is then edited, plus an ADR 0021 edit or
+  supersede if either answer changes s1 or s3. Any SSG behavior change becomes its own
+  compiler task.
 ## P2 — soon
 
 The two-repo machinery and the release program: CI, branch protection and the
@@ -187,52 +176,6 @@ owner rules its drift-cost metric).
   **Affinity:** the demo corpus type-check (TC-012) exercises the same
   table; consumer-side typing becomes load-bearing with template emission
   (TC-006, TC-007).
-
-- [ ] TC-013: Gate the zero-config pin — check:corpus refuses a root le-truc.config.json
-  **Area:** tooling
-  **Context:** Incident 2026-10-10, during the iteration-2 review pass (owner-confirmed): a stale untracked `le-truc.config.json` sat at this repo's root, and the corpus run honored it — every corpus-executing test emitted modules importing the file's pre-TC-003 `runtimeImport` pin (`'../../compiler/runtime'`), failing 93 module resolutions deep in the suite instead of surfacing as a config problem. The root cause is now structural: ADR 0014 s2 pins this repository to a **zero-config setup** — "this repository carries no config file: it runs on the defaults"; in-tree harness overrides live per caller in code (`tests/helpers/generated-corpus.ts`, `scripts/build-demo.ts`). A root config file appearing at all violates the pin, and nothing in the gates would notice.
-
-  **Goal:** `scripts/check-corpus.ts` gains a preflight before the corpus pass runs: if `le-truc.config.json` exists at the repo root, exit non-zero citing ADR 0014 s2 (zero-config owner ruling, 2026-10-10) — the repo runs on the defaults; per-caller overrides live in code, and a root config is either a leftover to delete or a proposal to the Architect. One unit test asserts the preflight trips on the file's presence and passes on its absence (fixture dirs, not the real root).
-
-  No behavior change to compilation or emission; the default path keeps byte-identical output.
-
-- [ ] TC-025: Stand up CI and branch protection for this repository; enable the publish workflow; record the lockstep release rule
-  **Area:** tooling
-  **Gates:** typecheck
-  **Context:** ADR 0027 s7: the repository is public with typecheck, suite, contract,
-  package, peer and lint as required checks — but no `.github/workflows/` exists here
-  yet, so nothing enforces that on a push. This is the compiler-side half of the split's
-  closing task (Le Truc LT-526; the sibling keeps its own repository's half and the
-  cutover it depends on).
-
-  **Do:**
-
-  1. **CI workflow(s)** running the gates on push and PR: `build`, `test`, `typecheck`,
-     `lint`, `check:contract`, `check:peer`, `check:package` (and `check:corpus` /
-     `check:demo`, which the suite-adjacent gates need a corpus build for). TC-023's
-     PHP job and TC-014's `check:portability` join as they land.
-  2. **Branch protection** on `zeixcom/le-truc-compiler`: the checks above as required,
-     no direct pushes to the default branch (owner act on GitHub; this task prepares
-     the exact check list).
-  3. **Publish workflow enabled** with the NPM token secret. The **first publish —
-     `@zeix/le-truc-compiler@3.0.0-next.1` — stays the owner's act**, gated on
-     `@zeix/le-truc@3.0.0-next.1` being on the registry: runtime first, always, per the
-     lockstep convention (the prerequisite stands).
-  4. **Convention note**: the lockstep rule (runtime publishes first; compiler CI
-     verifies the floor against the registry) recorded in the README's release
-     section.
-  5. **CHANGELOG entries** handed to `writer` when the split's milestones close.
-
-  **Not in scope:** pioneer-gated stable releases (ADR 0012 s6 stands), template
-  emission (TC-021 → TC-023).
-
-  **Channel/tier:** none.
-
-  **Verification:** protection rules live on the repo; CI is green on a PR; the publish
-  workflow exists and is dry-run verified (`npm publish --dry-run` in CI or locally);
-  the README carries the lockstep note.
-
-  *Adopted from Le Truc LT-526's compiler-side half, 2026-10-11.*
 
 - [ ] TC-050: The 2.x → 3.0 codemod, and the drift-cost measurement it instruments
   **Area:** design
@@ -648,31 +591,6 @@ freely pickable and safe to interleave with any band: TC-031, TC-032, TC-033.
 - [ ] TC-010: Architecture review pass over css-scope.ts and sim/
   **Area:** design
   **Context:** Coverage gap from the 2026-10-10 architecture review: the deepening sweep covered the front ends, pipeline, corpus, contract, analysis, emitters and setup extraction, but `src/css-scope.ts` (1,582 lines — the scoped-CSS lowering, ADR 0033) and `src/sim/` (`realm.ts` 894, `patch-table.ts` 276, `boundary.ts` 123 — the Server Simulation driver, ADR 0027/0035) got only a structural glance, and no findings are claimed there. Owner + Architect session, not contributor work: apply the deepening heuristics (deletion test, interface-vs-implementation, locality, seams, coupling leaks — `references/deepening.md`), present numbered candidates, triage with the owner. Outcome feeds a later iteration's chain or the backlog.
-
-- [ ] TC-014: Wire check:portability and fix its stale header path
-  **Area:** tooling
-  **Gates:** typecheck
-  **Context:** ADR 0016 s4 names `scripts/corpus-portability-check.ts`
-  (LT-267) as the standing cross-runtime gate: bundle the published
-  `compileCorpus` entry once, run the same bundle under every runtime
-  found on PATH, compile the corpus into per-runtime scratch trees, and
-  require byte-identical emitted `.ts`/`.css`/`.json`. The script exists;
-  no `bun run` entry is wired — ADR 0016 records "the script is the gate
-  of record; the `bun run` entry is not yet wired". Owner ruling
-  2026-10-10: wire it.
-
-  **Scope:**
-
-  1. Add `"check:portability": "bun run scripts/corpus-portability-check.ts"`
-     to `package.json` — the script's own usage line already documents
-     that invocation; nothing else in the file changes.
-  2. Fix the script's stale header comment: it says the runtime seam
-     lives at `server/runtimes/` — post-move it is `tests/runtimes/`.
-     One line, comment only.
-  3. Run the wired entry and report the result. The check discovers
-     runtimes on PATH; if fewer than two are found, report whether it
-     skips or fails — that behavior is the script's own and is not this
-     task's to change.
 
 - [ ] TC-015: Diagnostic report views — JSON and SARIF (ADR 0022 s4)
   **Area:** compiler

@@ -1,66 +1,59 @@
-# Iteration 2 — Pin the hand-copied rules, deduplicate the emitters and setup
+# Iteration 3 — Template emission begins: the operation layer and the dump target
 
-Planned 2026-10-10, from the architecture review's third concentration:
-hand-copied rules that must never drift — between passes (the
-watch-attribute dispatch, the selector adapters, the form-control tag
-table), between emitter sites inside `emit-server.ts`, and between
-setup-extraction's twin loops. Iteration 1 restored the gates that prove
-every one of these tasks behavior-neutral (the corpus gate, the goldens)
-and stabilized the analysis tree they touch (the import cycles, the
-effects split) — which is why the dedup runs now: every task in this
-iteration is byte-identical output by goldens.
+Planned 2026-10-11 with the owner. Template emission is the v3.0 requirement on
+pioneer 2's critical path (ADR 0012 s3), and iteration 2 deduplicated the emitters
+it builds on (`emit-server.ts`'s shared helpers, the pinned dispatch and adapter
+rules). The iteration builds ADR 0021's shared walk and proves it against SSG
+through the test-only dump target, with no public surface yet. Twig (TC-022) and
+its PHP CI job (TC-023) follow in iteration 4. Two small tracks ride along: the
+contributor half of CI (TC-025), which TC-023 needs, and two gate-hygiene fixes.
 
-**Next free task ID:** TC-059
+**Next free task ID:** TC-064
 
-**Reserved diagnostic codes:** LTC057, LTC058 and LTC090 are TC-021's (template
-emission's shared walk); the next free code after those is LTC091.
+**Reserved diagnostic codes:** LTC057 and LTC058 are TC-021's; LTC090 is
+TC-059's. The next free code after those is LTC091.
 
 **Rulings.**
 
-- 2026-10-11 — Adopted the Le Truc queue's remaining compiler tasks to this
-  repository's backlog (owner request): 38 entries, TC-021–TC-058, adapted from the
-  source tickets the split's planning had earmarked for this tracker (the setup-const
-  cluster, the estree-walk and client-stmt hardenings, the emission chain, the
-  boundary parity, and the backlog bands). None is chained — iteration-3 planning
-  still waits per the standing instruction. Placement calls and conflicts are
-  escalated to the owner with the adoption report; the parked entries (TC-051,
-  TC-052, TC-053, TC-054, TC-055, TC-056, TC-057, TC-058) refine to `open` only
-  through the Architect and the owner.
-
-**Rulings.**
-
-- 2026-10-10 — Iteration scope set with the owner: the emission track
-  (TC-006 → TC-007) and the setup dedup (TC-008) form the core; TC-009
-  (the `planHarvests` carve) is sequenced behind TC-006 as a hard
-  prerequisite — its selector-adapter closures dissolve into TC-006's
-  helper rather than becoming promoted functions — and TC-012 (the demo
-  corpus type-check) rides along as a small independent track, added by
-  the owner. Design work stays outside the chain: the TC-003 remainder
-  (the 0024 port, the citation sweep, the REQUIREMENTS rework), the
-  css-scope/sim review (TC-010), and TC-011 until the owner rules its
-  shape.
-- 2026-10-10 — Chain positions are first-mention: only a track's
-  pick-order list names positions, and a prose citation of another chain
-  task is not one — prerequisites ride the task's `needs:`. (Track 3's
-  citation of TC-006 parsed as a second position and ghosted the board.)
+- 2026-10-11: TC-021 is split into four serial tasks (owner). TC-021 is the
+  operation layer, the portable-subset walk, the census routing and the dump
+  target. TC-059 is the boundary, TC-060 reactive lists, TC-061 children
+  capture. They form one track, not three parallel ones: each extends the same
+  walk and the same dump interpreter, and parallel branches would conflict.
+  TC-022 needs all four.
+- 2026-10-11: The template target stays internal this iteration (owner). It is
+  an optional internal options argument on `compileCorpusFiles`, not a
+  `CorpusConfig` field, so `check:contract` stays unchanged. The public field
+  and the partial output layout are decided with TC-022.
+- 2026-10-11: TC-025 covers the contributor's half only: the workflows, the
+  publish workflow with a dry run, the README lockstep note and the prepared
+  required-check list. Branch protection, the npm secret and the first publish
+  stay owner acts. CI running `check:demo` on every push answers half of
+  TC-012's carried obligation (the ledger's iteration-2 note). Whether
+  `AGENTS.md` cites it stays open with the owner.
+- 2026-10-11, TC-021 review (owner): The sibling template walk is accepted as a
+  tested, temporary gap. TC-062 (design, after TC-061) designs merging
+  `emit-server.ts` into the walk. TC-063 (design) rules on optional chaining
+  in the subset and on the URL context's allowlist. TC-022 needs both, so
+  neither blocks Track 1. Each of TC-059–TC-061 keeps the dump byte
+  comparison exhaustive over the constructs it adds.
+- 2026-10-10 (carried): Chain positions are first-mention. Only a track's
+  pick-order list names positions. A prose citation of another chain task is
+  not one, and prerequisites ride the task's `needs:`.
 
 **The chain.**
 
-- **Track 1 — Pin the hand-copied rules.** The watch-attribute dispatch
-  rule, the selector-adapter closures and the form-control tag table
-  exist as hand-copied copies nothing enforces against drift; one body
-  each, every call site pointing at it. In pick order:
-  1. TC-006 — Pin the hand-copied emission rules (dispatch, adapters, vocabulary)
-  2. TC-007 — Deduplicate emit-server.ts and route serverTestExpr through initialFold
-- **Track 2 — Straighten setup extraction.** The component loop and the
-  item loop classify the same grammar through five copy-pasted
-  fragments:
-  1. TC-008 — Unify setup-extraction's twin loops
-- **Track 3 — Carve the largest function.** `planHarvests` is one
-  ~877-line function of twelve closures — modules without interfaces;
-  sequenced behind Track 1, whose lead task's helper dissolves the
-  selector-adapter closures first:
-  1. TC-009 — Carve planHarvests into named stages
-- **Track 4 — Demo corpus hygiene.** The board's corpus gets the type
-  gate the examples corpus already has:
-  1. TC-012 — Type-check the demo corpus
+- **Track 1 — Template emission: the shared walk.** ADR 0021's operation layer
+  and portable-subset walk, proven byte-identical to SSG through the dump
+  target. Then each construct that needs its own operation semantics, in pick
+  order:
+  1. TC-021 — The operation layer, the portable-subset walk, the census routing and the dump target
+  2. TC-059 — The boundary operation, the boundary fixture, LTC090
+  3. TC-060 — Reactive lists and nested loop sources
+  4. TC-061 — Children capture and the `owner` arg
+- **Track 2 — CI.** Nothing enforces the gates on a push yet. TC-023's PHP job
+  lands on this workflow next iteration:
+  1. TC-025 — CI workflows, publish dry run, lockstep note
+- **Track 3 — Gate hygiene.** Two small tooling fixes, both on the fast track:
+  1. TC-013 — check:corpus refuses a root le-truc.config.json
+  2. TC-014 — Wire check:portability

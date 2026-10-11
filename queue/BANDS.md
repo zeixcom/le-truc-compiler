@@ -8,7 +8,10 @@ stays here until the Architect and the owner refine it back to `open`.
 ## P1 — committed next
 
 The v3.0 emission track: template emission against the ruled target-emitter
-interface (TC-021 → TC-022 → TC-023, ADR 0021).
+interface (ADR 0021). The shared walk (TC-021 → TC-059/TC-060/TC-061) runs in
+iteration 3. Two design sessions come before Twig: TC-062 (SSG as a backend of the
+walk) and TC-063 (optional chaining, the URL context). The Twig target (TC-022)
+and its PHP CI job (TC-023, after TC-025) follow.
 
 ## P2 — soon
 
