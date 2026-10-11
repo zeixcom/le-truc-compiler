@@ -1,4 +1,5 @@
 import { sanitizeHtml as librarySanitizeHtml } from '@zeix/le-truc'
+import { changedClientForms } from './icu/client-record'
 import { bakeMessageEnv, type Message, type MessageEnv } from './icu/evaluate'
 
 /* === Re-exports === */
@@ -410,39 +411,23 @@ export const entries = <T>(
 
 export { composeHostAttrs } from './compose-attrs'
 
-/** JSON with object keys sorted, so two equal values serialize equal. */
-const canonicalJson = (value: unknown): string =>
-	JSON.stringify(value, (_key, v: unknown) =>
-		v && typeof v === 'object' && !Array.isArray(v)
-			? Object.fromEntries(
-					Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
-				)
-			: v,
-	)
-
 const pickClientMessages = (
 	t: Readonly<Record<string, unknown>>,
 	keys: readonly string[],
 	source: Readonly<Record<string, unknown>>,
 ): Record<string, string | Message> => {
-	const picked: Record<string, string | Message> = {}
+	const forms: Record<string, string | Message | undefined> = {}
 	for (const key of keys) {
 		const value = t[key]
-		let form: string | Message | undefined
-		if (typeof value === 'string') form = value
+		if (typeof value === 'string') forms[key] = value
 		else if (typeof value === 'function') {
 			const tagged = (value as { [CLIENT_MESSAGE]?: ClientMessageSource })[
 				CLIENT_MESSAGE
 			]
-			if (tagged) form = bakeMessageEnv(tagged.message, tagged.env)
+			if (tagged) forms[key] = bakeMessageEnv(tagged.message, tagged.env)
 		}
-		if (
-			form !== undefined &&
-			canonicalJson(form) !== canonicalJson(source[key])
-		)
-			picked[key] = form
 	}
-	return picked
+	return changedClientForms(forms, keys, source)
 }
 
 export const clientMessages = (

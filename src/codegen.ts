@@ -60,8 +60,9 @@ export const dataArmsSelector = (armSet: string | number): string =>
 
 /* === Classes === */
 
-export class HtmlWriter {
-	readonly #parts: TemplatePart[] = []
+/** One markup push: static text plus expressions of type `E` — generated code for the SSG emitter, emission operations for a template target. */
+export class HtmlWriter<E = string> {
+	readonly #parts: Array<{ static: string } | { expr: E }> = []
 
 	static(markup: string): this {
 		const last = this.#parts.at(-1)
@@ -82,20 +83,25 @@ export class HtmlWriter {
 		return this.static(escapeAttrValue(value))
 	}
 
-	/** A code expression whose value is markup. */
-	expr(expr: string): this {
+	/** An expression whose value is markup. */
+	expr(expr: E): this {
 		this.#parts.push({ expr })
 		return this
 	}
 
-	/** The code expressions, in order. */
-	get exprs(): string[] {
+	/** The expressions, in order. */
+	get exprs(): E[] {
 		return this.#parts.flatMap(p => ('expr' in p ? [p.expr] : []))
 	}
 
-	/** The JS expression for this markup. */
+	/** Static text and expressions, in order. */
+	get parts(): ReadonlyArray<{ static: string } | { expr: E }> {
+		return this.#parts
+	}
+
+	/** The JS expression for this markup; meaningful only when `E` is code. */
 	toString(): string {
-		return jsTemplate(this.#parts)
+		return jsTemplate(this.#parts as TemplatePart[])
 	}
 }
 

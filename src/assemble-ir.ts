@@ -144,6 +144,8 @@ const paramPropsOf = (
 						: annotation,
 				)
 			: 'unknown'
+		const pattern = value.type === 'AssignmentPattern' ? value.left : value
+		const binding = identifierName(pattern)
 		props.push({
 			name,
 			typeText: annotationText,
@@ -151,6 +153,10 @@ const paramPropsOf = (
 			hasDefault: value.type === 'AssignmentPattern',
 			isString: annotation ? typeOfAnnotation(annotation) === 'string' : false,
 			isNumber: annotation ? typeOfAnnotation(annotation) === 'number' : false,
+			...(binding !== null && binding !== name ? { binding } : {}),
+			...(value.type === 'AssignmentPattern' && isNode(value.right)
+				? { defaultValue: value.right }
+				: {}),
 		})
 	}
 	return props

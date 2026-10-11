@@ -40,6 +40,8 @@ import { collectComposeElements } from './walk'
 
 export type CompiledComponent = {
 	entry: InternalRegistryEntry
+	/** The component IR the artifacts were emitted from. */
+	ir: ComponentIR
 	/** Generated server render module source. */
 	serverCode: string
 	/** Generated client `defineComponent` module source. */
@@ -232,6 +234,7 @@ export const compileFromIR = (
 						]
 					: [],
 			},
+			ir: component,
 			serverCode: server.code,
 			clientCode: client.code,
 			// The scoped emission is reachable only with no error diagnostics — the early return above dropped any file whose sheet failed LTC064 or the authored-form checks — so the surgery inputs are known-good. `sheetText` is the raw text `sheet`'s locs resolve against; `css` (dedented) stays on the IR as the authored form LTC051 compares.
